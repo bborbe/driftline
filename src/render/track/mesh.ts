@@ -1,12 +1,16 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
 import { gateLine, poses, type Track } from '../../track/schema'
-import { buildApron, buildTrack, TRACK_WIDTH, type SegmentGeometry } from './geometry'
+import { buildApron, buildTrack, PROFILE, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
 
-// Matched to the Kenney road pieces so procedural and glb segments read as one road.
-const ROAD = new THREE.Color(0x9e9b96)
-const CURB_A = new THREE.Color(0xf2f2ee)
-const CURB_B = new THREE.Color(0xc9c8c3)
+// The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
+// segments and glb pieces read as one road.
+const linear = (r: number, g: number, b: number) => new THREE.Color().setRGB(r, g, b, THREE.LinearSRGBColorSpace)
+const BAND: Record<Band, THREE.Color> = {
+  road: linear(0.267, 0.267, 0.267),
+  curb: linear(0.945, 0.949, 0.965),
+  grass: linear(0.302, 0.561, 0.431),
+}
 
 const roadMaterial = new THREE.MeshPhysicalMaterial({
   vertexColors: true,
@@ -18,8 +22,8 @@ const roadMaterial = new THREE.MeshPhysicalMaterial({
   shadowSide: THREE.BackSide, // a double-sided caster would otherwise shadow itself (acne)
 })
 
-/** Sloped verge around banked turns: grass-green, matched to the ground. */
-const vergeMaterial = new THREE.MeshStandardMaterial({ color: 0x5e9a48, roughness: 0.9, side: THREE.DoubleSide })
+/** Banked-turn verge: grass apron on the inside, grey (Kenney wall) skirt on the outside. */
+const vergeMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide })
 
 const toBufferGeometry = (g: SegmentGeometry): THREE.BufferGeometry => {
   const geo = new THREE.BufferGeometry()
@@ -27,12 +31,7 @@ const toBufferGeometry = (g: SegmentGeometry): THREE.BufferGeometry => {
   geo.setIndex(new THREE.BufferAttribute(g.indices, 1))
   const colors = new Float32Array(g.positions.length)
   for (let r = 0; r < g.rows; r++) {
-    // Curb stripes alternate every two rows (~3 m).
-    const curb = Math.floor(r / 2) % 2 === 0 ? CURB_A : CURB_B
-    for (let c = 0; c < g.perRow; c++) {
-      const isCurbTop = c >= g.perRow - 2
-      ;(isCurbTop ? curb : ROAD).toArray(colors, (r * g.perRow + c) * 3)
-    }
+    for (let c = 0; c < g.perRow; c++) BAND[PROFILE[c][2]].toArray(colors, (r * g.perRow + c) * 3)
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   geo.computeVertexNormals()
@@ -74,6 +73,12 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
       const geo = new THREE.BufferGeometry()
       geo.setAttribute('position', new THREE.BufferAttribute(apron.positions, 3))
       geo.setIndex(new THREE.BufferAttribute(apron.indices, 1))
+      const colors = new Float32Array(apron.positions.length)
+      for (let r = 0; r < apron.rows; r++) {
+        // inner edge, apron rim: grass; outer edge, skirt foot: curb grey
+        ;[BAND.grass, BAND.grass, BAND.curb, BAND.curb].forEach((col, k) => col.toArray(colors, (r * apron.perRow + k) * 3))
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
       geo.computeVertexNormals()
       const verge = new THREE.Mesh(geo, vergeMaterial)
       verge.receiveShadow = true
