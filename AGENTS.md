@@ -4,12 +4,13 @@ Instructions for coding agents working on driftline. Read `VISION.md` first.
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `npm install` | Install dependencies |
-| `npm run dev` | Start the Vite dev server (open the printed URL; `?renderer=webgl2` forces the WebGL2 fallback) |
-| `npm test` | Run all unit tests (vitest) — must be green before every commit |
-| `npm run build` | Typecheck (`tsc`) and production build |
+Use the Makefile targets; each installs dependencies first when `node_modules` is missing or stale.
+
+| Command | Wraps | What it does |
+|---|---|---|
+| `make run` | `npm run dev` | Start the Vite dev server (open the printed URL; `?renderer=webgl2` forces the WebGL2 fallback) |
+| `make test` | `npm test` | Run all unit tests (vitest) — must be green before every commit |
+| `make build` | `npm run build` | Typecheck (`tsc`) and production build |
 
 ## Layout
 
