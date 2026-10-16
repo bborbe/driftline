@@ -51,6 +51,25 @@ describe('RaceStore leaderboard', () => {
   })
 })
 
+describe('RaceStore per track', () => {
+  it('keeps lap2 best and board apart from lap1, which keeps its original keys', () => {
+    const mem = memory()
+    mem.data.set('driftline-best', '30000') // a lap1 best saved before tracks were keyed
+    const lap1 = new RaceStore(mem, 'lap1')
+    const lap2 = new RaceStore(mem, 'lap2')
+    expect(lap1.best()).toBe(30000)
+    expect(lap2.best()).toBeNull()
+    expect(lap2.recordLap(50000)).toBe(true)
+    lap2.addToLeaderboard('ben', 50000)
+    expect(mem.data.get('driftline-best')).toBe('30000')
+    expect(new RaceStore(mem, 'lap1').best()).toBe(30000)
+    expect(new RaceStore(mem, 'lap1').leaderboard()).toEqual([])
+    expect(new RaceStore(mem, 'lap2').best()).toBe(50000)
+    expect(new RaceStore(mem, 'lap2').leaderboard()).toEqual([{ name: 'BEN', lapTimeMs: 50000 }])
+    expect(new RaceStore(mem).best()).toBe(30000) // default is lap1
+  })
+})
+
 describe('formatLapTime', () => {
   it('formats m:ss.mmm', () => expect(formatLapTime(83456)).toBe('1:23.456'))
 })

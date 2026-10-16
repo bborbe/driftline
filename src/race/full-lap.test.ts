@@ -1,4 +1,4 @@
-// End-to-end: a simple pure-pursuit autopilot drives lap1 through the real physics and the
+// End-to-end: a simple pure-pursuit autopilot drives each shipped lap through the real physics and the
 // real lap loop, start to finish. Proves the shipped track is completable as a lap.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
@@ -6,7 +6,14 @@ import { dot, FixedStepper, forwardOf, NO_INPUT, TICK_HZ, trackSurface, type Car
 import { exitPose, poses, type Pose, type Segment, type Track } from '../track/schema'
 import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
 
-const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/lap1.json', import.meta.url), 'utf8')) as Track
+const load = (name: string) =>
+  JSON.parse(readFileSync(new URL(`../../assets/track/${name}.json`, import.meta.url), 'utf8')) as Track
+
+// Lap-time window per track (ms): lap1 is the short opener, lap2 the longer ~45-60 s lap.
+const CASES = [
+  { track: load('lap1'), minMs: 10_000, maxMs: 90_000 },
+  { track: load('lap2'), minMs: 45_000, maxMs: 60_000 },
+]
 
 interface Sample {
   pose: Pose
@@ -81,11 +88,11 @@ function autopilot(samples: Sample[]) {
   }
 }
 
-describe('lap1 end to end', () => {
-  it('an autopilot completes a full lap: Begin, countdown, both checkpoints in order, finish', () => {
-    const loop = new LapLoop(lap1, () => true)
-    const sim = new FixedStepper(loop.spawn(), trackSurface(lap1))
-    const drive = autopilot(centreline(lap1))
+describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
+  it('an autopilot completes a full lap: Begin, countdown, every checkpoint in order, finish, no respawn', () => {
+    const loop = new LapLoop(track, () => true)
+    const sim = new FixedStepper(loop.spawn(), trackSurface(track))
+    const drive = autopilot(centreline(track))
     const events: string[] = []
     let lapTime = 0
     loop.on({
@@ -102,7 +109,8 @@ describe('lap1 end to end', () => {
       const raw = loop.phase === 'racing' ? drive(sim.state) : NO_INPUT
       advanceRace(loop, sim, 1 / TICK_HZ, raw)
     }
-    expect(events).toEqual(['start', 'cp1', 'cp2', 'finish'])
+    const cps = track.gates.filter((g) => g.kind === 'checkpoint').map((_, i) => `cp${i + 1}`)
+    expect(events).toEqual(['start', ...cps, 'finish'])
 
     // Behind the finish panel the car stays exactly where it crossed the line, with input held.
     const atFinish = sim.state
@@ -110,8 +118,8 @@ describe('lap1 end to end', () => {
     for (let i = 0; i < 3 * TICK_HZ; i++) advanceRace(loop, sim, 1 / TICK_HZ, { ...NO_INPUT, throttle: 1, steer: 1 })
     expect(sim.state.position).toEqual(atFinish.position)
     expect(loop.phase).toBe('finished')
-    expect(lapTime).toBeGreaterThan(10_000)
-    expect(lapTime).toBeLessThan(90_000)
-    console.log(`lap1 autopilot lap time: ${(lapTime / 1000).toFixed(2)} s`)
+    expect(lapTime).toBeGreaterThan(minMs)
+    expect(lapTime).toBeLessThan(maxMs)
+    console.log(`${track.name} autopilot lap time: ${(lapTime / 1000).toFixed(2)} s`)
   })
 })
