@@ -1,9 +1,10 @@
 // Raycast-wheel car on a drivable Surface (default: flat y = 0 plane), stepped at a fixed 100 Hz.
 // Pure and deterministic: no three.js, no clocks, no randomness.
 import {
-  add, cross, dot, integrateQuat, length, normalize, quatIdentity, rotate, scale, sub, v3,
+  add, cross, dot, integrateQuat, length, normalize, quatIdentity, quatNormalize, rotate, scale, sub, v3,
   type Quat, type Vec3,
 } from './vec'
+import type { Pillar } from '../track/schema'
 import { FLAT, type RayHit, type Surface } from './surface'
 
 export const TICK_HZ = 100
@@ -109,6 +110,81 @@ const angularAccel = (q: Quat, torque: Vec3): Vec3 => {
   return rotate(q, v3(local.x / INERTIA.x, local.y / INERTIA.y, local.z / INERTIA.z))
 }
 
+// Body footprint against obstacles: a capsule along the car's forward axis (segment ±BODY_REACH,
+// radius BODY_RADIUS), matching the ~1.8 x 4.2 m body. At MAX_SPEED the car moves 0.4 m a tick,
+// well under the thinnest pillar plus the radius, so it cannot tunnel through.
+const BODY_RADIUS = 0.9
+const BODY_REACH = 1.2
+const BODY_SAMPLES = 7
+// Fraction of the into-wall speed kept as a bounce, and of the along-wall speed kept as a scrape.
+const WALL_BOUNCE = 0.2
+const WALL_SCRAPE = 0.7
+
+type Moved = { position: Vec3; velocity: Vec3 }
+
+// Push the body out of every pillar it overlaps (in the horizontal plane) and kill its speed
+// into the pillar: a wall hit, Trackmania-style.
+const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly Pillar[] | undefined): Moved => {
+  if (!obstacles || obstacles.length === 0) return { position, velocity }
+  const flat = Math.hypot(fwd.x, fwd.z)
+  const fx = flat > 1e-6 ? fwd.x / flat : 0
+  const fz = flat > 1e-6 ? fwd.z / flat : 1
+  let pos = position
+  let vel = velocity
+  for (const o of obstacles) {
+    if (pos.y < o.y - 1 || pos.y > o.y + o.height) continue
+    const reach = o.halfWidth + o.halfDepth + BODY_REACH + BODY_RADIUS
+    if (Math.abs(pos.x - o.x) > reach || Math.abs(pos.z - o.z) > reach) continue
+    // Deepest overlap among points along the body axis, in the pillar's frame (u along, w across).
+    const ou = { x: Math.sin(o.heading), z: Math.cos(o.heading) }
+    let best: { depth: number; nx: number; nz: number } | null = null
+    for (let i = 0; i < BODY_SAMPLES; i++) {
+      const t = (2 * i) / (BODY_SAMPLES - 1) - 1
+      const px = pos.x + fx * BODY_REACH * t - o.x
+      const pz = pos.z + fz * BODY_REACH * t - o.z
+      const u = px * ou.x + pz * ou.z
+      const w = px * ou.z - pz * ou.x
+      const cu = clamp(u, -o.halfDepth, o.halfDepth)
+      const cw = clamp(w, -o.halfWidth, o.halfWidth)
+      let du = u - cu
+      let dw = w - cw
+      let d = Math.hypot(du, dw)
+      let depth: number
+      if (d > 1e-9) {
+        depth = BODY_RADIUS - d
+        du /= d
+        dw /= d
+      } else {
+        // Sample point inside the box: leave by the nearest face.
+        const eu = o.halfDepth - Math.abs(u)
+        const ew = o.halfWidth - Math.abs(w)
+        if (eu < ew) {
+          du = Math.sign(u) || 1
+          dw = 0
+          d = eu
+        } else {
+          du = 0
+          dw = Math.sign(w) || 1
+          d = ew
+        }
+        depth = BODY_RADIUS + d
+      }
+      if (depth > 0 && (!best || depth > best.depth)) {
+        best = { depth, nx: du * ou.x + dw * ou.z, nz: du * ou.z - dw * ou.x }
+      }
+    }
+    if (!best) continue
+    pos = v3(pos.x + best.nx * best.depth, pos.y, pos.z + best.nz * best.depth)
+    const vn = vel.x * best.nx + vel.z * best.nz
+    if (vn < 0) {
+      const tx = vel.x - vn * best.nx
+      const tz = vel.z - vn * best.nz
+      vel = v3(tx * WALL_SCRAPE - WALL_BOUNCE * vn * best.nx, vel.y, tz * WALL_SCRAPE - WALL_BOUNCE * vn * best.nz)
+    }
+  }
+  return { position: pos, velocity: vel }
+}
+
 export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): CarState => {
   const steerTarget = clamp(input.steer, -1, 1) * MAX_STEER * (1 - 0.5 * clamp(length(s.velocity) / MAX_SPEED, 0, 1))
   const steerDelta = clamp(steerTarget - s.steerAngle, -STEER_RATE * DT, STEER_RATE * DT)
@@ -198,10 +274,10 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   const velocity = add(s.velocity, scale(force, DT / MASS))
   const angAcc = angularAccel(s.orientation, torque)
   const angularVelocity = scale(add(s.angularVelocity, scale(angAcc, DT)), 0.999)
-  const position = add(s.position, scale(velocity, DT))
   const orientation = integrateQuat(s.orientation, angularVelocity, DT)
+  const moved = collide(add(s.position, scale(velocity, DT)), velocity, fwdBody, surface.obstacles)
 
-  return { position, velocity, orientation, angularVelocity, steerAngle, tick: s.tick + 1 }
+  return { ...moved, orientation, angularVelocity, steerAngle, tick: s.tick + 1 }
 }
 
 // Angle between heading and velocity on the ground plane, in degrees.
@@ -230,12 +306,47 @@ export class FixedStepper {
     this.accumulator += Math.min(elapsedSeconds, 0.25)
     let ticks = 0
     while (this.accumulator >= DT) {
+      this.previous = this.state
       this.state = step(this.state, input, this.surface)
+      this.stepped = this.state
       this.accumulator -= DT
       ticks++
     }
     return ticks
   }
+
+  // State to draw: blended between the last two ticks by the leftover accumulator, so a
+  // display rate that is not a multiple of 100 Hz moves the car evenly every frame.
+  // Snaps to `state` when it was replaced outside advance() (spawn, respawn, restart).
+  render(): CarState {
+    if (this.previous === undefined || this.stepped !== this.state) return this.state
+    return interpolate(this.previous, this.state, this.alpha)
+  }
+
+  // Fraction of a tick left in the accumulator, 0..1.
+  get alpha(): number {
+    return this.accumulator / DT
+  }
+
+  private previous: CarState | undefined
+  private stepped: CarState | undefined
+}
+
+export const interpolate = (a: CarState, b: CarState, t: number): CarState => ({
+  ...b,
+  position: add(a.position, scale(sub(b.position, a.position), t)),
+  orientation: nlerp(a.orientation, b.orientation, t),
+  steerAngle: a.steerAngle + (b.steerAngle - a.steerAngle) * t,
+})
+
+const nlerp = (a: Quat, b: Quat, t: number): Quat => {
+  const sign = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w < 0 ? -1 : 1
+  return quatNormalize({
+    x: a.x + (sign * b.x - a.x) * t,
+    y: a.y + (sign * b.y - a.y) * t,
+    z: a.z + (sign * b.z - a.z) * t,
+    w: a.w + (sign * b.w - a.w) * t,
+  })
 }
 
 // Number of wheels whose suspension ray reaches the surface (0 = airborne).

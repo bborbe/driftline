@@ -85,6 +85,40 @@ export function gateLine(track: Track, gate: Gate): Pose {
 }
 
 /**
+ * Gate pillar footprint, measured from the Kenney start/checkpoint models (assets/pieces):
+ * each pillar spans 5.17–6.30 m either side of the centreline and 1.9 m along the track.
+ */
+export const GATE_PILLAR = { offset: 5.735, halfWidth: 0.565, halfDepth: 0.95, height: 6.7 } as const
+
+/** A solid gate pillar: an upright box centred on (x, z), standing on y, rotated by heading. */
+export interface Pillar extends Pose {
+  halfWidth: number
+  halfDepth: number
+  height: number
+}
+
+/**
+ * Both pillars of a gate — the single source for the pillar colliders (src/physics) and the
+ * procedural arch (src/render). A start/finish arch stands on its gate line; a checkpoint
+ * model's pillars start at the segment's entry edge, so they centre halfDepth past it.
+ */
+export function gatePillars(track: Track, gate: Gate): Pillar[] {
+  const line = gateLine(track, gate)
+  const along = gate.kind === 'checkpoint' ? GATE_PILLAR.halfDepth : 0
+  const fx = Math.sin(line.heading)
+  const fz = Math.cos(line.heading)
+  return [-1, 1].map((side) => ({
+    x: line.x + fx * along + fz * side * GATE_PILLAR.offset,
+    y: line.y,
+    z: line.z + fz * along - fx * side * GATE_PILLAR.offset,
+    heading: line.heading,
+    halfWidth: GATE_PILLAR.halfWidth,
+    halfDepth: GATE_PILLAR.halfDepth,
+    height: GATE_PILLAR.height,
+  }))
+}
+
+/**
  * Short stable id of a track's layout (start, segments, gates; not its name). Changes whenever
  * the geometry or gates change, so per-layout records start fresh after a redesign. FNV-1a, 8 hex.
  */

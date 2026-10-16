@@ -1,6 +1,6 @@
 // Drivable surfaces for the wheel raycasts. Pure and deterministic: no three.js,
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
-import { CELL, poses, type Pose, type Segment, type Track } from '../track/schema'
+import { CELL, gatePillars, poses, type Pillar, type Pose, type Segment, type Track } from '../track/schema'
 import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
 import { normalize, v3, type Vec3 } from './vec'
 
@@ -12,6 +12,8 @@ export type RayHit = {
 export interface Surface {
   // Ray from `origin` along unit `dir`; null when nothing is hit within `maxDistance`.
   raycast(origin: Vec3, dir: Vec3, maxDistance: number): RayHit | null
+  // Solid upright boxes the car body collides with (gate pillars); none when omitted.
+  obstacles?: readonly Pillar[]
 }
 
 // Driving width of every track piece; pieces sit on a CELL grid.
@@ -126,6 +128,7 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
   }
 
   return {
+    obstacles: track.gates.filter((g) => g.segment < track.segments.length).flatMap((g) => gatePillars(track, g)),
     raycast(origin, dir, maxDistance) {
       if (dir.y >= -1e-6) return null
       const maxY = origin.y + ABOVE
