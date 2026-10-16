@@ -157,7 +157,7 @@ function follow(start: CarState, samples: Sample[], target: Pose, surface: Surfa
   return { ticks: Infinity, grass }
 }
 
-describe.each(['test1', 'test2'])('%s skilled grass lines', (name) => {
+describe.each(['test1', 'test2', 'crossover', 'tower'])('%s skilled grass lines', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -233,3 +233,68 @@ describe.each(Object.keys(SKILLED))('%s skilled lines', (name) => {
   })
 })
 
+// Multi-level tracks add one cut class flat tracks lack: dropping off a deck onto the ground below
+// and driving straight at the next gate. From every point where the road line is up on a deck,
+// leave it to either side at full throttle and head for the next gate. A run that lands on the
+// ground (GRASS_SHARE of its ticks off-road) is a drop; one that stays on the road is a faster road
+// line and only raises the bar, as in the straight-cut test above. No drop may beat that bar.
+const DECK_HEIGHT = 4 // m: road-line states above this count as on a deck
+const DROP_STEP = 40 // ticks between drop-off points along the road line
+const DROP_OUT = [6, 12, 20] // m sideways from the car where the run aims first
+
+// cut() with a sideways first aim point; counts the ticks spent on the ground.
+function dropRun(start: CarState, approach: Point, target: Pose, surface: Surface, limit: number): Run {
+  const beyond = { x: target.x + 10 * Math.sin(target.heading), z: target.z + 10 * Math.cos(target.heading) }
+  let aim = approach
+  let s = start
+  let grass = 0
+  for (let t = 1; t <= limit; t++) {
+    if (Math.hypot(aim.x - s.position.x, aim.z - s.position.z) < 4) aim = beyond
+    const f = forwardOf(s)
+    const angle = Math.atan2(f.x * (aim.z - s.position.z) - f.z * (aim.x - s.position.x), f.x * (aim.x - s.position.x) + f.z * (aim.z - s.position.z))
+    const next = step(s, { throttle: 1, brake: 0, steer: Math.max(-1, Math.min(1, 2.5 * angle)), handbrake: false }, surface)
+    if (materialUnder(next, surface) === 'offroad') grass++
+    if (crosses(target, s.position, next.position)) return { ticks: t, grass }
+    s = next
+  }
+  return { ticks: Infinity, grass }
+}
+
+describe.each(['crossover', 'tower'])('%s deck drop-offs', (name) => {
+  const track = loadTrack(name)
+  const surface = trackSurface(track)
+  const road = roadRun(track)
+  const sf = track.gates.find((g) => g.kind === 'start-finish')!
+  const gates = [...track.gates.filter((g) => g.kind === 'checkpoint').map((g) => gateLine(track, g)), gateLine(track, sf)]
+  // Tick at which the road line crosses each gate, in lap order.
+  const at: number[] = []
+  for (const g of gates) at.push(crossingTick(road, g, (at[at.length - 1] ?? 0) + 1))
+  const points = road.flatMap((st, k) => (k % DROP_STEP === 0 && st.position.y > DECK_HEIGHT ? [k] : []))
+  let drops = 0 // runs that really left the deck, summed over the points below
+
+  it('the road line spends time up on a deck', () => {
+    expect(at.every((t) => t > 0)).toBe(true)
+    expect(points.length).toBeGreaterThan(5)
+  })
+
+  it.each(points)('dropping off the deck at tick %i never beats the road to the next gate', (k) => {
+    const next = at.findIndex((t) => t > k)
+    const f = forwardOf(road[k])
+    const flat = Math.hypot(f.x, f.z)
+    const runs = DROP_OUT.flatMap((out) =>
+      [-1, 1].map((side) => {
+        const approach = { x: road[k].position.x + (side * out * f.z) / flat, z: road[k].position.z - (side * out * f.x) / flat }
+        return { out: side * out, ...dropRun(road[k], approach, gates[next], surface, 2 * (at[next] - k)) }
+      }),
+    )
+    const fell = (r: Run) => r.grass >= GRASS_SHARE * Math.min(r.ticks, 2 * (at[next] - k))
+    drops += runs.filter(fell).length
+    const roadBest = Math.min(at[next] - k, ...runs.filter((r) => !fell(r)).map((r) => r.ticks))
+    const drop = runs.filter(fell).reduce((m, r) => (r.ticks < m.ticks ? r : m), { out: 0, ticks: Infinity, grass: 0 })
+    expect(drop.ticks, `${name} tick ${k}: drop ${drop.out} m reached gate ${next + 1} in ${drop.ticks} vs road ${roadBest}`).toBeGreaterThan(roadBest)
+  })
+  // Runs right before a gate cross its line before they land; the search as a whole must not be vacuous.
+  it('the search really drops off the deck', () => {
+    expect(drops).toBeGreaterThan(points.length)
+  })
+})
