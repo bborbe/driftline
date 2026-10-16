@@ -4,11 +4,13 @@
 // (shapes.ts), validation (validate.ts) and the layout id (layout-id.ts) live in their own modules
 // and are re-exported here, so every importer of the format keeps one entry point.
 import { ROAD_WIDTH } from './pose'
+import type { Theme } from './theme'
 
 export { exitPose, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, type Sample } from './pose'
 export { BARRIER, barrierPillars, barrierPosts, GATE_PILLAR, gateLine, gatePillars, padForward, zoneCorners, type Pillar } from './shapes'
 export { layoutId } from './layout-id'
 export { validate } from './validate'
+export { isColour, SKIES, validateTheme, type Sky, type Theme } from './theme'
 
 /** Grid cell size in metres: one road width. Every piece's footprint is a multiple of it. */
 export const CELL = ROAD_WIDTH
@@ -92,6 +94,8 @@ export interface Track {
   medals?: Medals
   zones?: Zone[]
   barriers?: Barrier[]
+  /** Optional per-track look (src/track/theme.ts). Render-only and not part of layoutId. */
+  theme?: Theme
 }
 
 /** Native length of a straight road tile (assets/track/pieces.json); straights are split into tiles of about this length. */
