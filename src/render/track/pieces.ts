@@ -48,6 +48,8 @@ const planSegment = (entry: Pose, seg: Segment, startLine: boolean): Placement[]
         scale: [1, 1, len / STRAIGHT_LENGTH] as [number, number, number],
       }))
     }
+    case 'gap':
+      return [] // nothing to draw: the jump is the absence of road
     case 'ramp':
     case 'drop':
       // Procedural: the Kenney ramp's curved profile matched neither the physics strip

@@ -22,10 +22,12 @@ export type Segment =
   | { type: 'ramp'; length: number; rise: number }
   | { type: 'drop'; length: number; fall: number }
   | { type: 'banked'; turn: Turn; radius: number; angle: 90 | 180; bank: number }
+  /** No road: a jump across `length` metres of air, landing `fall` metres lower (default 0). */
+  | { type: 'gap'; length: number; fall?: number }
 
 export type SegmentType = Segment['type']
 
-export const SEGMENT_TYPES: readonly SegmentType[] = ['straight', 'curve', 'hairpin', 'ramp', 'drop', 'banked']
+export const SEGMENT_TYPES: readonly SegmentType[] = ['straight', 'curve', 'hairpin', 'ramp', 'drop', 'banked', 'gap']
 
 export type GateKind = 'start-finish' | 'checkpoint'
 
@@ -88,6 +90,8 @@ export function exitPose(entry: Pose, seg: Segment): Pose {
       return advance(entry, seg.length, seg.rise)
     case 'drop':
       return advance(entry, seg.length, -seg.fall)
+    case 'gap':
+      return advance(entry, seg.length, -(seg.fall ?? 0))
     case 'curve':
       return arc(entry, seg.turn, seg.radius, (seg.angle * Math.PI) / 180)
     case 'hairpin':
@@ -235,6 +239,7 @@ export function validate(data: unknown): string[] {
     t.gates.forEach((g, i) => {
       if (g?.kind !== 'start-finish' && g?.kind !== 'checkpoint') errs.push(`gates[${i}]: unknown kind`)
       if (!Number.isInteger(g?.segment) || g.segment < 0 || g.segment >= n) errs.push(`gates[${i}]: segment out of range`)
+      else if ((t.segments as Segment[])[g.segment]?.type === 'gap') errs.push(`gates[${i}]: a gate cannot stand on a gap (no road)`)
     })
   }
   if (t.medals !== undefined) {
@@ -317,6 +322,10 @@ function segmentError(s: unknown): string | null {
       return pos(o.length) && pos(o.rise) ? null : 'length and rise must be > 0'
     case 'drop':
       return pos(o.length) && pos(o.fall) ? null : 'length and fall must be > 0'
+    case 'gap':
+      return pos(o.length) && (o.fall === undefined || (Number.isFinite(o.fall) && (o.fall as number) >= 0))
+        ? null
+        : 'length must be > 0, fall >= 0 when given'
     case 'curve':
       return turnOk && pos(o.radius) && (o.angle === 90 || o.angle === 45) ? null : 'needs turn, radius > 0, angle 45|90'
     case 'hairpin':

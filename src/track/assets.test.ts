@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { readGlb, type Gltf } from '../assets/glb'
 import { LapLoop } from '../race/lap'
 import { planPieces } from '../render/track/pieces'
-import { gateLine, poses, START_ARCH_FRACTION, TILE_LENGTH, validate, type Track } from './schema'
+import { centreline, partialPose, segmentLength } from './centreline'
+import { gateLine, poses, START_ARCH_FRACTION, TILE_LENGTH, validate, type Pose, type Track } from './schema'
 
 interface PieceSpec {
   cell: number
@@ -15,7 +16,9 @@ interface PieceSpec {
 const spec = JSON.parse(readFileSync('assets/track/pieces.json', 'utf8')) as PieceSpec
 const load = (name: string) => JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8')) as Track
 const lap = load('test1')
-const laps = [lap, load('test2')]
+const laps = [lap, load('test2'), load('crossover'), load('tower')]
+const flatLaps = laps.slice(0, 2)
+const multiLevel = laps.slice(2)
 
 function used(): Set<string> {
   const names = new Set<string>()
@@ -54,7 +57,7 @@ describe.each(laps)('$name.json', (lap) => {
     expect(validate(lap)).toEqual([])
   })
 
-  it('contains a hairpin, a ramp and a banked turn', () => {
+  it.runIf(flatLaps.includes(lap))('contains a hairpin, a ramp and a banked turn', () => {
     const types = new Set(lap.segments.map((s) => s.type))
     for (const t of ['hairpin', 'ramp', 'banked']) expect(types, t).toContain(t)
   })
@@ -94,6 +97,88 @@ describe('test2.json variety', () => {
   it('has at least 5 checkpoints and two sweeper complexes', () => {
     expect(lap2.gates.filter((g) => g.kind === 'checkpoint').length).toBeGreaterThanOrEqual(5)
     expect(lap2.segments.filter((s) => s.type === 'curve' && s.radius >= 30 && s.angle === 45).length).toBeGreaterThanOrEqual(4)
+  })
+})
+
+// Centreline samples every 2 m, tagged with their segment, for stacking checks.
+function samples(track: Track): (Pose & { seg: number })[] {
+  const entries = poses(track)
+  return track.segments.flatMap((seg, i) => {
+    const n = Math.max(1, Math.ceil(segmentLength(seg) / 2))
+    return Array.from({ length: n }, (_, k) => ({ ...partialPose(entries[i], seg, k / n), seg: i }))
+  })
+}
+
+/** Points where one part of the lap passes over another (xz within a road width, height apart). */
+function crossings(track: Track, minClear: number): { over: Pose; under: Pose }[] {
+  const pts = samples(track)
+  const n = track.segments.length
+  const out: { over: Pose; under: Pose }[] = []
+  for (const a of pts) {
+    for (const b of pts) {
+      const apart = Math.min(Math.abs(a.seg - b.seg), n - Math.abs(a.seg - b.seg))
+      if (apart > 1 && a.y - b.y >= minClear && Math.hypot(a.x - b.x, a.z - b.z) < 5) out.push({ over: a, under: b })
+    }
+  }
+  return out
+}
+
+describe.each(multiLevel)('$name.json multi-level', (lap) => {
+  it('passes over itself: a bridge at least 7 m above another part of the lap', () => {
+    expect(crossings(lap, 7).length).toBeGreaterThan(0)
+  })
+
+  it('never stacks two parts of the lap closer than 7 m (no road clipping through another)', () => {
+    const pts = samples(lap)
+    const n = lap.segments.length
+    for (const a of pts) {
+      for (const b of pts) {
+        const apart = Math.min(Math.abs(a.seg - b.seg), n - Math.abs(a.seg - b.seg))
+        if (apart > 1 && Math.hypot(a.x - b.x, a.z - b.z) < 10) expect(Math.abs(a.y - b.y), `seg ${a.seg} vs ${b.seg}`).toBeGreaterThanOrEqual(7)
+      }
+    }
+  })
+
+  it('climbs at least 8 m and comes back down', () => {
+    const ys = centreline(lap, 1).map((p) => p.y)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThanOrEqual(8)
+  })
+
+  it('keeps every gate clear of the crossing: no other road within 10 m of a gate line', () => {
+    const pts = samples(lap)
+    const n = lap.segments.length
+    lap.gates.forEach((g) => {
+      const line = gateLine(lap, g)
+      for (const p of pts) {
+        const apart = Math.min(Math.abs(p.seg - g.segment), n - Math.abs(p.seg - g.segment))
+        if (apart <= 1 || Math.abs(p.y - line.y) < 1) continue
+        expect(Math.hypot(p.x - line.x, p.z - line.z), `gate on seg ${g.segment} vs seg ${p.seg}`).toBeGreaterThanOrEqual(9.9)
+      }
+    })
+  })
+
+  // ~8 s at a human lap's ~23 m/s average; the design brief asks for one every 6-10 s.
+  it('has a checkpoint at least every 200 m of road', () => {
+    const along: number[] = []
+    let d = 0
+    lap.segments.forEach((seg, i) => {
+      if (lap.gates.some((g) => g.segment === i)) along.push(d)
+      d += segmentLength(seg)
+    })
+    along.push(d)
+    for (let i = 1; i < along.length; i++) expect(along[i] - along[i - 1]).toBeLessThanOrEqual(200)
+  })
+})
+
+describe('multi-level set pieces', () => {
+  it('crossover has a gap jump over air', () => {
+    expect(multiLevel[0].segments.some((s) => s.type === 'gap')).toBe(true)
+  })
+  it('tower has a steep banked 180 (≥ 0.5 rad, twice lap1/lap2) at height', () => {
+    const ps = poses(multiLevel[1])
+    const i = multiLevel[1].segments.findIndex((s) => s.type === 'banked' && s.angle === 180 && s.bank >= 0.5)
+    expect(i).toBeGreaterThanOrEqual(0)
+    expect(ps[i].y).toBeGreaterThanOrEqual(8)
   })
 })
 
