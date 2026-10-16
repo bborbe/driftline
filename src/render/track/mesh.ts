@@ -15,6 +15,7 @@ const roadMaterial = new THREE.MeshPhysicalMaterial({
   roughness: 0.55,
   metalness: 0,
   side: THREE.DoubleSide,
+  shadowSide: THREE.BackSide, // a double-sided caster would otherwise shadow itself (acne)
 })
 
 /** Sloped verge around banked turns: grass-green, matched to the ground. */

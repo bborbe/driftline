@@ -110,10 +110,24 @@ const MODEL_URLS = import.meta.glob('/assets/car-kit/{race,race-future}.glb', {
   import: 'default',
 }) as Record<string, () => Promise<string>>
 
+// Car Kit glbs reference their texture by a relative path (Textures/colormap.png). Vite
+// hashes the glb into dist/assets/ but does not emit that texture, so on the deployed site
+// the request 404s and the car renders white. Bundle it and redirect the loader to it.
+const COLORMAP_URL = Object.values(
+  import.meta.glob('/assets/car-kit/Textures/colormap.png', { query: '?url', import: 'default', eager: true }) as Record<string, string>,
+)[0]
+
+/** GLTF loader that resolves the Car Kit's relative texture path to the bundled file. */
+export const carKitLoader = (): GLTFLoader => {
+  const manager = new THREE.LoadingManager()
+  manager.setURLModifier((url) => (url.endsWith('Textures/colormap.png') ? COLORMAP_URL : url))
+  return new GLTFLoader(manager)
+}
+
 /** Load a Kenney Car Kit glb and fit it to the physics chassis by its wheel nodes. */
 const glbCar = (file: string) => async (): Promise<THREE.Object3D> => {
   const url = await MODEL_URLS[`/${file}`]()
-  const model = (await new GLTFLoader().loadAsync(url)).scene
+  const model = (await carKitLoader().loadAsync(url)).scene
   const nodes: WheelNode[] = Object.values(WHEEL_NODES).map((name) => {
     const n = model.getObjectByName(name)
     if (!n) throw new Error(`${file} has no wheel node "${name}"`)
