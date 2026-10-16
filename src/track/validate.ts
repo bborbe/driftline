@@ -1,5 +1,5 @@
 // Structural validation of untrusted track JSON.
-import { ZONE_KINDS, ZONE_SEGMENTS, type Medals, type Pose, type Segment, type Track } from './schema'
+import { ZONE_KINDS, zoneSegments, type Medals, type Pose, type Segment, type Track } from './schema'
 
 /** Structural validation of untrusted JSON. Returns a list of problems, empty when valid. */
 export function validate(data: unknown): string[] {
@@ -43,7 +43,9 @@ export function validate(data: unknown): string[] {
         if (!ZONE_KINDS.includes(z?.kind)) errs.push(`zones[${i}]: unknown kind`)
         const seg = Number.isInteger(z?.segment) ? segs[z.segment] : undefined
         if (!seg) errs.push(`zones[${i}]: segment out of range`)
-        else if (!ZONE_SEGMENTS.includes(seg.type)) errs.push(`zones[${i}]: zones lie on ${ZONE_SEGMENTS.join('|')} only`)
+        else if (ZONE_KINDS.includes(z?.kind) && !zoneSegments(z.kind).includes(seg.type)) {
+          errs.push(`zones[${i}]: ${z.kind} zones lie on ${zoneSegments(z.kind).join('|')} only`)
+        }
         if (!(Number.isFinite(z?.from) && Number.isFinite(z?.to) && z.from >= 0 && z.from < z.to && z.to <= 1)) {
           errs.push(`zones[${i}]: needs 0 <= from < to <= 1`)
         }

@@ -24,7 +24,7 @@ The start screen shows two groups (↑/↓ switches group, ←/→ picks a track
 | `test-flat` | grip, acceleration, top speed, hairpins |
 | `test-ramp` | ramp jump and landing |
 | `test-bank` | banked 180° turns |
-| `test-surfaces` | asphalt → dirt → ice → grass strips |
+| `test-surfaces` | asphalt → dirt → ice → grass strips, and dirt through the first hairpin |
 | `test-turbo` | yellow and red turbo pads |
 | `test-checkpoint` | four checkpoints in a row: split deltas, respawn at the last one |
 

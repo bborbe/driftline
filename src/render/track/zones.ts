@@ -7,8 +7,8 @@
 // Decals sit a hair above the road top and win the depth test by polygonOffset, not by a lift:
 // a larger lift shows as seams and a coplanar decal flickers (z-fighting).
 import * as THREE from 'three/webgpu'
-import { zoneCorners, type Pose, type Track, type Zone, type ZoneKind } from '../../track/schema'
-import { PROFILE } from './geometry'
+import { poses, sampleSegment, segmentLength, SURFACE_KINDS, turnSign, zoneCorners, type Pose, type Track, type Zone, type ZoneKind } from '../../track/schema'
+import { lateralPoint, PROFILE } from './geometry'
 
 const roadColumns = PROFILE.filter(([, , band]) => band === 'road')
 /** Half-width of the asphalt between the curbs (Kenney straight: 6.9 m of road). */
@@ -105,42 +105,64 @@ export type SurfacePatch = {
 }
 
 /**
- * A surface zone as a grid over the road: full road width plus a little, overrunning the zone's
- * ends by SURFACE_OVERRUN. Alpha is 1 inside and frays to 0 over EDGE_FADE at every edge, with the
- * fade line jittered by noise so the border is ragged.
+ * Whether a surface zone runs on into the same surface on the previous / next segment: a zone
+ * that starts at 0 (ends at 1) where the neighbouring segment's zone of the same kind ends at 1
+ * (starts at 0). Kit pieces carry one full-length zone per segment, so a run of dirt pieces is
+ * many zones; an open end skips the fade there, so the run draws as one patch with no seams.
  */
-export const surfacePatch = (track: Track, zone: Zone & { kind: SurfaceKind }): SurfacePatch => {
+export const surfaceJoins = (track: Track, zone: Zone): { start: boolean; end: boolean } => {
+  const zones = track.zones ?? []
+  const n = track.segments.length
+  const has = (segment: number, at: 'from' | 'to') =>
+    zones.some((z) => z.kind === zone.kind && z.segment === segment && (at === 'from' ? z.from === 0 : z.to === 1))
+  return {
+    start: zone.from === 0 && has((zone.segment - 1 + n) % n, 'to'),
+    end: zone.to === 1 && has((zone.segment + 1) % n, 'from'),
+  }
+}
+
+/**
+ * A surface zone as a grid over the road: full road width plus a little, overrunning the zone's
+ * ends by SURFACE_OVERRUN. Rows follow the segment's centreline and bank roll (sampleSegment +
+ * lateralPoint, the road mesh's own functions), so a patch lies on curves, hairpins and banked
+ * turns as well as straights. Alpha is 1 inside and frays to 0 over EDGE_FADE at every edge
+ * except an open end (surfaceJoins), with the fade line jittered by noise so the border is ragged.
+ * Noise and grain run on distance along the whole lap, so joined patches meet without a seam.
+ */
+export const surfacePatch = (track: Track, zone: Zone & { kind: SurfaceKind }, open = surfaceJoins(track, zone)): SurfacePatch => {
   const seg = track.segments[zone.segment]
-  const length = 'length' in seg ? seg.length : 0
+  const entry = poses(track)[zone.segment]
+  const length = segmentLength(seg)
+  const lapBefore = track.segments.slice(0, zone.segment).reduce((d, sg) => d + segmentLength(sg), 0)
   const pad = SURFACE_OVERRUN / Math.max(length, 1e-9)
-  const ext: Zone = { ...zone, from: Math.max(0, zone.from - pad), to: Math.min(1, zone.to + pad) }
-  const [l0, r0, l1, r1] = zoneCorners(track, ext, SURFACE_WIDTH)
-  const along = (ext.to - ext.from) * length
+  const from = open.start ? zone.from : Math.max(0, zone.from - pad)
+  const to = open.end ? zone.to : Math.min(1, zone.to + pad)
+  const s = turnSign(seg)
+  const along = (to - from) * length
   const cols = Math.max(2, Math.round(SURFACE_WIDTH / GRID) + 1)
   const rows = Math.max(2, Math.round(along / GRID) + 1)
   const look = SURFACE_LOOK[zone.kind]
-  const seed = zone.segment * 31 + Math.round(zone.from * 1000)
+  const seed = SURFACE_KINDS.indexOf(zone.kind) * 31
   const positions = new Float32Array(rows * cols * 3)
   const colors = new Float32Array(rows * cols * 4)
   const uvs = new Float32Array(rows * cols * 2)
   for (let r = 0; r < rows; r++) {
     const t = r / (rows - 1)
-    const left = lerp(l0, l1, t)
-    const right = lerp(r0, r1, t)
-    const v = t * along // metres along
+    const sample = sampleSegment(entry, seg, from + (to - from) * t)
+    const v = t * along // metres along this patch
+    const lapV = lapBefore + from * length + v // metres along the lap
     for (let c = 0; c < cols; c++) {
-      const s = c / (cols - 1)
-      const p = lerp(left, right, s)
-      const u = s * SURFACE_WIDTH // metres across
+      const u = (c / (cols - 1)) * SURFACE_WIDTH // metres across, from the left edge
+      const [x, y, z] = lateralPoint(sample, SURFACE_WIDTH / 2 - u, s)
       const i = r * cols + c
-      positions.set([p.x, p.y + ZONE_LIFT, p.z], i * 3)
-      uvs.set([u, v], i * 2)
+      positions.set([x, y + ZONE_LIFT, z], i * 3)
+      uvs.set([u, lapV], i * 2)
       // Distance to the nearest edge. The fade starts a noisy 0..EDGE_FADE/2 in from the edge and
       // takes another EDGE_FADE/2 to reach opaque, so the border frays but the outline is always clear.
-      const edge = Math.min(u, SURFACE_WIDTH - u, v, along - v)
-      const start = fbm(u * 0.9, v * 0.9, seed + 3) * (EDGE_FADE / 2)
+      const edge = Math.min(u, SURFACE_WIDTH - u, open.start ? Infinity : v, open.end ? Infinity : along - v)
+      const start = fbm(u * 0.9, lapV * 0.9, seed + 3) * (EDGE_FADE / 2)
       const alpha = Math.min(1, Math.max(0, (edge - start) / (EDGE_FADE / 2)))
-      const n = fbm(u * 0.6, v * (0.6 / look.streak), seed)
+      const n = fbm(u * 0.6, lapV * (0.6 / look.streak), seed)
       for (let k = 0; k < 3; k++) colors[i * 4 + k] = (look.dark[k] + (look.light[k] - look.dark[k]) * n) ** 2.2
       colors[i * 4 + 3] = smooth(alpha)
     }

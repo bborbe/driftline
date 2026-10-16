@@ -39,6 +39,12 @@
   "zones": [
     {
       "kind": "dirt",
+      "segment": 1,
+      "from": 0.2,
+      "to": 0.8
+    },
+    {
+      "kind": "dirt",
       "segment": 2,
       "from": 0.08,
       "to": 0.3

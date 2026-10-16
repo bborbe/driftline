@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { isPad, padForward, poses, type Track, type Zone } from '../../track/schema'
-import { createCarAt, type CarState } from '../../physics'
+import { isPad, padForward, poses, turnCentre, type Segment, type Track, type Zone } from '../../track/schema'
+import { createCarAt, trackSurface, type CarState } from '../../physics'
 import { dustIntensity, DustPool } from '../fx/dust'
-import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, zoneQuad } from './zones'
+import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, surfaceJoins, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, zoneQuad } from './zones'
 
 const lap2 = JSON.parse(readFileSync(new URL('../../../assets/track/test2.json', import.meta.url), 'utf8')) as Track
 
@@ -157,6 +157,72 @@ describe('surface patch', () => {
   it('decal lift stays at most 5 mm over the road top', () => {
     expect(ZONE_LIFT - ROAD_TOP).toBeGreaterThan(0)
     expect(ZONE_LIFT - ROAD_TOP).toBeLessThanOrEqual(0.005)
+  })
+})
+
+// Surface zones on curves, hairpins and banks: the patch follows the arc and the bank roll.
+describe('surface patch on arcs', () => {
+  const arcs: Segment[] = [
+    { type: 'curve', turn: 'left', radius: 10, angle: 90 },
+    { type: 'curve', turn: 'right', radius: 30, angle: 90 },
+    { type: 'hairpin', turn: 'left', radius: 10 },
+    { type: 'banked', turn: 'right', radius: 20, angle: 180, bank: 0.26 },
+    { type: 'banked', turn: 'left', radius: 20, angle: 90, bank: 0.26 },
+  ]
+
+  it.each(arcs.map((seg) => [`${seg.type} ${'turn' in seg ? seg.turn : ''} r${'radius' in seg ? seg.radius : ''}`, seg] as const))(
+    '%s: every vertex lies on the asphalt, 3-5 mm over the road the car drives on',
+    (_name, seg) => {
+      const zone = { kind: 'ice' as const, segment: 0, from: 0, to: 1 }
+      const track: Track = { name: 't', start: { x: 5, y: 4, z: -3, heading: 0.4 }, segments: [seg], gates: [], zones: [zone] }
+      const physics = trackSurface(track, { groundY: null })
+      const radius = 'radius' in seg ? seg.radius : 0
+      const [cx, cz] = turnCentre(track.start, 'turn' in seg ? seg.turn : 'left', radius)
+      const { positions } = surfacePatch(track, zone)
+      expect(positions.length / 3).toBeGreaterThan(100)
+      // The first and last rows sit exactly on the piece's end lines, where a single-piece track's
+      // raycast can fall a rounding error outside the sector; every row between must hit the zone.
+      const cols = Math.round((2 * ROAD_HALF_WIDTH) / 0.3) + 1
+      for (let i = 3 * cols; i < positions.length - 3 * cols; i += 3) {
+        const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]]
+        expect(Math.abs(Math.hypot(x - cx, z - cz) - radius)).toBeLessThanOrEqual(ROAD_HALF_WIDTH + 1e-3)
+        const hit = physics.raycast({ x, y: y + 2, z }, { x: 0, y: -1, z: 0 }, 10)
+        expect(hit?.material).toBe('ice')
+        const roadY = y + 2 - hit!.distance
+        expect(y - roadY).toBeGreaterThan(ROAD_TOP)
+        expect(y - roadY).toBeLessThanOrEqual(ROAD_TOP + 0.005 + 1e-3)
+      }
+    },
+  )
+
+  it('a run of same-surface pieces draws as one patch: no fade where they join, a fade at both run ends', () => {
+    const zones: Zone[] = [0, 1, 2].map((k) => ({ kind: 'dirt', segment: k, from: 0, to: 1 }))
+    const track: Track = {
+      name: 't',
+      start: { x: 0, y: 0, z: 0, heading: 0 },
+      segments: [{ type: 'straight', length: 20 }, { type: 'curve', turn: 'left', radius: 20, angle: 90 }, { type: 'straight', length: 20 }, { type: 'straight', length: 20 }],
+      gates: [],
+      zones,
+    }
+    expect(zones.map((z) => surfaceJoins(track, z))).toEqual([
+      { start: false, end: true },
+      { start: true, end: true },
+      { start: true, end: false },
+    ])
+    // Centre column of the joining rows is opaque on both sides of each join; the run's ends fade out.
+    const centreAlpha = (zone: Zone, row: 'first' | 'last') => {
+      const p = surfacePatch(track, { ...zone, kind: 'dirt' })
+      const cols = Math.round(2 * ROAD_HALF_WIDTH / 0.3) + 1
+      const rows = p.positions.length / 3 / cols
+      const r = row === 'first' ? 0 : rows - 1
+      return p.colors[(r * cols + Math.floor(cols / 2)) * 4 + 3]
+    }
+    expect(centreAlpha(zones[0], 'first')).toBe(0)
+    expect(centreAlpha(zones[0], 'last')).toBeGreaterThan(0.99)
+    expect(centreAlpha(zones[1], 'first')).toBeGreaterThan(0.99)
+    expect(centreAlpha(zones[1], 'last')).toBeGreaterThan(0.99)
+    expect(centreAlpha(zones[2], 'first')).toBeGreaterThan(0.99)
+    expect(centreAlpha(zones[2], 'last')).toBe(0)
   })
 })
 
