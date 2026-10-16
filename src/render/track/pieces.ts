@@ -7,7 +7,7 @@ import { exitPose, poses, type Pose, type Segment, type Track } from '../../trac
 /** Native dimensions of the normalized pieces, from assets/track/pieces.json. */
 const STRAIGHT_LENGTH = 20
 const RAMP_RISE = 5.2
-const CORNER_RADIUS = 15 // the corner and banked pieces both turn RIGHT at this radius
+const CORNER_RADIUS = 15 // the corner piece turns RIGHT at this radius
 
 export type Placement = {
   piece: string // file stem under assets/pieces/
@@ -59,9 +59,12 @@ const planSegment = (entry: Pose, seg: Segment, startLine: boolean): Placement[]
     case 'curve':
     case 'hairpin':
     case 'banked': {
+      // banked.glb is generated geometry with no material or normals, so it renders
+      // as nothing visible; banked turns use the procedural mesh instead.
+      if (seg.type === 'banked') return null
       const angle = seg.type === 'hairpin' ? 180 : seg.angle
       if (angle % 90 !== 0) return null
-      const piece = seg.type === 'banked' ? 'banked' : 'corner'
+      const piece = 'corner'
       const k = seg.radius / CORNER_RADIUS
       const out: Placement[] = []
       let p = entry

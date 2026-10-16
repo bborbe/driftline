@@ -10,8 +10,6 @@ export const CURB_HEIGHT = 0.3
 export const SURFACE_LIFT = 0.02
 /** Lateral subdivisions of the road surface. */
 const COLUMNS = 6
-/** Fraction of a banked segment spent rolling in (and out again). */
-const BANK_EASE = 0.2
 
 /** A point on a segment's centerline: world position, heading and road roll (radians). */
 export type Sample = { x: number; y: number; z: number; heading: number; roll: number }
@@ -75,11 +73,8 @@ export const sampleSegment = (entry: Pose, seg: Segment, t: number): Sample => {
       const cx = entry.x + Math.cos(entry.heading) * r * s
       const cz = entry.z - Math.sin(entry.heading) * r * s
       const heading = entry.heading + s * arcAngle(seg) * t
-      let roll = 0
-      if (seg.type === 'banked') {
-        const ease = Math.min(t, 1 - t) / BANK_EASE
-        roll = seg.bank * smoothstep(Math.min(1, Math.max(0, ease)))
-      }
+      // Constant bank over the whole turn, as src/physics/surface.ts models it.
+      const roll = seg.type === 'banked' ? seg.bank : 0
       return { x: cx - Math.cos(heading) * r * s, y: entry.y, z: cz + Math.sin(heading) * r * s, heading, roll }
     }
   }
@@ -87,12 +82,14 @@ export const sampleSegment = (entry: Pose, seg: Segment, t: number): Sample => {
 
 /**
  * Road point at lateral offset u (metres, positive = left of travel) on turn side s.
- * Positive roll raises the outside of the turn.
+ * Positive roll raises the outside of the turn: y = (r - radius) * tan(bank), the same
+ * surface src/physics/surface.ts drives on, so the visible road and the collider agree.
  */
-export const lateralPoint = (p: Sample, u: number, s: number): [number, number, number] => {
-  const h = u * Math.cos(p.roll)
-  return [p.x + Math.cos(p.heading) * h, p.y + SURFACE_LIFT - s * u * Math.sin(p.roll), p.z - Math.sin(p.heading) * h]
-}
+export const lateralPoint = (p: Sample, u: number, s: number): [number, number, number] => [
+  p.x + Math.cos(p.heading) * u,
+  p.y + SURFACE_LIFT - s * u * Math.tan(p.roll),
+  p.z - Math.sin(p.heading) * u,
+]
 
 /** Rows to sample: about one every 1.5 m, never fewer than 13. */
 const rowCount = (seg: Segment): number => Math.max(12, Math.ceil(segmentLength(seg) / 1.5)) + 1
