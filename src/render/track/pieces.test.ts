@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { exitPose, poses, type Pose, type Track } from '../../track/schema'
 import { FIXTURE_TRACK } from './fixture'
-import { planPieces } from './pieces'
+import { TRACK_WIDTH } from './geometry'
+import { placedRoadWidth, planPieces } from './pieces'
 
 const lap = JSON.parse(readFileSync('assets/track/lap1.json', 'utf8')) as Track
 const near = (a: Pose, b: Pose) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
@@ -59,11 +60,29 @@ describe('piece placement', () => {
   })
 
   it('mirrors corners for left turns and splits a hairpin into two', () => {
-    const t: Track = { name: 't', start: { x: 0, y: 0, z: 0, heading: 0 }, segments: [{ type: 'hairpin', turn: 'left', radius: 30 }], gates: [] }
+    const t: Track = { name: 't', start: { x: 0, y: 0, z: 0, heading: 0 }, segments: [{ type: 'hairpin', turn: 'left', radius: 15 }], gates: [] }
     const corners = planPieces(t).placements
     expect(corners.map((c) => c.piece)).toEqual(['corner', 'corner'])
-    expect(corners[0].scale).toEqual([-2, 1, 2])
+    expect(corners[0].scale).toEqual([-1, 1, 1])
   })
+
+  it('renders a non-native corner radius procedurally instead of scaling the road wider', () => {
+    const t: Track = { name: 't', start: { x: 0, y: 0, z: 0, heading: 0 }, segments: [{ type: 'curve', turn: 'right', radius: 30, angle: 90 }], gates: [] }
+    expect(planPieces(t).procedural).toEqual([0])
+  })
+
+  for (const name of ['lap1', 'lap2']) {
+    it(`${name}: road width is the same on both sides of every segment joint`, () => {
+      const t = JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8')) as Track
+      const plan = planPieces(t)
+      // Every road piece and every procedural segment draws the same width, so both sides
+      // of every joint match.
+      for (const p of plan.placements.filter((p) => p.piece !== 'checkpoint')) {
+        expect(placedRoadWidth(p), `${name} ${p.piece} at (${p.pose.x.toFixed(1)}, ${p.pose.z.toFixed(1)})`).toBeCloseTo(TRACK_WIDTH, 6)
+      }
+      expect(plan.procedural.every((i) => i >= 0 && i < t.segments.length)).toBe(true)
+    })
+  }
 
   it('falls back to procedural for a 45° curve', () => {
     const i = FIXTURE_TRACK.segments.findIndex((s) => s.type === 'curve' && s.angle === 45)
