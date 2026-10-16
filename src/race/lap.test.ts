@@ -19,13 +19,15 @@ function passGate(loop: LapLoop, car: CarState, pose: { x: number; z: number; he
   return after
 }
 
-function race(isNewBest = () => true, laps = 1) {
+function race(isNewBest: (totalMs: number) => boolean = () => true, laps = 1) {
   const events: string[] = []
   const finishes: number[] = []
   const loop = new LapLoop(FLAT_OVAL, isNewBest, laps)
   loop.on({
     lapStart: (t, lap) => events.push(lap === 1 ? `start@${t}` : `lap${lap}`),
-    raceFinish: (_t, ms, _best, times) => events.push(`race ${ms} [${times.join(',')}]`),
+    raceFinish: (_t, ms, _best, times) => {
+      if (laps > 1) events.push(`race ${ms} [${times.join(',')}]`)
+    },
     checkpoint: (_t, i) => events.push(`cp${i}`),
     lapFinish: (_t, ms) => {
       events.push('finish')
