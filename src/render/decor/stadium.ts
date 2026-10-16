@@ -70,14 +70,15 @@ export const planStadium = (track: Track): StadiumProp[] => {
 export const SCREEN = { width: 26, height: 10, bottom: 9, depth: 1 } as const
 
 /** Original screen art: the game's name over diagonal stripes. No third-party branding. */
-const screenTexture = (): THREE.CanvasTexture => {
+const screenTexture = (colour?: string): THREE.CanvasTexture => {
   const canvas = document.createElement('canvas')
   canvas.width = 1024
   canvas.height = 394
   const g = canvas.getContext('2d')!
   const bg = g.createLinearGradient(0, 0, 1024, 394)
-  bg.addColorStop(0, '#062a4a')
-  bg.addColorStop(1, '#0b5f8a')
+  // Default navy-blue; a theme's `screen` colour runs from a darker shade of itself.
+  bg.addColorStop(0, colour ? `#${new THREE.Color(colour).multiplyScalar(0.45).getHexString()}` : '#062a4a')
+  bg.addColorStop(1, colour ?? '#0b5f8a')
   g.fillStyle = bg
   g.fillRect(0, 0, 1024, 394)
   g.fillStyle = 'rgba(54, 214, 231, 0.35)'
@@ -124,7 +125,7 @@ const screenParts = (props: StadiumProp[]): { body: THREE.BufferGeometry[]; face
   return { body, faces }
 }
 
-export const createStadium = async (track: Track): Promise<THREE.Group> => {
+export const createStadium = async (track: Track, screen?: string): Promise<THREE.Group> => {
   const loader = new GLTFLoader()
   const props = planStadium(track)
   const parts = await Promise.all(
@@ -142,6 +143,6 @@ export const createStadium = async (track: Track): Promise<THREE.Group> => {
   // left every shaded side black), and no shadows: it stands far outside the car's shadow frustum
   // (scene.ts, ±60 m).
   group.add(merged([...parts.flat(), ...screens.body], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })))
-  group.add(merged(screens.faces, new THREE.MeshBasicMaterial({ map: screenTexture() })))
+  group.add(merged(screens.faces, new THREE.MeshBasicMaterial({ map: screenTexture(screen) })))
   return group
 }

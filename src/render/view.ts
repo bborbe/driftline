@@ -14,6 +14,7 @@ import { createSpeedLines } from './fx/speedlines'
 import { FrameStats } from './fx/stats'
 import { watchFullscreen } from '../fullscreen'
 import { createScene } from './scene'
+import { resolveTheme } from './theme'
 import { topCamFor, topCamRequested } from './topcam'
 import { createPieceTrack } from './track/kenney'
 
@@ -36,6 +37,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.shadowMap.enabled = true
   renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = resolveTheme(track).exposure
   document.body.appendChild(renderer.domElement)
   await renderer.init()
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2'
