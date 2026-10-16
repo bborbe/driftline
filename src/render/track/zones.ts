@@ -1,17 +1,20 @@
-// Turbo pads and surface patches (dirt, ice, grass) drawn as decals on the asphalt. Placement comes
-// from zoneCorners() — the same fractions the physics reads materials from — and every footprint
-// stays inside the asphalt between the curbs (the physics patch is wider, full TRACK_WIDTH).
+// Turbo pads and surface patches (dirt, ice, grass) drawn as decals on the asphalt. Placement uses
+// the same segment fractions the physics reads materials from: pads by zoneCorners() on planar
+// segments, surfaces along the road mesh's own rows (rowCount + lateralPoint) on every road piece.
+// Every footprint stays inside the asphalt between the curbs (the physics patch is wider, full TRACK_WIDTH).
 // Pads are hard-edged objects (a quad plus chevrons). Surfaces are a fine grid with per-vertex
 // colour noise and an alpha that frays out at ragged edges, so they read as dirt or ice on the road
 // instead of a pasted rectangle; a tiled grain texture adds close-up detail.
 // Decals sit a hair above the road top and win the depth test by polygonOffset, not by a lift:
 // a larger lift shows as seams and a coplanar decal flickers (z-fighting).
 import * as THREE from 'three/webgpu'
-import { isEffect, poses, sampleSegment, segmentLength, SURFACE_KINDS, turnSign, zoneCorners, type EffectKind, type Pose, type Track, type Zone, type ZoneKind } from '../../track/schema'
+import { isEffect, poses, sampleSegment, segmentLength, SURFACE_KINDS, turnSign, zoneCorners, type Pose, type SurfaceKind, type Track, type Zone, type ZoneKind } from '../../track/schema'
 import { EFFECT_LOOK, effectIcon } from './effect-pads'
-import { lateralPoint, PROFILE } from './geometry'
+import { lateralPoint, PROFILE, rowCount } from './geometry'
 
 const roadColumns = PROFILE.filter(([, , band]) => band === 'road')
+/** Lateral offsets of the road mesh's asphalt columns, left to right (PROFILE order). */
+const ROAD_COLUMNS = roadColumns.map(([u]) => u)
 /** Half-width of the asphalt between the curbs (Kenney straight: 6.9 m of road). */
 export const ROAD_HALF_WIDTH = Math.max(...roadColumns.map(([u]) => Math.abs(u)))
 /** Height of the asphalt above the segment's pose (the Kenney road top). */
@@ -34,7 +37,6 @@ const PAD_LOOK: Record<'turbo' | 'turbo-red', { color: number; emissive: number 
   'turbo-red': { color: 0xff2a2a, emissive: 0.6 },
 }
 
-type SurfaceKind = Exclude<ZoneKind, 'turbo' | 'turbo-red' | EffectKind>
 
 // Base colour (sRGB) and the two noise layers mixed into it. `dark`/`light` are the extremes the
 // mottling swings between; `streak` stretches the noise along the road (ice reads as polished, dirt as tracked).
@@ -110,6 +112,8 @@ export type SurfacePatch = {
  * that starts at 0 (ends at 1) where the neighbouring segment's zone of the same kind ends at 1
  * (starts at 0). Kit pieces carry one full-length zone per segment, so a run of dirt pieces is
  * many zones; an open end skips the fade there, so the run draws as one patch with no seams.
+ * A run never joins across the start line: lap distance restarts there, so the patch fades out
+ * and in again instead of showing a colour seam.
  */
 export const surfaceJoins = (track: Track, zone: Zone): { start: boolean; end: boolean } => {
   const zones = track.zones ?? []
@@ -117,16 +121,17 @@ export const surfaceJoins = (track: Track, zone: Zone): { start: boolean; end: b
   const has = (segment: number, at: 'from' | 'to') =>
     zones.some((z) => z.kind === zone.kind && z.segment === segment && (at === 'from' ? z.from === 0 : z.to === 1))
   return {
-    start: zone.from === 0 && has((zone.segment - 1 + n) % n, 'to'),
-    end: zone.to === 1 && has((zone.segment + 1) % n, 'from'),
+    start: zone.from === 0 && zone.segment > 0 && has(zone.segment - 1, 'to'),
+    end: zone.to === 1 && zone.segment < n - 1 && has(zone.segment + 1, 'from'),
   }
 }
 
 /**
  * A surface zone as a grid over the road: full road width plus a little, overrunning the zone's
- * ends by SURFACE_OVERRUN. Rows follow the segment's centreline and bank roll (sampleSegment +
- * lateralPoint, the road mesh's own functions), so a patch lies on curves, hairpins and banked
- * turns as well as straights. Alpha is 1 inside and frays to 0 over EDGE_FADE at every edge
+ * ends by SURFACE_OVERRUN. Rows follow the segment's centreline and bank roll, interpolated
+ * between the road mesh's own rows (rowCount, sampleSegment, lateralPoint): the drawn road is flat
+ * between its rows, so a patch sampled on the true surface would dip under it on a banked turn.
+ * A patch lies on curves, hairpins and banked turns as well as straights. Alpha is 1 inside and frays to 0 over EDGE_FADE at every edge
  * except an open end (surfaceJoins), with the fade line jittered by noise so the border is ragged.
  * Noise and grain run on distance along the whole lap, so joined patches meet without a seam.
  */
@@ -139,6 +144,23 @@ export const surfacePatch = (track: Track, zone: Zone & { kind: SurfaceKind }, o
   const from = open.start ? zone.from : Math.max(0, zone.from - pad)
   const to = open.end ? zone.to : Math.min(1, zone.to + pad)
   const s = turnSign(seg)
+  const roadRows = rowCount(seg)
+  const road = Array.from({ length: roadRows }, (_, r) => sampleSegment(entry, seg, r / (roadRows - 1)))
+  // Point `lat` metres left of the centreline at fraction `f` of the segment, on the drawn road:
+  // the road mesh's own triangle (buildSegment splits quad A B / C D along B–C), so the patch keeps
+  // its lift over the road everywhere, also where a banked quad is twisted.
+  const roadPoint = (f: number, lat: number): number[] => {
+    const at = Math.min(roadRows - 1 - 1e-9, Math.max(0, f * (roadRows - 1)))
+    const r0 = Math.floor(at)
+    const k = at - r0
+    const c = Math.min(ROAD_COLUMNS.length - 2, Math.max(0, ROAD_COLUMNS.findIndex((u, i) => i < ROAD_COLUMNS.length - 1 && lat <= u && lat >= ROAD_COLUMNS[i + 1])))
+    const w = (ROAD_COLUMNS[c] - lat) / (ROAD_COLUMNS[c] - ROAD_COLUMNS[c + 1])
+    const A = lateralPoint(road[r0], ROAD_COLUMNS[c], s)
+    const B = lateralPoint(road[r0], ROAD_COLUMNS[c + 1], s)
+    const C = lateralPoint(road[r0 + 1], ROAD_COLUMNS[c], s)
+    const D = lateralPoint(road[r0 + 1], ROAD_COLUMNS[c + 1], s)
+    return k + w <= 1 ? A.map((a, i) => a + w * (B[i] - a) + k * (C[i] - a)) : D.map((d, i) => d + (1 - w) * (C[i] - d) + (1 - k) * (B[i] - d))
+  }
   const along = (to - from) * length
   const cols = Math.max(2, Math.round(SURFACE_WIDTH / GRID) + 1)
   const rows = Math.max(2, Math.round(along / GRID) + 1)
@@ -149,12 +171,12 @@ export const surfacePatch = (track: Track, zone: Zone & { kind: SurfaceKind }, o
   const uvs = new Float32Array(rows * cols * 2)
   for (let r = 0; r < rows; r++) {
     const t = r / (rows - 1)
-    const sample = sampleSegment(entry, seg, from + (to - from) * t)
+    const f = from + (to - from) * t
     const v = t * along // metres along this patch
     const lapV = lapBefore + from * length + v // metres along the lap
     for (let c = 0; c < cols; c++) {
       const u = (c / (cols - 1)) * SURFACE_WIDTH // metres across, from the left edge
-      const [x, y, z] = lateralPoint(sample, SURFACE_WIDTH / 2 - u, s)
+      const [x, y, z] = roadPoint(f, SURFACE_WIDTH / 2 - u)
       const i = r * cols + c
       positions.set([x, y + ZONE_LIFT, z], i * 3)
       uvs.set([u, lapV], i * 2)
