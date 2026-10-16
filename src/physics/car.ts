@@ -41,9 +41,13 @@ const REST_LENGTH = 0.5
 const SPRING = 40000
 const DAMPER = 4500
 const WHEEL_RADIUS = 0.35
-const GRIP = 1.6 // friction coefficient (arcade)
+const GRIP = 1.6 // front friction coefficient (arcade)
+const REAR_GRIP = 2.0 // rear grips more than front: stable, understeer-leaning balance
+// Traction control: drive force on a rear wheel is capped to this share of its grip,
+// so full throttle still leaves lateral grip (power oversteer otherwise spins the car).
+const DRIVE_SHARE = 0.75
 const HANDBRAKE_REAR_GRIP = 0.3 // fraction of rear lateral grip kept on handbrake
-const PEAK_SLIP = 0.12 // rad
+const PEAK_SLIP = 0.15 // rad — softer slip curve, grip builds more gradually
 const ENGINE_FORCE = 9000 // N, rear-wheel drive total
 const BRAKE_FORCE = 16000 // N, all wheels total
 const REVERSE_FORCE = 6000 // N, rear-wheel drive total
@@ -136,7 +140,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     const vLong = dot(contactVel, fwd)
     const vLat = dot(contactVel, right)
 
-    const maxFriction = GRIP * normalForce
+    const maxFriction = (wheel.front ? GRIP : REAR_GRIP) * normalForce
     // Lateral: saturating slip-angle model.
     const slip = Math.atan2(vLat, Math.max(Math.abs(vLong), 1))
     let lateralGrip = maxFriction * Math.tanh(slip / PEAK_SLIP)
@@ -145,7 +149,11 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
 
     // Longitudinal: drive (rear), brake (all), handbrake (rear).
     let fLong = 0
-    if (!wheel.front) fLong += (forwardDrive * ENGINE_FORCE * driveFalloff - reverseDrive * REVERSE_FORCE * reverseFalloff) / 2
+    if (!wheel.front) {
+      const drive = (forwardDrive * ENGINE_FORCE * driveFalloff - reverseDrive * REVERSE_FORCE * reverseFalloff) / 2
+      const cap = DRIVE_SHARE * maxFriction
+      fLong += clamp(drive, -cap, cap)
+    }
     const brakeTotal = (brakeInput * BRAKE_FORCE) / 4 + (!wheel.front && input.handbrake ? HANDBRAKE_FORCE / 2 : 0)
     if (brakeTotal > 0) {
       // Never reverse the wheel: cap braking to what stops it this tick.
