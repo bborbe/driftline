@@ -64,7 +64,7 @@ export class RaceView {
       ])
       this.pause.append(this.pauseMenu.element, this.pauseSettings)
     }
-    this.pause.append(el('p', '', 'Esc resume  [R] respawn  [⌫] restart  [L] leaderboard'))
+    this.pause.append(el('p', '', 'Esc resume  [R] respawn  [⌫] restart  [L] leaderboard  [F] fullscreen  [1/2/3] camera'))
   }
 
   /** True while the Esc menu's settings panel is open (Esc closes it before resuming). */
@@ -88,7 +88,7 @@ export class RaceView {
   render(s: HudState): void {
     this.countdown.textContent = s.countdown === null ? '' : String(s.countdown)
     const best = s.best === null ? '--' : formatLapTime(s.best)
-    this.hud.textContent = `${s.time}   CP ${s.checkpoints}   BEST ${best}   [R] respawn [⌫] restart [L] leaderboard`
+    this.hud.textContent = `${s.time}   CP ${s.checkpoints}   BEST ${best}   [R] respawn [⌫] restart [L] leaderboard [F] fullscreen [1/2/3] camera`
   }
 
   /** Flash a split delta (blue ahead, red behind); null hides it. */

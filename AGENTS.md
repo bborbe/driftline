@@ -23,6 +23,8 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 | `src/race/` | Lap loop: no input until Begin (`race.start()`, wired to the audio Begin overlay) and the 3-2-1 countdown, ordered checkpoint gates, lap timer, respawn (R) / instant restart (Backspace, 0.8 s countdown; ghost back on the grid at once), checkpoint split deltas vs the personal best, per-track medals (`medals` in the track JSON, best medal persisted), auto-respawn when the car falls 5 m below the ground or is airborne > 3 s, best time + top-10 leaderboard (L) in localStorage, Esc pause (also on tab hide; freezes tick, timer, ghost and audio). `lap.ts`, `medals.ts` and `store.ts` are pure and tested; `index.ts` is the one `initRace()` + `race.frame()` hook for `main.ts`. Emits `lapStart` / `checkpoint` / `lapFinish` / `respawn` / `restart` to listeners (audio, ghost). |
 | `src/build-info.ts` | Bottom-right build label (short SHA · UTC build time · version). Values come from `define` in `vite.config.ts`, fed by `VITE_COMMIT_SHA` (CI) or `git rev-parse HEAD` (local) — the same value as the `<meta name="commit">` tag. |
 | `src/input.ts` | Keyboard → `CarInput` (WASD / arrows, Space = handbrake) |
+| `src/camera/views.ts` | Camera view keys 1 / 2 / 3 (close chase, far chase, in-car), persisted in localStorage |
+| `src/fullscreen.ts` | F toggles fullscreen; an Esc that only leaves fullscreen does not pause |
 | `src/main.ts` | three.js shell: renderer (WebGPU, WebGL2 fallback), scene, HUD, frame loop |
 
 ## Rules

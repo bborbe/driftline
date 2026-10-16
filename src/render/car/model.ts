@@ -4,6 +4,7 @@ import * as THREE from 'three/webgpu'
 import { dot, forwardOf, type CarState } from '../../physics'
 import { STEERED, WHEEL_NODES, type Corner } from '../../car/wheels'
 import { CAR_ID, FALLBACK_CAR, resolveCar } from '../cars'
+import { createBodyFeel, updateBodyFeel } from './body'
 import { spinRate, wheelYaw } from './rig'
 
 export type CarView = {
@@ -20,11 +21,19 @@ const view = (root: THREE.Object3D): CarView => {
   }
   root.traverse((o) => (o.castShadow = true))
   let roll = 0
+  let body = createBodyFeel()
+  const lean = new THREE.Quaternion()
+  const euler = new THREE.Euler()
+  const up = new THREE.Vector3()
   return {
     object: root,
     update: (s, dt) => {
       root.position.set(s.position.x, s.position.y, s.position.z)
       root.quaternion.set(s.orientation.x, s.orientation.y, s.orientation.z, s.orientation.w)
+      // Body feel on top of the physics pose: lean in the car frame, squat along body up.
+      body = updateBodyFeel(body, s.velocity, s.orientation, dt)
+      root.quaternion.multiply(lean.setFromEuler(euler.set(body.pitch.x, 0, body.roll.x)))
+      root.position.addScaledVector(up.set(0, 1, 0).applyQuaternion(root.quaternion), body.squat.x)
       roll += spinRate(dot(s.velocity, forwardOf(s))) * dt
       for (const [corner, w] of wheels) {
         w.rotation.x = roll
