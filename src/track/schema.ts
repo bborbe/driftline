@@ -166,20 +166,38 @@ export function gatePillars(track: Track, gate: Gate): Pillar[] {
   }))
 }
 
-/** The first `f` (0..1) of a segment, so a pose part-way along it is `exitPose(entry, partialSegment(seg, f))`. */
-export function partialSegment(seg: Segment, f: number): Segment {
+/** Centreline length of one segment in metres (arcs by radius × angle, ramps/drops by run). */
+export function segmentLength(seg: Segment): number {
   switch (seg.type) {
     case 'straight':
-      return { ...seg, length: seg.length * f }
     case 'ramp':
-      return { ...seg, length: seg.length * f, rise: seg.rise * f }
     case 'drop':
-      return { ...seg, length: seg.length * f, fall: seg.fall * f }
-    case 'hairpin':
-      return { type: 'curve', turn: seg.turn, radius: seg.radius, angle: (180 * f) as 90 }
+    case 'gap':
+      return seg.length
     case 'curve':
     case 'banked':
-      return { ...seg, angle: (seg.angle * f) as 90 }
+      return (seg.radius * seg.angle * Math.PI) / 180
+    case 'hairpin':
+      return seg.radius * Math.PI
+  }
+}
+
+/** Pose `f` (0..1) of the way through a segment. */
+export function partialPose(entry: Pose, seg: Segment, f: number): Pose {
+  switch (seg.type) {
+    case 'straight':
+      return exitPose(entry, { ...seg, length: seg.length * f })
+    case 'ramp':
+      return exitPose(entry, { ...seg, length: seg.length * f, rise: seg.rise * f })
+    case 'drop':
+      return exitPose(entry, { ...seg, length: seg.length * f, fall: seg.fall * f })
+    case 'gap':
+      return exitPose(entry, { ...seg, length: seg.length * f, fall: (seg.fall ?? 0) * f })
+    case 'curve':
+    case 'banked':
+      return exitPose(entry, { ...seg, angle: seg.angle * f } as Segment)
+    case 'hairpin':
+      return exitPose(entry, { type: 'curve', turn: seg.turn, radius: seg.radius, angle: 180 * f } as Segment)
   }
 }
 
@@ -192,11 +210,11 @@ function barrierLines(track: Track): [number, number][][] {
     const seg = track.segments[b.segment]
     const from = b.from ?? 0
     const to = b.to ?? 1
-    const length = 'length' in seg ? seg.length : seg.radius * (seg.type === 'hairpin' ? Math.PI : (seg.angle * Math.PI) / 180)
+    const length = segmentLength(seg)
     const n = Math.max(1, Math.ceil((length * (to - from)) / BARRIER.step))
     const offset = (b.side === 'left' ? 1 : -1) * (CELL / 2 + (b.gap ?? BARRIER.gap) + BARRIER.halfWidth)
     return Array.from({ length: n + 1 }, (_, k) => {
-      const p = exitPose(entries[b.segment], partialSegment(seg, from + ((to - from) * k) / n))
+      const p = partialPose(entries[b.segment], seg, from + ((to - from) * k) / n)
       // Heading 0 faces +z with +x on the left.
       return [p.x + Math.cos(p.heading) * offset, p.z - Math.sin(p.heading) * offset] as [number, number]
     })
