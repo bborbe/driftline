@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { debugPose, frozen } from './debug-pose'
+import { createCarAt, forwardOf } from '../physics'
+import { debugPose, frozen, poseQuery, yawDeg } from './debug-pose'
 
 describe('debugPose', () => {
   it('parses x, y, z and yaw in degrees', () => {
@@ -18,5 +19,22 @@ describe('debugPose', () => {
     expect(frozen('?freeze=1')).toBe(true)
     expect(frozen('?freeze=0')).toBe(false)
     expect(frozen('')).toBe(false)
+  })
+
+  it('HUD yaw round-trips through the spawn URL to the same facing', () => {
+    for (const yaw of [0, 37, 90, 179, -45, -120]) {
+      const car = createCarAt({ x: 3, y: 0.8, z: -4, heading: (yaw * Math.PI) / 180 })
+      const shown = yawDeg(forwardOf(car))
+      expect(shown).toBeCloseTo(yaw, 6)
+      const back = debugPose(poseQuery('lap2', { x: 3, y: 0.8, z: -4 }, shown))!
+      const f = forwardOf(createCarAt(back))
+      const g = forwardOf(car)
+      expect(f.x).toBeCloseTo(g.x, 6)
+      expect(f.z).toBeCloseTo(g.z, 6)
+    }
+  })
+
+  it('poseQuery builds a frozen debug-spawn query', () => {
+    expect(poseQuery('lap2', { x: -108.04, y: 0.8, z: -59 }, 90)).toBe('?track=lap2&x=-108.0&y=0.8&z=-59.0&yaw=90&freeze=1')
   })
 })
