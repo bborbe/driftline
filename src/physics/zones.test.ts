@@ -111,7 +111,7 @@ describe('shipped laps', () => {
   it('lap2 carries turbo pads plus dirt, ice and grass sections, all valid', async () => {
     const { readFileSync } = await import('node:fs')
     const { validate } = await import('../track/schema')
-    const lap2 = JSON.parse(readFileSync(new URL('../../assets/track/lap2.json', import.meta.url), 'utf8')) as Track
+    const lap2 = JSON.parse(readFileSync(new URL('../../assets/track/test2.json', import.meta.url), 'utf8')) as Track
     expect(validate(lap2)).toEqual([])
     expect(new Set(lap2.zones!.map((z) => z.kind))).toEqual(new Set(['turbo', 'turbo-red', 'dirt', 'ice', 'grass']))
   })

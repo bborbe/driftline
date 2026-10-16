@@ -1,0 +1,63 @@
+{
+  "name": "test-checkpoint",
+  "start": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "heading": 0
+  },
+  "segments": [
+    {
+      "type": "straight",
+      "length": 40
+    },
+    {
+      "type": "straight",
+      "length": 40
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    },
+    {
+      "type": "straight",
+      "length": 40
+    },
+    {
+      "type": "straight",
+      "length": 40
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    }
+  ],
+  "gates": [
+    {
+      "kind": "start-finish",
+      "segment": 0
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 1
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 2
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 3
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 4
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 5
+    }
+  ]
+}

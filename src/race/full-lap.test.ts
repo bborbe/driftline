@@ -4,14 +4,17 @@ import { describe, expect, it } from 'vitest'
 import { FixedStepper, NO_INPUT, TICK_HZ, trackSurface } from '../physics'
 import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
 import { autopilot, centreline, loadTrack as load } from './autopilot.test-driver'
+import { TEST_TRACKS } from '../track/catalogue'
 
 // Lap-time window per track (ms) for this conservative autopilot. A human drives ~0.67x the
 // autopilot's time (operator's first lap2 run: 36.05 s vs 53.7 s), so lap2's 67-90 s window is a
 // ~45-60 s human lap; the floor also catches the track being shortened again.
 const HUMAN_PACE = 0.67
 const CASES = [
-  { track: load('lap1'), minMs: 10_000, maxMs: 90_000 },
-  { track: load('lap2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
+  { track: load('test1'), minMs: 10_000, maxMs: 90_000 },
+  { track: load('test2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
+  // Single-feature test tracks: one mechanic each, a lap in at most 20 s even at autopilot pace.
+  ...TEST_TRACKS.filter((n) => n.startsWith('test-')).map((n) => ({ track: load(n), minMs: 5_000, maxMs: 20_000 })),
 ]
 
 describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {

@@ -16,7 +16,7 @@ const inside = (o: Pillar, x: number, z: number): boolean => {
   return Math.abs(u) <= o.halfDepth && Math.abs(w) <= o.halfWidth
 }
 
-describe.each(['lap1', 'lap2'])('%s gate pillars', (name) => {
+describe.each(['test1', 'test2'])('%s gate pillars', (name) => {
   const track = load(name)
   const surface = trackSurface(track)
   const pillars = track.gates.flatMap((g) => gatePillars(track, g))
