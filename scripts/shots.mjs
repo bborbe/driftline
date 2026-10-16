@@ -1,10 +1,15 @@
 // Debug screenshots: walk each lap's centreline every STEP metres and save one PNG per pose.
-// Usage: npm run shots [-- lap1 lap2] (env STEP=20, OUT=shots). Starts its own Vite dev server.
-import { mkdirSync } from 'node:fs'
+// Usage: npm run shots [-- test1 test-ramp] (env STEP=20, OUT=shots); default: every Test-group track. Starts its own Vite dev server.
+import { mkdirSync, readdirSync } from 'node:fs'
 import { createServer } from 'vite'
 import { chromium } from 'playwright'
 
-const laps = process.argv.slice(2).length ? process.argv.slice(2) : ['lap1', 'lap2']
+const testTracks = () =>
+  readdirSync('assets/track')
+    .filter((f) => f.startsWith('test') && f.endsWith('.json'))
+    .map((f) => f.slice(0, -'.json'.length))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+const laps = process.argv.slice(2).length ? process.argv.slice(2) : testTracks()
 const step = Number(process.env.STEP ?? 20)
 const out = process.env.OUT ?? 'shots'
 

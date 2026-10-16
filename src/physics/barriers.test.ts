@@ -10,7 +10,7 @@ const load = (name: string) =>
 // Clearance (m) between a barrier's footprint and the asphalt.
 const CLEARANCE = 0.5
 
-describe.each(['lap1', 'lap2'])('%s barriers', (name) => {
+describe.each(['test1', 'test2'])('%s barriers', (name) => {
   const track = load(name)
   const surface = trackSurface(track)
   const walls = barrierPillars(track)

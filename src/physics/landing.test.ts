@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Track } from '../track/schema'
 import { createCarAt, FixedStepper, NO_INPUT, TICK_HZ, trackSurface, wheelContacts } from '.'
 
-const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/lap1.json', import.meta.url), 'utf8')) as Track
+const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/test1.json', import.meta.url), 'utf8')) as Track
 const GROUND_Y = 0
 
 describe('landing after the lap1 ramp', () => {

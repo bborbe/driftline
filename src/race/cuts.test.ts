@@ -93,7 +93,7 @@ function legs(track: Track): { name: string; from: Pose; to: Pose }[] {
   return out
 }
 
-describe.each(['lap1', 'lap2'])('%s grass cuts', (name) => {
+describe.each(['test1', 'test2'])('%s grass cuts', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -157,7 +157,7 @@ function follow(start: CarState, samples: Sample[], target: Pose, surface: Surfa
   return { ticks: Infinity, grass }
 }
 
-describe.each(['lap1', 'lap2'])('%s skilled grass lines', (name) => {
+describe.each(['test1', 'test2'])('%s skilled grass lines', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -185,7 +185,7 @@ describe.each(['lap1', 'lap2'])('%s skilled grass lines', (name) => {
 // waypoints across the grass, then rejoin the fast road line to gate `to`. Each one stays here as a
 // regression case once a wall closes it.
 const SKILLED: Record<string, { name: string; from: number; to: number; waypoints: [number, number][] }[]> = {
-  lap2: [
+  test2: [
     // Operator 2026-10-16: past gate 5, swing left across the infield onto seg 21, skipping hairpin 20.
     ...[-60, -50, -40].map((z) => ({
       name: `gate 5 → 6 across the hairpin-20 infield at z ${z}`,

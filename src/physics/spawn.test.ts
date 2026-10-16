@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Track } from '../track/schema'
 import { createCarAt, FixedStepper, NO_INPUT, TICK_HZ, trackSurface } from '.'
 
-const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/lap1.json', import.meta.url), 'utf8')) as Track
+const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/test1.json', import.meta.url), 'utf8')) as Track
 
 describe('spawn on lap1', () => {
   it('car at track.start with no input stays put for 2 s', () => {

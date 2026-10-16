@@ -5,7 +5,7 @@ import { createCarAt, type CarState } from '../../physics'
 import { dustIntensity, DustPool } from '../fx/dust'
 import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, zoneQuad } from './zones'
 
-const lap2 = JSON.parse(readFileSync(new URL('../../../assets/track/lap2.json', import.meta.url), 'utf8')) as Track
+const lap2 = JSON.parse(readFileSync(new URL('../../../assets/track/test2.json', import.meta.url), 'utf8')) as Track
 
 // Positions are float32, so world-space checks use a 0.1 mm tolerance.
 // Lateral offset and distance along the segment of every vertex in a position buffer.

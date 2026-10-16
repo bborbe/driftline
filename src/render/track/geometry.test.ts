@@ -120,7 +120,7 @@ describe('render track geometry', () => {
 })
 
 describe('ramp supports', () => {
-  const lap = JSON.parse(readFileSync('assets/track/lap2.json', 'utf8')) as Track
+  const lap = JSON.parse(readFileSync('assets/track/test2.json', 'utf8')) as Track
   const entries = poses(lap)
 
   it('walls only under ramps and drops, feet on the ground, tops at the road edge height', () => {

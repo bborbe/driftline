@@ -28,7 +28,7 @@ describe('medals', () => {
     expect(isBetterMedal(null, null)).toBe(false)
   })
 
-  it.each(['lap1', 'lap2'])('%s ships four strictly ordered medal times', (name) => {
+  it.each(['test1', 'test2'])('%s ships four strictly ordered medal times', (name) => {
     const track = JSON.parse(readFileSync(new URL(`../../assets/track/${name}.json`, import.meta.url), 'utf8')) as Track
     expect(validate(track)).toEqual([])
     const times = MEDAL_ORDER.map((m) => track.medals![m])
