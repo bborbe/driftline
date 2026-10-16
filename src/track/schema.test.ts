@@ -22,6 +22,21 @@ describe('exitPose', () => {
     expect(p.z).toBeCloseTo(0)
   })
 
+  it('turns a 180° banked right turn like a hairpin and keeps height', () => {
+    const p = exitPose({ ...origin, y: 2 }, { type: 'banked', turn: 'right', radius: 5, angle: 180, bank: 0.3 })
+    expect(p.heading).toBeCloseTo(-Math.PI)
+    expect(p.x).toBeCloseTo(-10)
+    expect(p.z).toBeCloseTo(0)
+    expect(p.y).toBe(2)
+  })
+
+  it('turns a 90° banked left turn to heading +π/2', () => {
+    const p = exitPose(origin, { type: 'banked', turn: 'left', radius: 15, angle: 90, bank: 0.26 })
+    expect(p.heading).toBeCloseTo(Math.PI / 2)
+    expect(p.x).toBeCloseTo(15)
+    expect(p.z).toBeCloseTo(15)
+  })
+
   it('lifts on a ramp and lowers on a drop', () => {
     const up = exitPose(origin, { type: 'ramp', length: 20, rise: 3 })
     expect(up.y).toBe(3)
@@ -46,6 +61,12 @@ describe('validate', () => {
 
   it('rejects an unknown segment type', () => {
     expect(validate({ ...ok, segments: [{ type: 'loop' }] })).toContain('segments[0]: unknown segment type loop')
+  })
+
+  it('rejects a banked turn without a bank angle', () => {
+    expect(validate({ ...ok, segments: [{ type: 'banked', turn: 'left', radius: 10, angle: 90 }] })).toEqual([
+      'segments[0]: needs turn, radius > 0, angle 90|180, bank (radians)',
+    ])
   })
 
   it('rejects a gate with no segment', () => {
