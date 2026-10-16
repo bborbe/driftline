@@ -1,10 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { isEffect, isPad, padForward, poses, type Track, type Zone } from '../../track/schema'
-import { createCarAt, type CarState } from '../../physics'
+import { isEffect, isPad, padForward, poses, turnCentre, type Segment, type Track, type Zone } from '../../track/schema'
+import { createCarAt, trackSurface, type CarState } from '../../physics'
 import { dustIntensity, DustPool } from '../fx/dust'
 import { effectIcon } from './effect-pads'
-import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, ZONE_WIDTH, zoneQuad } from './zones'
+import { buildSegment, type SegmentGeometry } from './geometry'
+import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, SURFACE_OVERRUN, surfaceJoins, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, ZONE_WIDTH, zoneQuad } from './zones'
 
 const lap2 = JSON.parse(readFileSync(new URL('../../../assets/track/test2.json', import.meta.url), 'utf8')) as Track
 
@@ -161,6 +162,134 @@ describe('surface patch', () => {
   it('decal lift stays at most 5 mm over the road top', () => {
     expect(ZONE_LIFT - ROAD_TOP).toBeGreaterThan(0)
     expect(ZONE_LIFT - ROAD_TOP).toBeLessThanOrEqual(0.005)
+  })
+})
+
+// Surface zones on curves, hairpins and banks: the patch follows the arc and the bank roll.
+describe('surface patch on arcs', () => {
+  const arcs: Segment[] = [
+    { type: 'curve', turn: 'left', radius: 10, angle: 90 },
+    { type: 'curve', turn: 'right', radius: 30, angle: 90 },
+    { type: 'hairpin', turn: 'left', radius: 10 },
+    { type: 'banked', turn: 'right', radius: 20, angle: 180, bank: 0.26 },
+    { type: 'banked', turn: 'left', radius: 20, angle: 90, bank: 0.26 },
+  ]
+  const start = { x: 5, y: 4, z: -3, heading: 0.4 }
+  const name = (seg: Segment) => `${seg.type} ${'turn' in seg ? seg.turn : ''} r${'radius' in seg ? seg.radius : ''}`
+
+  // Height of the drawn road mesh (buildSegment) at (x, z): the lowest triangle containing it, so a
+  // patch edge on the road/curb step reads the asphalt, not the curb top.
+  const drawnRoadY = (geo: SegmentGeometry, x: number, z: number): number | null => {
+    const p = geo.positions
+    const at = (i: number) => [p[i * 3], p[i * 3 + 1], p[i * 3 + 2]]
+    let best: number | null = null
+    for (let k = 0; k < geo.indices.length; k += 3) {
+      const [a, b, c] = [at(geo.indices[k]), at(geo.indices[k + 1]), at(geo.indices[k + 2])]
+      const det = (b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2])
+      if (Math.abs(det) < 1e-12) continue
+      const l1 = ((b[2] - c[2]) * (x - c[0]) + (c[0] - b[0]) * (z - c[2])) / det
+      const l2 = ((c[2] - a[2]) * (x - c[0]) + (a[0] - c[0]) * (z - c[2])) / det
+      const l3 = 1 - l1 - l2
+      if (l1 >= -1e-4 && l2 >= -1e-4 && l3 >= -1e-4) {
+        const y = l1 * a[1] + l2 * b[1] + l3 * c[1]
+        if (best === null || y < best) best = y
+      }
+    }
+    return best
+  }
+
+  it.each(arcs.map((seg) => [name(seg), seg] as const))('%s: every vertex lies on the asphalt, 3 mm over the drawn road, where physics reads the zone', (_name, seg) => {
+    const zone = { kind: 'ice' as const, segment: 0, from: 0, to: 1 }
+    const track: Track = { name: 't', start, segments: [seg], gates: [], zones: [zone] }
+    const physics = trackSurface(track, { groundY: null })
+    const geo = buildSegment(start, seg)
+    const radius = 'radius' in seg ? seg.radius : 0
+    const [cx, cz] = turnCentre(start, 'turn' in seg ? seg.turn : 'left', radius)
+    const { positions } = surfacePatch(track, zone)
+    expect(positions.length / 3).toBeGreaterThan(100)
+    const cols = Math.round((2 * ROAD_HALF_WIDTH) / 0.3) + 1
+    for (let i = 0; i < positions.length; i += 3) {
+      const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]]
+      // Rows are chords of the arc like the road mesh's, so allow the chord sag.
+      expect(Math.abs(Math.hypot(x - cx, z - cz) - radius)).toBeLessThanOrEqual(ROAD_HALF_WIDTH + 0.05)
+      const roadY = drawnRoadY(geo, x, z)
+      expect(roadY, `vertex ${i / 3} over the road mesh`).not.toBeNull()
+      expect(y - roadY!).toBeGreaterThan(0.002)
+      expect(y - roadY!).toBeLessThan(0.004)
+      // The first and last rows sit on the piece's end lines, where a single-piece raycast can fall a
+      // rounding error outside the sector; every vertex between must read the zone's material.
+      const hit = physics.raycast({ x, y: y + 2, z }, { x: 0, y: -1, z: 0 }, 10)
+      const endRow = i / 3 < cols || i / 3 >= positions.length / 3 - cols
+      if (!endRow) expect(hit?.material, `vertex ${i / 3}`).toBe('ice')
+    }
+  })
+
+  it('a partial zone on a hairpin overruns its physics extent by SURFACE_OVERRUN and fades out at both ends', () => {
+    const seg: Segment = { type: 'hairpin', turn: 'right', radius: 15 }
+    const zone = { kind: 'dirt' as const, segment: 0, from: 0.2, to: 0.8 }
+    const track: Track = { name: 't', start, segments: [seg], gates: [], zones: [zone] }
+    const patch = surfacePatch(track, zone)
+    const cols = Math.round((2 * ROAD_HALF_WIDTH) / 0.3) + 1
+    const rows = patch.positions.length / 3 / cols
+    const [cx, cz] = turnCentre(start, 'right', 15)
+    // Sweep fraction of a row's centre vertex: its angle about the turn centre over the hairpin's π.
+    const fraction = (row: number) => {
+      const i = (row * cols + Math.floor(cols / 2)) * 3
+      const a0 = Math.atan2(start.x - cx, start.z - cz)
+      const a = Math.atan2(patch.positions[i] - cx, patch.positions[i + 2] - cz)
+      return Math.abs(((a - a0 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) / Math.PI
+    }
+    const pad = SURFACE_OVERRUN / (15 * Math.PI)
+    expect(fraction(0)).toBeCloseTo(0.2 - pad, 2)
+    expect(fraction(rows - 1)).toBeCloseTo(0.8 + pad, 2)
+    for (const row of [0, rows - 1]) for (let c = 0; c < cols; c++) expect(patch.colors[(row * cols + c) * 4 + 3]).toBe(0)
+  })
+
+  // A straight → curve → straight dirt run, then plain road, then a dirt piece on the last segment.
+  const run: Track = {
+    name: 't',
+    start: { x: 0, y: 0, z: 0, heading: 0 },
+    segments: [
+      { type: 'straight', length: 20 },
+      { type: 'curve', turn: 'left', radius: 20, angle: 90 },
+      { type: 'straight', length: 20 },
+      { type: 'straight', length: 20 },
+      { type: 'straight', length: 20 },
+    ],
+    gates: [],
+    zones: [0, 1, 2, 4].map((k) => ({ kind: 'dirt' as const, segment: k, from: 0, to: 1 })),
+  }
+  const zones = run.zones!
+  const patches = zones.map((z) => surfacePatch(run, { ...z, kind: 'dirt' }))
+  const cols = Math.round((2 * ROAD_HALF_WIDTH) / 0.3) + 1
+  const rowCountOf = (k: number) => patches[k].positions.length / 3 / cols
+  const centreAlpha = (k: number, row: 'first' | 'last') => patches[k].colors[((row === 'first' ? 0 : rowCountOf(k) - 1) * cols + Math.floor(cols / 2)) * 4 + 3]
+
+  it('joins a run of same-surface pieces, never across the start line', () => {
+    expect(zones.map((z) => surfaceJoins(run, z))).toEqual([
+      { start: false, end: true },
+      { start: true, end: true },
+      { start: true, end: false },
+      // Segment 4 runs into segment 0 across the start line: not joined, it fades out there.
+      { start: false, end: false },
+    ])
+    expect(centreAlpha(0, 'first')).toBe(0)
+    expect(centreAlpha(2, 'last')).toBe(0)
+    expect(centreAlpha(3, 'last')).toBe(0)
+    for (const k of [0, 1]) expect(centreAlpha(k, 'last')).toBeGreaterThan(0.99)
+    for (const k of [1, 2]) expect(centreAlpha(k, 'first')).toBeGreaterThan(0.99)
+  })
+
+  it('a joined pair meets without a seam: the shared row has the same position and colour on both sides', () => {
+    for (const k of [0, 1]) {
+      const a = patches[k]
+      const b = patches[k + 1]
+      const last = (rowCountOf(k) - 1) * cols
+      for (let c = 0; c < cols; c++) {
+        for (let d = 0; d < 3; d++) expect(Math.abs(a.positions[(last + c) * 3 + d] - b.positions[c * 3 + d])).toBeLessThan(1e-4)
+        for (let d = 0; d < 4; d++) expect(Math.abs(a.colors[(last + c) * 4 + d] - b.colors[c * 4 + d])).toBeLessThan(1e-4)
+      }
+    }
   })
 })
 

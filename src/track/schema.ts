@@ -69,8 +69,23 @@ export type ZoneKind = 'turbo' | 'turbo-red' | 'dirt' | 'ice' | 'grass' | Effect
 
 export const ZONE_KINDS: readonly ZoneKind[] = ['turbo', 'turbo-red', 'dirt', 'ice', 'grass', ...EFFECT_KINDS]
 
-/** Segment types a zone may lie on: planar strips, so the patch is a flat quad on the road. */
+/** Segment types a pad (turbo, turbo-red, effect pads) may lie on: planar strips, so the pad is a flat quad on the road. */
 export const ZONE_SEGMENTS: readonly SegmentType[] = ['straight', 'ramp', 'drop']
+
+/** Low-grip surface kinds: full-width patches drawn along the road, curves and banks included. */
+export const SURFACE_KINDS = ['dirt', 'ice', 'grass'] as const satisfies readonly ZoneKind[]
+
+/** A low-grip surface kind. */
+export type SurfaceKind = (typeof SURFACE_KINDS)[number]
+
+/** True for the surface kinds (dirt, ice, grass). */
+export const isSurface = (kind: ZoneKind): kind is SurfaceKind => (SURFACE_KINDS as readonly ZoneKind[]).includes(kind)
+
+/** Segment types a surface zone may lie on: every road piece (not a gap). The patch follows the arc and bank roll. */
+export const SURFACE_SEGMENTS: readonly SegmentType[] = ['straight', 'ramp', 'drop', 'curve', 'hairpin', 'banked']
+
+/** Segment types a zone of `kind` may lie on. */
+export const zoneSegments = (kind: ZoneKind): readonly SegmentType[] => (isSurface(kind) ? SURFACE_SEGMENTS : ZONE_SEGMENTS)
 
 /** A full-width patch on segment `segment`, from fraction `from` to `to` (0..1) of its length. */
 export interface Zone {

@@ -111,7 +111,9 @@ describe('zones', () => {
   it('validates kind, segment type and range', () => {
     expect(validate({ ...base, zones: [{ kind: 'ice', segment: 0, from: 0.2, to: 0.5 }] })).toEqual([])
     expect(validate({ ...base, zones: [{ kind: 'lava', segment: 0, from: 0, to: 1 }] })).toEqual(['zones[0]: unknown kind'])
-    expect(validate({ ...base, zones: [{ kind: 'ice', segment: 1, from: 0, to: 1 }] })).toHaveLength(1)
+    // Surfaces lie on curves too; pads stay on planar segments.
+    expect(validate({ ...base, zones: [{ kind: 'ice', segment: 1, from: 0, to: 1 }] })).toEqual([])
+    expect(validate({ ...base, zones: [{ kind: 'turbo', segment: 1, from: 0, to: 1 }] })).toHaveLength(1)
     expect(validate({ ...base, zones: [{ kind: 'ice', segment: 5, from: 0, to: 1 }] })).toEqual(['zones[0]: segment out of range'])
     expect(validate({ ...base, zones: [{ kind: 'ice', segment: 0, from: 0.5, to: 0.5 }] })).toHaveLength(1)
   })

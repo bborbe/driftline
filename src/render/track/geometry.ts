@@ -33,8 +33,8 @@ export const lateralPoint = (p: Sample, u: number, s: number): [number, number, 
   p.z - Math.sin(p.heading) * u,
 ]
 
-/** Rows to sample: about one every 1.5 m, never fewer than 13. */
-const rowCount = (seg: Segment): number => Math.max(12, Math.ceil(segmentLength(seg) / 1.5)) + 1
+/** Rows to sample: about one every 1.5 m, never fewer than 13. Surface patches follow the same rows (zones.ts). */
+export const rowCount = (seg: Segment): number => Math.max(12, Math.ceil(segmentLength(seg) / 1.5)) + 1
 
 /** Surface bands of the road cross-section; mesh.ts colours each band to match the Kenney pieces. */
 export type Band = 'grass' | 'curb' | 'road'

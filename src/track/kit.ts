@@ -9,7 +9,7 @@ import { CELL, exitPose, type Barrier, type Gate, type GateKind, type Pose, type
 /** Height of one kit level in metres. Every connector sits on a multiple of it. */
 export const LEVEL = 4
 
-/** Road surface a piece is built in. Non-road surfaces are full-length zones (planar pieces only). */
+/** Road surface a piece is built in. Non-road surfaces are full-length zones on every segment of the piece. */
 export type KitSurface = 'road' | 'dirt' | 'ice' | 'grass'
 
 export const KIT_SURFACES: readonly KitSurface[] = ['road', 'dirt', 'ice', 'grass']
@@ -57,7 +57,8 @@ export interface PieceDef {
 
 const road = (forward: number, left: number, up: number, turn: number): Connector => ({ forward, left, up, turn, bank: 0, kind: 'road' })
 const plain = (segments: Segment[], extra: Partial<Expansion> = {}): Expansion => ({ segments, zones: [], gates: [], walls: false, ...extra })
-const PLANAR: readonly KitSurface[] = KIT_SURFACES
+// Every road piece comes in every surface; only pieces with a gap (air) or a pad/gate stay road.
+const ANY: readonly KitSurface[] = KIT_SURFACES
 const ROAD_ONLY: readonly KitSurface[] = ['road']
 
 /** Kit bank angle (radians): the proven 0.26 of lap1/lap2, well inside the 0.6 rad limit. */
@@ -66,7 +67,7 @@ export const KIT_BANK = 0.26
 const curve = (id: string, cells: number): PieceDef => ({
   id,
   family: 'curve',
-  surfaces: ROAD_ONLY,
+  surfaces: ANY,
   turns: true,
   out: road(cells, cells, 0, 1),
   expand: (turn) => plain([{ type: 'curve', turn, radius: cells * CELL, angle: 90 }]),
@@ -83,18 +84,18 @@ const flat = (id: string, family: PieceFamily, extra: Partial<Expansion>, cells 
 
 /** Every piece type of the kit, in catalogue order. */
 export const KIT_PIECES: readonly PieceDef[] = [
-  { ...flat('straight-1', 'road', {}), surfaces: PLANAR },
-  { ...flat('straight-2', 'road', {}, 2), surfaces: PLANAR },
+  { ...flat('straight-1', 'road', {}), surfaces: ANY },
+  { ...flat('straight-2', 'road', {}, 2), surfaces: ANY },
   curve('curve-r1', 1),
   curve('curve-r2', 2),
   curve('curve-r3', 3),
-  { id: 'hairpin', family: 'curve', surfaces: ROAD_ONLY, turns: true, out: road(0, 2, 0, 2), expand: (turn) => plain([{ type: 'hairpin', turn, radius: CELL }]) },
-  { id: 'slope-up', family: 'slope', surfaces: PLANAR, turns: false, out: road(2, 0, 1, 0), expand: () => plain([{ type: 'ramp', length: 2 * CELL, rise: LEVEL }]) },
-  { id: 'slope-down', family: 'slope', surfaces: PLANAR, turns: false, out: road(2, 0, -1, 0), expand: () => plain([{ type: 'drop', length: 2 * CELL, fall: LEVEL }]) },
+  { id: 'hairpin', family: 'curve', surfaces: ANY, turns: true, out: road(0, 2, 0, 2), expand: (turn) => plain([{ type: 'hairpin', turn, radius: CELL }]) },
+  { id: 'slope-up', family: 'slope', surfaces: ANY, turns: false, out: road(2, 0, 1, 0), expand: () => plain([{ type: 'ramp', length: 2 * CELL, rise: LEVEL }]) },
+  { id: 'slope-down', family: 'slope', surfaces: ANY, turns: false, out: road(2, 0, -1, 0), expand: () => plain([{ type: 'drop', length: 2 * CELL, fall: LEVEL }]) },
   {
     id: 'bump',
     family: 'slope',
-    surfaces: PLANAR,
+    surfaces: ANY,
     turns: false,
     out: road(2, 0, 0, 0),
     expand: () =>
@@ -106,7 +107,7 @@ export const KIT_PIECES: readonly PieceDef[] = [
   {
     id: 'bank-90',
     family: 'bank',
-    surfaces: ROAD_ONLY,
+    surfaces: ANY,
     turns: true,
     out: road(2, 2, 0, 1),
     expand: (turn) => plain([{ type: 'banked', turn, radius: 2 * CELL, angle: 90, bank: KIT_BANK }]),
@@ -114,7 +115,7 @@ export const KIT_PIECES: readonly PieceDef[] = [
   {
     id: 'bank-180',
     family: 'bank',
-    surfaces: ROAD_ONLY,
+    surfaces: ANY,
     turns: true,
     out: road(0, 4, 0, 2),
     expand: (turn) => plain([{ type: 'banked', turn, radius: 2 * CELL, angle: 180, bank: KIT_BANK }]),
@@ -141,7 +142,7 @@ export const KIT_PIECES: readonly PieceDef[] = [
   flat('checkpoint', 'gate', { gates: [{ kind: 'checkpoint', segment: 0 }] }),
   // Two cells: the start/finish arch stands mid-tile (schema START_ARCH_FRACTION).
   flat('start', 'gate', { gates: [{ kind: 'start-finish', segment: 0 }] }, 2),
-  { ...flat('walled', 'wall', { walls: true }, 2), surfaces: PLANAR },
+  { ...flat('walled', 'wall', { walls: true }, 2), surfaces: ANY },
 ]
 
 const BY_ID = new Map(KIT_PIECES.map((p) => [p.id, p]))

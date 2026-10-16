@@ -144,13 +144,40 @@ describe('compileKit', () => {
     expect(track.barriers).toHaveLength(2)
   })
 
+  // Curves, hairpins and banks come in dirt, ice and grass too: the zone covers the whole piece,
+  // validates, and physics reads that material across the road, banked turns included.
+  it.each(KIT_PIECES.filter((d) => d.surfaces.length > 1).flatMap((d) => d.surfaces.filter((s) => s !== 'road').flatMap((s) => turnsOf(d).map((turn) => [d.id, s, turn] as const))))(
+    '%s in %s (%s): physics reads the surface across the whole piece',
+    (id, surface, turn) => {
+      const def = KIT_PIECES.find((d) => d.id === id)!
+      const entry: Pose = { x: 0, y: 0, z: 0, heading: 0 }
+      const segments = def.expand(turn).segments
+      const zones = segments.map((_, k) => ({ kind: surface, segment: k, from: 0, to: 1 }))
+      const track = { name: id, start: entry, segments, gates: [], zones }
+      expect(validate(track)).toEqual([])
+      const physics = trackSurface(track, { groundY: null })
+      const starts = poses(track)
+      segments.forEach((seg, k) => {
+        const s = turnSign(seg)
+        for (const t of [0.02, 0.25, 0.5, 0.75, 0.98]) {
+          const p = sampleSegment(starts[k], seg, t)
+          for (const u of [-3, 0, 3]) {
+            const [x, y, z] = lateralPoint(p, u, s)
+            const hit = physics.raycast({ x, y: y + 2, z }, { x: 0, y: -1, z: 0 }, 10)
+            expect(hit?.material, `${id} seg ${k} t=${t} u=${u}`).toBe(surface)
+          }
+        }
+      })
+    },
+  )
+
   it('refuses a lap that does not close', () => {
     expect(() => compileKit(loop([{ piece: 'start' }, { piece: 'curve-r1' }]))).toThrow(/does not close/)
   })
 
   it('refuses unknown pieces, surfaces a piece lacks, and walls above ground', () => {
     expect(() => compileKit(loop([{ piece: 'loop' }]))).toThrow(/unknown piece/)
-    expect(() => compileKit(loop([{ piece: 'curve-r1', surface: 'ice' }]))).toThrow(/no ice variant/)
+    expect(() => compileKit(loop([{ piece: 'gap-jump', surface: 'ice' }]))).toThrow(/no ice variant/)
     expect(() => compileKit(loop([{ piece: 'slope-up' }, { piece: 'walled' }]))).toThrow(/ground only/)
   })
 })
