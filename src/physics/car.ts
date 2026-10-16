@@ -90,6 +90,10 @@ const OVERSPEED_DRAG = 1.5
 const OVERSPEED_RAMP = 3 // m/s
 
 // Turbo pads, Trackmania-style: touching one starts (or refreshes) a fixed-time forward push.
+// A pad boosts only a car moving along its arrow: within 60° of it (cos 60° = 0.5). Against the
+// arrow or across it there is no boost at all.
+export const TURBO_ALIGN = 0.5
+
 export const TURBO = {
   'turbo': { ticks: 1.0 * TICK_HZ, force: 7000 },
   'turbo-red': { ticks: 1.5 * TICK_HZ, force: 14000 },
@@ -239,6 +243,11 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   let turbo = Math.max(0, s.turbo - 1)
   let turboForce = turbo > 0 ? s.turboForce : 0
   let grounded = false
+  // Direction of travel on the ground plane; at a standstill, where the car points.
+  const flatVel = v3(s.velocity.x, 0, s.velocity.z)
+  const travel = length(flatVel) > STOPPED ? normalize(flatVel) : normalize(v3(fwdBody.x, 0, fwdBody.z))
+  // Arrow of a pad the car is on and moving along this tick, projected onto that pad's plane.
+  let padPush: Vec3 | null = null
 
   for (const wheel of WHEELS) {
     const r = rotate(s.orientation, wheel.mount)
@@ -248,13 +257,15 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     grounded = true
     const material = hit.material ?? 'road'
     const handling = MATERIALS[material]
-    if (material === 'turbo' || material === 'turbo-red') {
+    if ((material === 'turbo' || material === 'turbo-red') && hit.padForward && dot(travel, hit.padForward) >= TURBO_ALIGN) {
       // A stronger pad overrides a weaker running boost; the same pad refreshes it.
       const pad = TURBO[material]
       if (pad.force >= turboForce || turbo === 0) {
         turbo = pad.ticks
         turboForce = pad.force
       }
+      const a = hit.padForward
+      padPush = normalize(sub(a, scale(hit.normal, dot(a, hit.normal))))
     }
 
     const contactVel = add(s.velocity, cross(s.angularVelocity, r))
@@ -319,8 +330,9 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     torque = add(torque, cross(r, wheelForce))
   }
 
-  // Turbo pushes along the body while on the ground, like a pad kick through the tyres.
-  if (turbo > 0 && grounded) force = add(force, scale(fwdBody, turboForce))
+  // Turbo pushes along the pad's arrow while on it, then along the body for the rest of the boost,
+  // like a pad kick through the tyres.
+  if (turbo > 0 && grounded) force = add(force, scale(padPush ?? fwdBody, turboForce))
 
   const v = length(s.velocity)
   force = sub(force, scale(s.velocity, DRAG * v))
