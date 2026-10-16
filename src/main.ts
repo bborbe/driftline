@@ -6,7 +6,7 @@ import { createView } from './render/view'
 import { loadLap } from './render/track/lap'
 import { GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
-import { createGhostMesh, GhostRecorder, GhostReplayer, placeGhost } from './ghost'
+import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 
 const track = loadLap()
 const view = await createView(track)
@@ -20,8 +20,8 @@ const input = new KeyboardInput()
 const audio = new GameAudio()
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
 const ghostRecorder = new GhostRecorder()
-const ghostMesh = createGhostMesh()
-view.scene.add(ghostMesh)
+const ghostCar = await createGhostCar()
+view.scene.add(ghostCar.object)
 let ghost: GhostReplayer | null = null
 let lapStartTick = 0
 const race = initRace(sim, track, {
@@ -38,7 +38,7 @@ const race = initRace(sim, track, {
       lapStart: (tick) => {
         lapStartTick = tick
         ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
-        ghostMesh.visible = ghost !== null
+        ghostCar.object.visible = ghost !== null
       },
       // Dev-only split log: the lap-2 ghost check compares these against the best lap.
       checkpoint: (tick, index) => {
@@ -59,7 +59,7 @@ view.renderer.setAnimationLoop(() => {
   const carInput = input.read()
   race.frame(elapsed, carInput)
   ghostRecorder.frame(race.loop.input(carInput), sim.state.tick)
-  if (ghost) placeGhost(ghostMesh, ghost.advanceTo(sim.state.tick - lapStartTick))
+  if (ghost) ghostCar.update(ghost.advanceTo(sim.state.tick - lapStartTick), elapsed)
   const s = sim.state
   audio.update(s, carInput)
   const speed = dot(s.velocity, forwardOf(s))
