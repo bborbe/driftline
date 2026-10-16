@@ -84,6 +84,17 @@ export function gateLine(track: Track, gate: Gate): Pose {
   return exitPose(entry, { type: 'straight', length: tileLength(seg.length) * START_ARCH_FRACTION })
 }
 
+/**
+ * Short stable id of a track's layout (start, segments, gates; not its name). Changes whenever
+ * the geometry or gates change, so per-layout records start fresh after a redesign. FNV-1a, 8 hex.
+ */
+export function layoutId(track: Track): string {
+  const text = JSON.stringify([track.start, track.segments, track.gates])
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  return (h >>> 0).toString(16).padStart(8, '0')
+}
+
 /** Entry pose of every segment followed by the final exit pose (length segments + 1). */
 export function poses(track: Track): Pose[] {
   const out = [track.start]

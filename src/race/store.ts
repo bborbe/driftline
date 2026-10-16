@@ -5,7 +5,9 @@ export const MAX_LEADERBOARD_ENTRIES = 10
 const NAME_KEY = 'driftline-last-name'
 /** lap1 keeps the original unsuffixed keys so existing best times and boards survive. */
 const LEGACY_TRACK = 'lap1'
-const suffix = (track: string) => (track === LEGACY_TRACK ? '' : `-${track}`)
+// Other tracks are keyed by name and layout, so a redesigned track starts a fresh board.
+const suffix = (track: string, layout: string) =>
+  track === LEGACY_TRACK ? '' : layout ? `-${track}-${layout}` : `-${track}`
 
 export interface LeaderboardEntry {
   name: string
@@ -20,11 +22,11 @@ export class RaceStore {
   private readonly bestKey: string
   private readonly boardKey: string
 
-  /** Best time and leaderboard are kept per track; the last player name is shared. */
-  constructor(storage: KeyValueStore, track: string = LEGACY_TRACK) {
+  /** Best time and leaderboard are kept per track and layout (see layoutId); the last player name is shared. */
+  constructor(storage: KeyValueStore, track: string = LEGACY_TRACK, layout = '') {
     this.storage = storage
-    this.bestKey = `driftline-best${suffix(track)}`
-    this.boardKey = `driftline-leaderboard${suffix(track)}`
+    this.bestKey = `driftline-best${suffix(track, layout)}`
+    this.boardKey = `driftline-leaderboard${suffix(track, layout)}`
   }
 
   best(): number | null {
