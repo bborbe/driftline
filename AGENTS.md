@@ -42,7 +42,7 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 
 The why for each rule is in the PR it cites and in the operator's *3D Browser Game Development Guide*.
 
-- **One shape, one function:** collider and mesh come from the same function in `src/track/` (`bank.ts`, `gatePillars()`, `gateLine()`). Never draw a second formula for a shape physics already knows; render vertices match physics raycasts within 1 mm (#21, #25, #38, #45).
+- **One shape, one function:** collider and mesh come from the same function in `src/track/` (`pose.ts` for every segment's length, pose, roll and `ROAD_WIDTH`; `bank.ts`, `gatePillars()`, `gateLine()`). A new segment type is one case in `pose.ts`, not a copy in render, physics or the autopilot. Never draw a second formula for a shape physics already knows; render vertices match physics raycasts within 1 mm (#21, #25, #38, #45).
 - **Render interpolates:** draw `FixedStepper.render()` (blends the last two ticks by `alpha = accumulator / DT`), never the latest tick; snap when state is replaced outside `advance()` (#37).
 - **Constant road width:** never scale a corner model by radius; draw non-native radii procedurally (#23).
 - **Decals sit above the road:** road top + 3 mm, `polygonOffset(-1,-1)`, `depthWrite` off, clipped to the asphalt (#47). Double-sided casters use `shadowSide = BackSide` (#26).

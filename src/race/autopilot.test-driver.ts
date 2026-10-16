@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { dot, forwardOf, type CarInput, type CarState } from '../physics'
 import { resolveTrack } from '../track/kit'
-import { exitPose, poses, type Pose, type Segment, type Track } from '../track/schema'
+import { partialPose, poses, type Pose, type Segment, type Track } from '../track/schema'
 
 export const loadTrack = (name: string) =>
   resolveTrack(JSON.parse(readFileSync(new URL(`../../assets/track/${name}.json`, import.meta.url), 'utf8'))) as Track
@@ -12,25 +12,6 @@ export const loadTrack = (name: string) =>
 export interface Sample {
   pose: Pose
   speed: number // target m/s
-}
-
-// Partial segment: the first `f` of it, so arcs and straights can be sampled densely.
-function partial(seg: Segment, f: number): Segment {
-  switch (seg.type) {
-    case 'straight':
-      return { ...seg, length: seg.length * f }
-    case 'ramp':
-      return { ...seg, length: seg.length * f, rise: seg.rise * f }
-    case 'drop':
-      return { ...seg, length: seg.length * f, fall: seg.fall * f }
-    case 'gap':
-      return { ...seg, length: seg.length * f, fall: (seg.fall ?? 0) * f }
-    case 'hairpin':
-      return { type: 'curve', turn: seg.turn, radius: seg.radius, angle: (180 * f) as 90 }
-    case 'curve':
-    case 'banked':
-      return { ...seg, angle: (seg.angle * f) as 90 }
-  }
 }
 
 const TARGET_SPEED: Record<Segment['type'], number> = {
@@ -52,7 +33,7 @@ export function centreline(track: Track): Sample[] {
     for (let k = 0; k < 20; k++) {
       const f = k / 20
       const speed = f > 0.6 ? Math.min(TARGET_SPEED[seg.type], TARGET_SPEED[next.type]) : TARGET_SPEED[seg.type]
-      out.push({ pose: exitPose(entries[i], partial(seg, f)), speed })
+      out.push({ pose: partialPose(entries[i], seg, f), speed })
     }
   })
   return out
@@ -115,7 +96,7 @@ export function racingLine(track: Track): Sample[] {
   const entries = poses(track)
   const out: Sample[] = []
   track.segments.forEach((seg, i) => {
-    for (let k = 0; k < 20; k++) out.push({ pose: exitPose(entries[i], partial(seg, k / 20)), speed: pieceLimit(seg) })
+    for (let k = 0; k < 20; k++) out.push({ pose: partialPose(entries[i], seg, k / 20), speed: pieceLimit(seg) })
   })
   // Backward pass over two laps (the line wraps): never arrive faster than the next sample allows.
   for (let n = 2 * out.length - 1; n >= 0; n--) {
