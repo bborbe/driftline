@@ -93,7 +93,7 @@ function legs(track: Track): { name: string; from: Pose; to: Pose }[] {
   return out
 }
 
-describe.each(['lap1', 'lap2'])('%s grass cuts', (name) => {
+describe.each(['lap1', 'lap2', 'crossover', 'tower'])('%s grass cuts', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
