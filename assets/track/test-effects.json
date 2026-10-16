@@ -1,0 +1,77 @@
+{
+  "name": "test-effects",
+  "start": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "heading": 0
+  },
+  "segments": [
+    {
+      "type": "straight",
+      "length": 70
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    },
+    {
+      "type": "straight",
+      "length": 70
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    }
+  ],
+  "gates": [
+    {
+      "kind": "start-finish",
+      "segment": 0
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 2
+    }
+  ],
+  "zones": [
+    {
+      "kind": "no-steer",
+      "segment": 2,
+      "from": 0.08,
+      "to": 0.14
+    },
+    {
+      "kind": "cruise",
+      "segment": 2,
+      "from": 0.2,
+      "to": 0.26
+    },
+    {
+      "kind": "fragile",
+      "segment": 2,
+      "from": 0.32,
+      "to": 0.38
+    },
+    {
+      "kind": "engine-off",
+      "segment": 2,
+      "from": 0.44,
+      "to": 0.5
+    },
+    {
+      "kind": "slow-mo",
+      "segment": 2,
+      "from": 0.56,
+      "to": 0.62
+    },
+    {
+      "kind": "reset",
+      "segment": 2,
+      "from": 0.66,
+      "to": 0.72
+    }
+  ]
+}

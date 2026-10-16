@@ -3,7 +3,7 @@
 import './race.css'
 import { menuList, type MenuList } from '../menu/list'
 import { controlsPanel } from './controls'
-import { litTicks, SPEEDO_TICKS, type Target } from './hud'
+import { litTicks, SPEEDO_TICKS, type EffectChip, type Target } from './hud'
 import { formatDelta, MEDAL_LABEL, type Medal } from './medals'
 import { formatLapTime, type RaceStore } from './store'
 
@@ -42,6 +42,8 @@ export interface HudState {
   speedKmh: number
   /** Next medal to chase, or the personal best once there is none left. */
   target: Target | null
+  /** Active effect pads, one chip each (none = hidden). */
+  effects: EffectChip[]
 }
 
 /** A split pop-up: the run time at the checkpoint and its delta vs the personal best (null without one). */
@@ -74,6 +76,8 @@ export class RaceView {
   private readonly panel = el('div', 'race-panel')
   private readonly pause = el('div', 'race-pause')
   private readonly split = el('div', 'race-split')
+  private readonly effects = el('div', 'race-effects')
+  private effectsKey = ''
   private splitTimer: ReturnType<typeof setTimeout> | undefined
   typing = false
   private pauseMenu: MenuList | null = null
@@ -102,7 +106,8 @@ export class RaceView {
     gauge.append(arc, this.speed, el('div', 'race-unit', 'KM/H'))
     this.speedo.append(gauge, this.time)
     this.split.append(this.splitTime, this.splitDelta)
-    document.body.append(this.status, this.chase, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split)
+    document.body.append(this.status, this.chase, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split, this.effects)
+    this.effects.hidden = true
     this.split.hidden = true
     this.panel.hidden = true
     this.pause.hidden = true
@@ -167,6 +172,18 @@ export class RaceView {
   }
 
   render(s: HudState): void {
+    const effectsKey = s.effects.map((c) => c.label).join('|')
+    if (effectsKey !== this.effectsKey) {
+      this.effectsKey = effectsKey
+      this.effects.replaceChildren(
+        ...s.effects.map((c) => {
+          const chip = el('span', 'race-effect', c.label)
+          chip.style.setProperty('--effect', c.color)
+          return chip
+        }),
+      )
+      this.effects.hidden = s.effects.length === 0
+    }
     setText(this.lap, `LAP ${s.lap}`)
     setText(this.cp, `CP ${s.checkpoints}`)
     setText(this.target, s.target ? `${s.target.label} ${formatLapTime(s.target.ms)}` : '')
