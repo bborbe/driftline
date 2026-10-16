@@ -9,17 +9,22 @@
   "segments": [
     {
       "type": "straight",
-      "length": 40
+      "length": 20
     },
     {
       "type": "ramp",
-      "length": 20,
-      "rise": 5.2
+      "length": 15,
+      "rise": 3.6
+    },
+    {
+      "type": "ramp",
+      "length": 10,
+      "rise": 0.8
     },
     {
       "type": "drop",
-      "length": 20,
-      "fall": 5.2
+      "length": 36,
+      "fall": 4.4
     },
     {
       "type": "hairpin",
@@ -28,7 +33,7 @@
     },
     {
       "type": "straight",
-      "length": 80
+      "length": 81
     },
     {
       "type": "hairpin",
@@ -43,7 +48,7 @@
     },
     {
       "kind": "checkpoint",
-      "segment": 4
+      "segment": 5
     }
   ]
 }

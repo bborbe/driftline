@@ -85,7 +85,7 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
 })
 
 // The conservative autopilot slows to jump speed before every ramp; a human floors it. At full
-// throttle the car flies ~9 m over crossover's landing checkpoint, which must still count.
+// throttle the car flies ~60 m down crossover's landing slope; every gate must still count.
 describe('crossover gap jump at full throttle', () => {
   it('a car flat out from the long descent straight over the gap still scores every gate and finishes', () => {
     const track = load('crossover')

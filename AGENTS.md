@@ -49,6 +49,7 @@ The why for each rule is in the PR it cites and in the operator's *3D Browser Ga
 - **Tests drive the real path:** no hand-set flags the game never produces; go through `advanceRace` / the autopilot lap (#12, #17, #22).
 - **Records are keyed by layout:** `driftline-best-<track>-<layoutId>[-lapsN]` (test1, formerly lap1, keeps its legacy key; test2 keeps lap2's — `recordName` in `src/track/catalogue.ts`); a layout or lap-count change gets a new key (#30, #46).
 - **Audio is synthesized:** no audio files; every loop fades to silence on finish (#50).
+- **Jumps land tangent to the arc:** a launch lip of ≤ 6°, then a landing slope that continues the line from the lip (gap fall ≈ gap length · slope), long enough for a flat-out car; the touchdown angle is then nearly speed-independent. `src/race/jump-landing.test.ts` pins ≤ 15° off the surface and ≤ 10% speed loss at autopilot pace and flat out on test-ramp, crossover and tower.
 - **Assets are CC0 / CC-BY / MIT** and listed in `assets/LICENSES/` (#3).
 
 ## Workflow
