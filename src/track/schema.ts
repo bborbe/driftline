@@ -59,6 +59,21 @@ export interface Zone {
   segment: number
   from: number
   to: number
+  /** Turbo pads only: the arrow points against the segment's direction (default: along it). */
+  reverse?: boolean
+}
+
+/** True for the zone kinds that boost: turbo pads. */
+export const isPad = (kind: ZoneKind): kind is 'turbo' | 'turbo-red' => kind === 'turbo' || kind === 'turbo-red'
+
+/**
+ * Unit horizontal direction a turbo pad's arrow points, as [x, z] — the single source for the
+ * boost check (src/physics) and the chevrons (src/render). Along the segment unless `reverse`.
+ */
+export function padForward(track: Track, zone: Zone): [number, number] {
+  const heading = poses(track)[zone.segment].heading
+  const s = zone.reverse ? -1 : 1
+  return [s * Math.sin(heading), s * Math.cos(heading)]
 }
 
 /**
@@ -341,6 +356,7 @@ export function validate(data: unknown): string[] {
         if (!(Number.isFinite(z?.from) && Number.isFinite(z?.to) && z.from >= 0 && z.from < z.to && z.to <= 1)) {
           errs.push(`zones[${i}]: needs 0 <= from < to <= 1`)
         }
+        if (z?.reverse !== undefined && typeof z.reverse !== 'boolean') errs.push(`zones[${i}]: reverse must be a boolean`)
       })
     }
   }
