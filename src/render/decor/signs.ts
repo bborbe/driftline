@@ -68,11 +68,11 @@ const ROWS = KINDS.length + 1
 const FRAME = '#1c1c1c'
 
 /** Printed face: three chevrons (`<` for left, `>` for right, two `^` for turbo) on a contrasting board. */
-const drawFace = (g: CanvasRenderingContext2D, kind: SignKind) => {
+const drawFace = (g: CanvasRenderingContext2D, kind: SignKind, accent: string) => {
   const { w, h } = FACE
   const turbo = kind === 'turbo' || kind === 'turbo-red'
   const bg = kind === 'turbo-red' ? '#e0241b' : turbo ? SIGN_YELLOW : SIGN_BLACK
-  const fg = turbo ? SIGN_BLACK : SIGN_YELLOW
+  const fg = turbo ? SIGN_BLACK : accent
   g.fillStyle = bg
   g.fillRect(0, 0, w, h)
   g.strokeStyle = fg
@@ -101,7 +101,7 @@ const drawFace = (g: CanvasRenderingContext2D, kind: SignKind) => {
   else for (const cx of [w / 2 - 64, w / 2, w / 2 + 64]) chevron(cx, h / 2, kind === 'left' ? 'left' : 'right')
 }
 
-const atlasTexture = (): THREE.CanvasTexture => {
+const atlasTexture = (accent: string): THREE.CanvasTexture => {
   const canvas = document.createElement('canvas')
   canvas.width = FACE.w
   canvas.height = FACE.h * ROWS
@@ -109,7 +109,7 @@ const atlasTexture = (): THREE.CanvasTexture => {
   KINDS.forEach((kind, r) => {
     g.save()
     g.translate(0, r * FACE.h)
-    drawFace(g, kind)
+    drawFace(g, kind, accent)
     g.restore()
   })
   g.fillStyle = FRAME
@@ -126,7 +126,8 @@ const FRAME_UV: [number, number] = [0.5, rowV(KINDS.length, 0.5)]
 /** BoxGeometry faces are +x, -x, +y, -y, +z, -z, six vertices each once non-indexed: +z is the front. */
 const FRONT = [24, 30]
 
-export const createSigns = (track: Track): THREE.Group => {
+/** Turn boards print `accent` chevrons (a theme's `sign`); turbo boards keep their gameplay colours. */
+export const createSigns = (track: Track, accent: string = SIGN_YELLOW): THREE.Group => {
   const group = new THREE.Group()
   group.name = 'signs'
   const white = new THREE.Color(1, 1, 1)
@@ -150,7 +151,7 @@ export const createSigns = (track: Track): THREE.Group => {
     }
   }
   // One draw call for every board. A little self-lit so boards in shadow still read.
-  const atlas = atlasTexture()
+  const atlas = atlasTexture(accent)
   group.add(merged(parts, new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 })))
   return group
 }

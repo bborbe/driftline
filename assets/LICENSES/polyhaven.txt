@@ -10,3 +10,11 @@ Files in this repo:
   https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky (HDRI, 1K)
 - assets/textures/grass_diff_1k.jpg
   https://polyhaven.com/a/aerial_grass_rock (diffuse, 1K)
+- assets/sky/qwantani_sunset_puresky_1k.hdr
+  https://polyhaven.com/a/qwantani_sunset_puresky (HDRI, 1K)
+- assets/sky/qwantani_dusk_2_puresky_1k.hdr
+  https://polyhaven.com/a/qwantani_dusk_2_puresky (HDRI, 1K)
+- assets/sky/qwantani_night_puresky_1k.hdr
+  https://polyhaven.com/a/qwantani_night_puresky (HDRI, 1K)
+- assets/sky/kloofendal_overcast_puresky_1k.hdr
+  https://polyhaven.com/a/kloofendal_overcast_puresky (HDRI, 1K)

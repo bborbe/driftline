@@ -78,15 +78,15 @@ export const curbDecals = (track: Track): { red: Ribbons; white: Ribbons } => {
 
 const DECAL = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, depthWrite: false, side: THREE.DoubleSide } as const
 
-/** Red and white ribbons as one vertex-coloured mesh: one draw call for every curb on the lap. */
-export const createCurbs = (track: Track): THREE.Mesh => {
+/** Red (or the theme's accent) and white ribbons as one vertex-coloured mesh: one draw call for every curb on the lap. */
+export const createCurbs = (track: Track, accent: THREE.Color = CURB_RED): THREE.Mesh => {
   const { red, white } = curbDecals(track)
   const vertices = (red.positions.length + white.positions.length) / 3
   const positions = new Float32Array(vertices * 3)
   positions.set(red.positions)
   positions.set(white.positions, red.positions.length)
   const colors = new Float32Array(vertices * 3)
-  for (let v = 0; v < vertices; v++) (v < red.positions.length / 3 ? CURB_RED : CURB_WHITE).toArray(colors, v * 3)
+  for (let v = 0; v < vertices; v++) (v < red.positions.length / 3 ? accent : CURB_WHITE).toArray(colors, v * 3)
   const offset = red.positions.length / 3
   const indices = new Uint32Array(red.indices.length + white.indices.length)
   indices.set(red.indices)
