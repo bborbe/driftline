@@ -61,6 +61,11 @@ export class LapLoop {
   /** Times (ms) of the laps finished so far this run. */
   lapTimes: number[] = []
   readonly laps: number
+
+  /** Fastest lap finished this run (ms), null before the first one; cleared by restart. */
+  get runBestMs(): number | null {
+    return this.lapTimes.length === 0 ? null : Math.min(...this.lapTimes)
+  }
   private startTick = 0
   private lapStartTick = 0
   private finishTick = 0

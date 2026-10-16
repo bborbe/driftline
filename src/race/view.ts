@@ -28,8 +28,11 @@ export interface HudState {
   countdown: number | null
   time: string
   checkpoints: string
-  /** `2/3` in a multi-lap run, null for a single lap (HUD unchanged). */
-  lap: string | null
+  /** Current lap of total, e.g. `2/3` (`1/1` in a single-lap run). */
+  lap: string
+  /** Fastest lap finished this run (ms), null before the first. */
+  runBest: number | null
+  /** All-time best for this track and lap count. */
   best: number | null
 }
 
@@ -90,8 +93,8 @@ export class RaceView {
   render(s: HudState): void {
     this.countdown.textContent = s.countdown === null ? '' : String(s.countdown)
     const best = s.best === null ? '--' : formatLapTime(s.best)
-    const lap = s.lap === null ? '' : `LAP ${s.lap}   `
-    this.hud.textContent = `${lap}${s.time}   CP ${s.checkpoints}   BEST ${best}   [R] respawn [⌫] restart [L] leaderboard [F] fullscreen [1/2/3] camera`
+    const runBest = s.runBest === null ? '--' : formatLapTime(s.runBest)
+    this.hud.textContent = `LAP ${s.lap}   ${s.time}   CP ${s.checkpoints}   RUN BEST ${runBest}   BEST ${best}   [R] respawn [⌫] restart [L] leaderboard [F] fullscreen [1/2/3] camera`
   }
 
   /** Flash a split delta (blue ahead, red behind); null hides it. */
