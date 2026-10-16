@@ -1,7 +1,9 @@
 // Lap loop: wait for Begin, countdown, ordered checkpoint gates, lap timer, finish, respawn
 // (manual, or automatic when the car falls out of the world).
 // Pure and tick-driven (100 Hz physics ticks), so it is deterministic and testable.
-import { createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, type CarInput, type CarState, type Vec3 } from '../physics'
+import {
+  createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Vec3,
+} from '../physics'
 import { poses, type Pose, type Track } from '../track/schema'
 
 export const COUNTDOWN_TICKS = 3 * TICK_HZ
@@ -172,6 +174,19 @@ export class LapLoop {
   private emit(fn: (l: RaceEvents) => void): void {
     for (const l of this.listeners) fn(l)
   }
+}
+
+/**
+ * One frame of the race against the car sim: advance the physics with the gated input, update
+ * lap state, apply an auto-respawn. While the finish panel is up the car is frozen where it
+ * crossed the line instead of coasting off the track behind the panel. Returns the respawned
+ * car, if any. This is the whole per-frame race step; race.frame() and the tests both use it.
+ */
+export function advanceRace(loop: LapLoop, sim: FixedStepper, elapsedSeconds: number, raw: CarInput): CarState | null {
+  if (loop.phase !== 'finished') sim.advance(elapsedSeconds, loop.input(raw))
+  const respawned = loop.update(sim.state, wheelContacts(sim.state, sim.surface))
+  if (respawned) sim.state = respawned
+  return respawned
 }
 
 /** Did the segment prev→cur cross the gate plane forwards, within the gate width? */
