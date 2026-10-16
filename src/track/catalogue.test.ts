@@ -50,6 +50,11 @@ describe('track catalogue', () => {
     expect(ranks.every((r, i) => r >= 0 && (i === 0 || r >= ranks[i - 1]))).toBe(true)
   })
 
+  it('every campaign level ships, so the Campaign group lists A01-A05 in order', () => {
+    for (const l of CAMPAIGN) expect(shipped).toContain(l.track)
+    expect(trackGroups(shipped)[0].entries.map((e) => e.label)).toEqual(['A01', 'A02', 'A03', 'A04', 'A05'])
+  })
+
   it('every listed test track ships, and ≥ 5 single-feature test tracks exist', () => {
     for (const t of TEST_TRACKS) expect(shipped).toContain(t)
     expect(shipped.filter((n) => n.startsWith('test-')).length).toBeGreaterThanOrEqual(5)

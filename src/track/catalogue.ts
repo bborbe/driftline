@@ -18,6 +18,10 @@ export interface CampaignLevel {
 export const CAMPAIGN: readonly CampaignLevel[] = [
   { id: 'A01', track: 'crossover', tier: 'white' },
   { id: 'A02', track: 'tower', tier: 'white' },
+  // Built from the piece kit (src/track/kit.ts), in rising difficulty.
+  { id: 'A03', track: 'plunge', tier: 'green' },
+  { id: 'A04', track: 'knot', tier: 'blue' },
+  { id: 'A05', track: 'leap', tier: 'red' },
 ]
 
 /** Test-track order; any other `test*` track follows these. */

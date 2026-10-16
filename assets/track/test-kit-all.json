@@ -20,9 +20,17 @@
       { "piece": "curve-r1", "turn": "right" },
       { "piece": "curve-r1", "turn": "left" },
       { "piece": "curve-r1", "turn": "right" },
+      { "piece": "slope-up" },
+      { "piece": "slope-up" },
+      { "piece": "gap-jump" },
+      { "piece": "straight-2" },
+      { "piece": "bank-180", "turn": "left" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
-      { "piece": "bank-180", "turn": "left" }
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" }
     ]
   }
 }
