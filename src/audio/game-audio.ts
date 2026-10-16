@@ -43,6 +43,13 @@ export class GameAudio {
     if (this.ctx!.state === 'suspended') await this.ctx!.resume()
   }
 
+  // Pause freezes engine/skid sound with the game; only a context that begin() already started is resumed.
+  async setPaused(paused: boolean): Promise<void> {
+    if (!this.ctx) return
+    if (paused && this.ctx.state === 'running') await this.ctx.suspend()
+    else if (!paused && this.ctx.state === 'suspended') await this.ctx.resume()
+  }
+
   setMuted(muted: boolean): void {
     this.muted = muted
     this.applyMaster()

@@ -13,20 +13,27 @@ export class RaceView {
   private readonly hud = el('div', 'race-hud')
   private readonly countdown = el('div', 'race-countdown')
   private readonly panel = el('div', 'race-panel')
+  private readonly pause = el('div', 'race-pause')
   typing = false
 
   private readonly store: RaceStore
 
   constructor(store: RaceStore) {
     this.store = store
-    document.body.append(this.hud, this.countdown, this.panel)
+    document.body.append(this.hud, this.countdown, this.panel, this.pause)
     this.panel.hidden = true
+    this.pause.hidden = true
+    this.pause.append(el('h2', '', 'PAUSED — Esc to resume'), el('p', '', '[R] respawn  [⌫] restart  [L] leaderboard'))
   }
 
   render(s: HudState): void {
     this.countdown.textContent = s.countdown === null ? '' : String(s.countdown)
     const best = s.best === null ? '--' : formatLapTime(s.best)
     this.hud.textContent = `${s.time}   CP ${s.checkpoints}   BEST ${best}   [R] respawn [⌫] restart [L] leaderboard`
+  }
+
+  showPause(paused: boolean): void {
+    this.pause.hidden = !paused
   }
 
   showFinish(lapTimeMs: number, isNewBest: boolean): void {
