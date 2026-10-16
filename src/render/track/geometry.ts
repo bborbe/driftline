@@ -5,8 +5,12 @@ import { poses, type Pose, type Segment, type Track } from '../../track/schema'
 
 /** Road width in metres. */
 export const TRACK_WIDTH = 10 // matches the Kenney road pieces
-/** Road surface sits this far above the ground plane to avoid z-fighting. */
-export const SURFACE_LIFT = 0.02
+/**
+ * Lift of the procedural surface above the schema pose. Zero: it must sit exactly at the
+ * Kenney pieces' height, or the step at every glb/procedural joint draws a dark seam line.
+ * The ground can never z-fight it (drawn first, no depth writes: scene.ts).
+ */
+export const SURFACE_LIFT = 0
 
 /** A point on a segment's centerline: world position, heading and road roll (radians). */
 export type Sample = { x: number; y: number; z: number; heading: number; roll: number }
@@ -186,6 +190,35 @@ export const buildApron = (entry: Pose, seg: Segment): SegmentGeometry | null =>
     const b = (r + 1) * perRow
     idx.push(a, a + 1, b, a + 1, b + 1, b) // apron
     idx.push(a + 2, a + 3, b + 2, a + 3, b + 3, b + 2) // outer skirt
+  }
+  return { positions, indices: new Uint32Array(idx), rows, perRow }
+}
+
+/**
+ * Visual-only solid sides under a ramp or drop: a wall down to the ground along each outer
+ * edge, so an elevated ramp reads as a solid block instead of a floating plank. Returns null
+ * for every other segment type.
+ */
+export const buildRampSupport = (entry: Pose, seg: Segment): SegmentGeometry | null => {
+  if (seg.type !== 'ramp' && seg.type !== 'drop') return null
+  const rows = rowCount(seg)
+  const half = TRACK_WIDTH / 2
+  const perRow = 4 // left top, left foot, right top, right foot
+  const positions = new Float32Array(rows * perRow * 3)
+  for (let r = 0; r < rows; r++) {
+    const p = sampleSegment(entry, seg, r / (rows - 1))
+    for (const [k, u] of [[0, half], [2, -half]]) {
+      const [x, y, z] = lateralPoint(p, u, 1)
+      positions.set([x, y, z], (r * perRow + k) * 3)
+      positions.set([x, 0, z], (r * perRow + k + 1) * 3)
+    }
+  }
+  const idx: number[] = []
+  for (let r = 0; r < rows - 1; r++) {
+    const a = r * perRow
+    const b = (r + 1) * perRow
+    idx.push(a, a + 1, b, a + 1, b + 1, b) // left wall
+    idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3) // right wall
   }
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }

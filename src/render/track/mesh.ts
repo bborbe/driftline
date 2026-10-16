@@ -1,7 +1,7 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
 import { gateLine, poses, type Track } from '../../track/schema'
-import { buildApron, buildTrack, PROFILE, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
+import { buildApron, buildRampSupport, buildTrack, PROFILE, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road.
@@ -13,14 +13,15 @@ const BAND: Record<Band, THREE.Color> = {
 }
 
 /** Shared with the Kenney pieces (kenney.ts), so both kinds of road read equally glossy. */
-export const ROAD_ROUGHNESS = 0.5
+export const ROAD_ROUGHNESS = 0.7
 
 const roadMaterial = new THREE.MeshPhysicalMaterial({
   vertexColors: true,
   // Glossy, Trackmania-like: the HDRI environment (scene.ts) gives the clearcoat something to reflect.
   roughness: ROAD_ROUGHNESS,
-  clearcoat: 0.3,
-  clearcoatRoughness: 0.25,
+  // Soft: a sharp coat mirrored the HDRI clouds as blotches across the road.
+  clearcoat: 0.15,
+  clearcoatRoughness: 0.5,
   metalness: 0,
   side: THREE.DoubleSide,
   shadowSide: THREE.BackSide, // a double-sided caster would otherwise shadow itself (acne)
@@ -97,5 +98,26 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
     arch.rotation.y = p.heading
     group.add(arch)
   }
+  return group
+}
+
+/** Ramp/drop sides in the Kenney wall grey, for every ramp and drop whether glb or procedural. */
+const supportMaterial = new THREE.MeshStandardMaterial({ color: BAND.curb, roughness: 0.9, side: THREE.DoubleSide })
+
+export const createRampSupports = (track: Track): THREE.Group => {
+  const group = new THREE.Group()
+  group.name = 'ramp-supports'
+  const ps = poses(track)
+  track.segments.forEach((seg, i) => {
+    const g = buildRampSupport(ps[i], seg)
+    if (!g) return
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(g.positions, 3))
+    geo.setIndex(new THREE.BufferAttribute(g.indices, 1))
+    geo.computeVertexNormals()
+    const wall = new THREE.Mesh(geo, supportMaterial)
+    wall.castShadow = wall.receiveShadow = true
+    group.add(wall)
+  })
   return group
 }

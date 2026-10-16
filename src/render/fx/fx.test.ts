@@ -56,8 +56,17 @@ describe('skid marks', () => {
 })
 
 describe('frame stats', () => {
+  it('ignores the warm-up frames (shader compilation on load)', () => {
+    const st = new FrameStats(60, 3)
+    st.push(0, 2) // a 2 s compile stall
+    st.push(2000, 1)
+    expect(st.count).toBe(0)
+    st.push(2016, 1 / 60)
+    expect(st.onePercentLow()).toBeCloseTo(60, 5)
+  })
+
   it('1% low is the 1st percentile of per-frame fps', () => {
-    const st = new FrameStats()
+    const st = new FrameStats(60, 0)
     let t = 0
     for (let i = 0; i < 990; i++) st.push((t += 16), 1 / 60)
     for (let i = 0; i < 10; i++) st.push((t += 33), 1 / 30)
@@ -66,7 +75,7 @@ describe('frame stats', () => {
   })
 
   it('forgets frames older than the 60 s window', () => {
-    const st = new FrameStats()
+    const st = new FrameStats(60, 0)
     st.push(0, 1 / 10)
     st.push(61_000, 1 / 60)
     expect(st.count).toBe(1)

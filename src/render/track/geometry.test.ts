@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { poses, SEGMENT_TYPES, validate } from '../../track/schema'
 import { FIXTURE_TRACK } from './fixture'
 import { trackSurface } from '../../physics'
-import type { Segment } from '../../track/schema'
-import { buildApron, buildTrack, CENTRE_COLUMN, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import type { Segment, Track } from '../../track/schema'
+import { buildApron, buildRampSupport, buildTrack, CENTRE_COLUMN, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
@@ -115,5 +116,26 @@ describe('render track geometry', () => {
       const [rx, , rz] = at(row, 1)
       expect(Math.hypot(rx - ix, rz - iz), `row ${row}`).toBeLessThan(1e-6)
     }
+  })
+})
+
+describe('ramp supports', () => {
+  const lap = JSON.parse(readFileSync('assets/track/lap2.json', 'utf8')) as Track
+  const entries = poses(lap)
+
+  it('walls only under ramps and drops, feet on the ground, tops at the road edge height', () => {
+    lap.segments.forEach((seg, i) => {
+      const g = buildRampSupport(entries[i], seg)
+      if (seg.type !== 'ramp' && seg.type !== 'drop') return expect(g).toBeNull()
+      expect(g).not.toBeNull()
+      const y = (r: number, k: number) => g!.positions[(r * g!.perRow + k) * 3 + 1]
+      for (let r = 0; r < g!.rows; r++) {
+        const p = sampleSegment(entries[i], seg, r / (g!.rows - 1))
+        expect(y(r, 1)).toBe(0)
+        expect(y(r, 3)).toBe(0)
+        expect(y(r, 0)).toBeCloseTo(p.y, 5)
+        expect(y(r, 2)).toBeCloseTo(p.y, 5)
+      }
+    })
   })
 })
