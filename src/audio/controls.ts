@@ -12,7 +12,11 @@ export const isBeginKey = (code: string, repeat: boolean, target: KeyTarget): bo
   return !(tag === 'INPUT' && target?.type !== 'range')
 }
 
-export const mountAudioControls = (audio: GameAudio, onBegin: () => void = () => {}): void => {
+export const mountAudioControls = (
+  audio: GameAudio,
+  onBegin: () => void = () => {},
+  canBegin: () => boolean = () => true,
+): void => {
   const overlay = document.createElement('button')
   overlay.id = 'begin'
   overlay.innerHTML = 'Begin<br><small style="font-size:12px">Enter / Space to start</small>'
@@ -20,7 +24,7 @@ export const mountAudioControls = (audio: GameAudio, onBegin: () => void = () =>
   // One-shot: the overlay leaves the DOM on Begin, so a running countdown or race can never re-trigger it.
   let begun = false
   const begin = () => {
-    if (begun) return
+    if (begun || !canBegin()) return
     begun = true
     window.removeEventListener('keydown', onKey)
     void audio.begin().then(() => console.log(`audio: ${audio.state}`))
