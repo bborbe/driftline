@@ -1,11 +1,15 @@
 // Scene look: Poly Haven HDRI sky (background + reflections), sun with car-following shadows,
-// textured grass ground, Kenney Nature Kit scenery. Track and car are added by view.ts.
+// textured grass ground, Kenney Nature Kit scenery, and the stadium decor (curb stripes, sign boards,
+// arena backdrop: decor/). Track and car are added by view.ts.
 import * as THREE from 'three/webgpu'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 import type { Track } from '../track/schema'
 import hdrUrl from '/assets/sky/kloofendal_48d_partly_cloudy_puresky_1k.hdr?url'
 import grassUrl from '/assets/textures/grass_diff_1k.jpg?url'
 import { createScenery } from './scenery'
+import { createCurbs } from './track/curbs'
+import { createSigns } from './decor/signs'
+import { createStadium } from './decor/stadium'
 
 /** Horizon tint: fog fades distant ground into the HDRI's horizon instead of a hard edge. */
 const HORIZON = 0xb9d4e8
@@ -46,10 +50,11 @@ export type SceneSetup = {
 
 export const createScene = async (track: Track): Promise<SceneSetup> => {
   const scene = new THREE.Scene()
-  const [sky, grass, scenery] = await Promise.all([
+  const [sky, grass, scenery, stadium] = await Promise.all([
     new HDRLoader().loadAsync(hdrUrl),
     new THREE.TextureLoader().loadAsync(grassUrl),
     createScenery(track),
+    createStadium(track),
   ])
   sky.mapping = THREE.EquirectangularReflectionMapping
   scene.background = sky
@@ -66,7 +71,7 @@ export const createScene = async (track: Track): Promise<SceneSetup> => {
   sc.right = sc.top = 60
   sc.near = 1
   sc.far = 200
-  scene.add(sun, sun.target, createGround(grass), scenery)
+  scene.add(sun, sun.target, createGround(grass), scenery, stadium, createCurbs(track), createSigns(track))
 
   const follow = (x: number, y: number, z: number) => {
     sun.position.set(x + 40, y + 80, z + 30)
