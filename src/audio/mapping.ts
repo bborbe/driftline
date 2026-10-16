@@ -40,6 +40,7 @@ export const SURFACE_SOUND: Readonly<Record<Material, SurfaceSound>> = {
   'turbo-red': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
   dirt: { skidHz: 900, rumbleHz: 350, rumbleMax: 0.35 },
   grass: { skidHz: 700, rumbleHz: 220, rumbleMax: 0.3 },
+  offroad: { skidHz: 650, rumbleHz: 200, rumbleMax: 0.45 },
   ice: { skidHz: 5200, rumbleHz: 4000, rumbleMax: 0.08 },
 }
 

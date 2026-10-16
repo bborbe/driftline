@@ -72,7 +72,9 @@ const COAST_RESISTANCE = 0.3
 
 // Per-material handling. `grip` scales the tyre friction coefficient; `drag` is extra rolling
 // resistance as a fraction of wheel load, always on (grass and dirt bog the car down).
-export type MaterialHandling = { grip: number; drag: number }
+// `maxSpeed` (m/s, default MAX_SPEED) caps what the engine drives a wheel to on that material;
+// above it the wheel is braked by OVERSPEED_DRAG, so diving onto it at speed bleeds speed fast.
+export type MaterialHandling = { grip: number; drag: number; maxSpeed?: number }
 export const MATERIALS: Readonly<Record<Material, MaterialHandling>> = {
   road: { grip: 1, drag: 0 },
   'turbo': { grip: 1, drag: 0 },
@@ -80,7 +82,12 @@ export const MATERIALS: Readonly<Record<Material, MaterialHandling>> = {
   dirt: { grip: 0.6, drag: 0.04 },
   ice: { grip: 0.18, drag: 0 },
   grass: { grip: 0.5, drag: 0.12 },
+  // Off-track ground, Trackmania-style: cutting across the field never beats the road.
+  offroad: { grip: 0.45, drag: 0.1, maxSpeed: 10 },
 }
+// Resistance (fraction of wheel load) once a wheel is OVERSPEED_RAMP m/s or more over its material's maxSpeed.
+const OVERSPEED_DRAG = 1.5
+const OVERSPEED_RAMP = 3 // m/s
 
 // Turbo pads, Trackmania-style: touching one starts (or refreshes) a fixed-time forward push.
 export const TURBO = {
@@ -279,7 +286,8 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     // Longitudinal: drive (rear), brake (all), handbrake (rear).
     let fLong = 0
     if (!wheel.front) {
-      const drive = (forwardDrive * ENGINE_FORCE * driveFalloff - reverseDrive * REVERSE_FORCE * reverseFalloff) / 2
+      const capFalloff = handling.maxSpeed === undefined ? 1 : clamp((handling.maxSpeed + 2 - Math.abs(speed)) / 12, 0, 1)
+      const drive = (forwardDrive * ENGINE_FORCE * Math.min(driveFalloff, capFalloff) - reverseDrive * REVERSE_FORCE * reverseFalloff) / 2
       const cap = DRIVE_SHARE * maxFriction
       fLong += clamp(drive, -cap, cap)
     }
@@ -297,6 +305,13 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     if (total > maxFriction && total > 0) {
       fLong *= maxFriction / total
       fLat *= maxFriction / total
+    }
+
+    // Over a material's maxSpeed the ground itself holds the wheel back (soft ground, not tyre
+    // friction), so it acts outside the friction circle and leaves the lateral grip intact.
+    if (handling.maxSpeed !== undefined) {
+      const overspeed = clamp((Math.abs(vLong) - handling.maxSpeed) / OVERSPEED_RAMP, 0, 1)
+      fLong -= Math.sign(vLong) * Math.min(OVERSPEED_DRAG * overspeed * normalForce, (Math.abs(vLong) * MASS) / 4 / DT)
     }
 
     const wheelForce = add(add(scale(up, normalForce), scale(fwd, fLong)), scale(right, fLat))
