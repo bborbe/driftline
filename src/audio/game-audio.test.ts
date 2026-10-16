@@ -81,6 +81,8 @@ describe('GameAudio one-shots', () => {
     ['checkpoint', (a: GameAudio) => a.onCheckpoint()],
     ['finish', (a: GameAudio) => a.onFinish()],
     ['respawn', (a: GameAudio) => a.onRespawn()],
+    ['countdown', (a: GameAudio) => a.onCountdown(2)],
+    ['go', (a: GameAudio) => a.onCountdown(0)],
   ] as const)('%s schedules its own note sequence', async (event, fire) => {
     const { ctx, audio } = setup()
     await audio.begin()
@@ -89,5 +91,19 @@ describe('GameAudio one-shots', () => {
     const notes = ctx.started.slice(before)
     expect(notes.map((o) => o.frequency.value)).toEqual([...ONE_SHOTS[event].freqs])
     expect(notes.every((o) => o.type === ONE_SHOTS[event].type)).toBe(true)
+  })
+})
+
+describe('GameAudio countdown beeps', () => {
+  it('3, 2, 1 are the same short low beep and GO is higher and longer', () => {
+    expect(ONE_SHOTS.go.freqs[0]).toBeGreaterThan(ONE_SHOTS.countdown.freqs[0])
+    expect(ONE_SHOTS.go.duration).toBeGreaterThan(ONE_SHOTS.countdown.duration)
+  })
+  it('plays through the master gain, so mute silences it', async () => {
+    const { audio, master } = setup()
+    await audio.begin()
+    audio.setMuted(true)
+    audio.onCountdown(3)
+    expect(master().gain.value).toBe(0)
   })
 })
