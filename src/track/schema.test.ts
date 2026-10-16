@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { exitPose, layoutId, poses, validate, type Pose, type Track } from './schema'
+import { exitPose, layoutId, poses, validate, zoneCorners, type Pose, type Track } from './schema'
 
 const origin: Pose = { x: 0, y: 0, z: 0, heading: 0 }
 
@@ -89,5 +89,32 @@ describe('layoutId', () => {
     expect(layoutId(a)).toMatch(/^[0-9a-f]{8}$/)
     expect(layoutId({ ...a, name: 'b' })).toBe(layoutId(a))
     expect(layoutId({ ...a, segments: [{ type: 'straight', length: 41 }] })).not.toBe(layoutId(a))
+  })
+})
+
+describe('zones', () => {
+  const base: Track = {
+    name: 'z',
+    start: { x: 0, y: 0, z: 0, heading: 0 },
+    segments: [{ type: 'straight', length: 100 }, { type: 'curve', turn: 'left', radius: 20, angle: 90 }],
+    gates: [{ kind: 'start-finish', segment: 0 }],
+  }
+
+  it('validates kind, segment type and range', () => {
+    expect(validate({ ...base, zones: [{ kind: 'ice', segment: 0, from: 0.2, to: 0.5 }] })).toEqual([])
+    expect(validate({ ...base, zones: [{ kind: 'lava', segment: 0, from: 0, to: 1 }] })).toEqual(['zones[0]: unknown kind'])
+    expect(validate({ ...base, zones: [{ kind: 'ice', segment: 1, from: 0, to: 1 }] })).toHaveLength(1)
+    expect(validate({ ...base, zones: [{ kind: 'ice', segment: 5, from: 0, to: 1 }] })).toEqual(['zones[0]: segment out of range'])
+    expect(validate({ ...base, zones: [{ kind: 'ice', segment: 0, from: 0.5, to: 0.5 }] })).toHaveLength(1)
+  })
+
+  it('layoutId is unchanged without zones and changes with them', () => {
+    expect(layoutId({ ...base, zones: [] })).toBe(layoutId(base))
+    expect(layoutId({ ...base, zones: [{ kind: 'dirt', segment: 0, from: 0, to: 0.5 }] })).not.toBe(layoutId(base))
+  })
+
+  it('zoneCorners spans the zone along the segment, left (+x at heading 0) first', () => {
+    const [l0, r0, l1, r1] = zoneCorners(base, { kind: 'dirt', segment: 0, from: 0.2, to: 0.5 }, 8)
+    expect([l0.x, l0.z, r0.x, r0.z, l1.z, r1.x]).toEqual([4, 20, -4, 20, 50, -4])
   })
 })

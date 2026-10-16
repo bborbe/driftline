@@ -5,7 +5,7 @@ import {
   type Quat, type Vec3,
 } from './vec'
 import type { Pillar } from '../track/schema'
-import { FLAT, type RayHit, type Surface } from './surface'
+import { FLAT, type Material, type RayHit, type Surface } from './surface'
 
 export const TICK_HZ = 100
 export const DT = 1 / TICK_HZ
@@ -28,6 +28,8 @@ export type CarState = {
   angularVelocity: Vec3 // world frame
   steerAngle: number // rad, smoothed
   tick: number
+  turbo: number // ticks of turbo boost left (0 = none)
+  turboForce: number // N, forward push while turbo > 0
 }
 
 const GRAVITY = 9.81
@@ -68,6 +70,24 @@ const ROLLING = 30
 // Off-throttle coast-down (rolling resistance + drivetrain drag), as a fraction of wheel load.
 const COAST_RESISTANCE = 0.3
 
+// Per-material handling. `grip` scales the tyre friction coefficient; `drag` is extra rolling
+// resistance as a fraction of wheel load, always on (grass and dirt bog the car down).
+export type MaterialHandling = { grip: number; drag: number }
+export const MATERIALS: Readonly<Record<Material, MaterialHandling>> = {
+  road: { grip: 1, drag: 0 },
+  'turbo': { grip: 1, drag: 0 },
+  'turbo-red': { grip: 1, drag: 0 },
+  dirt: { grip: 0.6, drag: 0.04 },
+  ice: { grip: 0.18, drag: 0 },
+  grass: { grip: 0.5, drag: 0.12 },
+}
+
+// Turbo pads, Trackmania-style: touching one starts (or refreshes) a fixed-time forward push.
+export const TURBO = {
+  'turbo': { ticks: 1.0 * TICK_HZ, force: 7000 },
+  'turbo-red': { ticks: 1.5 * TICK_HZ, force: 14000 },
+} as const
+
 // Local frame: +z forward, +y up, so +x is the driver's LEFT (right = forward × up = -x). Mount points sit at the top of each spring.
 type Wheel = { mount: Vec3; front: boolean }
 const WHEELS: Wheel[] = [
@@ -87,6 +107,8 @@ export const createCar = (position: Vec3 = v3(0, SPAWN_HEIGHT, 0)): CarState => 
   angularVelocity: v3(),
   steerAngle: 0,
   tick: 0,
+  turbo: 0,
+  turboForce: 0,
 })
 
 /** Car at rest on a track pose, facing its heading (0 = +z). */
@@ -207,12 +229,26 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   const brakeInput = (speed >= STOPPED ? brake : 0) + (reversing ? throttle : 0)
   const driveFalloff = clamp((MAX_SPEED + 2 - Math.abs(speed)) / 12, 0, 1)
   const reverseFalloff = clamp((MAX_REVERSE_SPEED + Math.min(speed, 0)) / 2, 0, 1)
+  let turbo = Math.max(0, s.turbo - 1)
+  let turboForce = turbo > 0 ? s.turboForce : 0
+  let grounded = false
 
   for (const wheel of WHEELS) {
     const r = rotate(s.orientation, wheel.mount)
     const contact = wheelContact(add(s.position, r), up, surface)
     if (!contact) continue
     const { hit, compression } = contact
+    grounded = true
+    const material = hit.material ?? 'road'
+    const handling = MATERIALS[material]
+    if (material === 'turbo' || material === 'turbo-red') {
+      // A stronger pad overrides a weaker running boost; the same pad refreshes it.
+      const pad = TURBO[material]
+      if (pad.force >= turboForce || turbo === 0) {
+        turbo = pad.ticks
+        turboForce = pad.force
+      }
+    }
 
     const contactVel = add(s.velocity, cross(s.angularVelocity, r))
     // Compression rate = rate the ray length shrinks against the surface. Measured along
@@ -233,7 +269,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     const vLong = dot(contactVel, fwd)
     const vLat = dot(contactVel, right)
 
-    const maxFriction = (wheel.front ? GRIP : REAR_GRIP) * normalForce
+    const maxFriction = (wheel.front ? GRIP : REAR_GRIP) * handling.grip * normalForce
     // Lateral: saturating slip-angle model.
     const slip = Math.atan2(vLat, Math.max(Math.abs(vLong), 1))
     let lateralGrip = maxFriction * Math.tanh(slip / PEAK_SLIP)
@@ -253,7 +289,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
       const stopForce = (Math.abs(vLong) * MASS) / 4 / DT
       fLong -= Math.sign(vLong) * Math.min(brakeTotal, stopForce)
     }
-    const coast = forwardDrive <= 0 && reverseDrive <= 0 ? COAST_RESISTANCE * normalForce : 0
+    const coast = (forwardDrive <= 0 && reverseDrive <= 0 ? COAST_RESISTANCE * normalForce : 0) + handling.drag * normalForce
     fLong -= Math.sign(vLong) * Math.min(ROLLING / 4 + coast, (Math.abs(vLong) * MASS) / 4 / DT)
 
     // Friction circle.
@@ -268,6 +304,9 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     torque = add(torque, cross(r, wheelForce))
   }
 
+  // Turbo pushes along the body while on the ground, like a pad kick through the tyres.
+  if (turbo > 0 && grounded) force = add(force, scale(fwdBody, turboForce))
+
   const v = length(s.velocity)
   force = sub(force, scale(s.velocity, DRAG * v))
 
@@ -277,7 +316,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   const orientation = integrateQuat(s.orientation, angularVelocity, DT)
   const moved = collide(add(s.position, scale(velocity, DT)), velocity, fwdBody, surface.obstacles)
 
-  return { ...moved, orientation, angularVelocity, steerAngle, tick: s.tick + 1 }
+  return { ...moved, orientation, angularVelocity, steerAngle, tick: s.tick + 1, turbo, turboForce }
 }
 
 // Angle between heading and velocity on the ground plane, in degrees.
@@ -347,6 +386,27 @@ const nlerp = (a: Quat, b: Quat, t: number): Quat => {
     z: a.z + (sign * b.z - a.z) * t,
     w: a.w + (sign * b.w - a.w) * t,
   })
+}
+
+// Material under the car: the one most wheels stand on (ties go to the earlier wheel, front first);
+// 'road' when airborne. Read by audio and effects, never by step().
+export const materialUnder = (s: CarState, surface: Surface = FLAT): Material => {
+  const up = rotate(s.orientation, v3(0, 1, 0))
+  const counts = new Map<Material, number>()
+  let best: Material = 'road'
+  let bestN = 0
+  for (const wheel of WHEELS) {
+    const c = wheelContact(add(s.position, rotate(s.orientation, wheel.mount)), up, surface)
+    if (!c) continue
+    const m = c.hit.material ?? 'road'
+    const n = (counts.get(m) ?? 0) + 1
+    counts.set(m, n)
+    if (n > bestN) {
+      best = m
+      bestN = n
+    }
+  }
+  return best
 }
 
 // Number of wheels whose suspension ray reaches the surface (0 = airborne).
