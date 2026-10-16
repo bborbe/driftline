@@ -6,7 +6,8 @@
       { "piece": "start" },
       { "piece": "straight-2", "surface": "ice", "walls": "both" },
       { "piece": "bank-90", "turn": "left", "surface": "ice", "walls": "both" },
-      { "piece": "straight-2", "surface": "ice", "walls": "both" },
+      { "piece": "checkpoint" },
+      { "piece": "straight-1", "surface": "ice", "walls": "both" },
       { "piece": "bank-90", "turn": "left", "surface": "ice", "walls": "both" },
       { "piece": "checkpoint" },
       { "piece": "curve-r2", "turn": "right", "surface": "ice", "walls": "both" },
@@ -14,13 +15,14 @@
       { "piece": "straight-2" },
       { "piece": "straight-2", "surface": "ice", "walls": "both" },
       { "piece": "bank-90", "turn": "left", "surface": "ice", "walls": "both" },
-      { "piece": "straight-2", "surface": "ice", "walls": "both" },
+      { "piece": "checkpoint" },
+      { "piece": "straight-1", "surface": "ice", "walls": "both" },
       { "piece": "bank-90", "turn": "left", "surface": "ice", "walls": "both" },
       { "piece": "checkpoint" },
       { "piece": "curve-r2", "turn": "right", "surface": "ice", "walls": "both" },
       { "piece": "curve-r2", "turn": "left", "surface": "ice", "walls": "both" }
     ]
   },
-  "medals": { "author": 35500, "gold": 38500, "silver": 43500, "bronze": 50500 },
+  "medals": { "author": 35000, "gold": 38000, "silver": 42500, "bronze": 49500 },
   "theme": {"sky": "overcast", "skyLight": 0.55, "fog": "#dfe9ef", "fogNear": 150, "fogFar": 800, "sun": "#e6f2ff", "sunIntensity": 1.6, "ground": "#e8f1f5", "curb": "#00a3e0", "sign": "#ffffff", "screen": "#0b3d5c", "scenery": ["tree_cone", "stone_tallC", "rock_largeC"]}
 }

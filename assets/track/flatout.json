@@ -13,7 +13,8 @@
       { "piece": "turbo" },
       { "piece": "checkpoint" },
       { "piece": "bank-180-wide", "turn": "left" },
-      { "piece": "straight-2" },
+      { "piece": "checkpoint" },
+      { "piece": "straight-1" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
@@ -25,7 +26,8 @@
       { "piece": "straight-1" },
       { "piece": "checkpoint" },
       { "piece": "bank-180-wide", "turn": "left" },
-      { "piece": "straight-2" },
+      { "piece": "checkpoint" },
+      { "piece": "straight-1" },
       { "piece": "straight-2" }
     ]
   },
