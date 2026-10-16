@@ -1,9 +1,9 @@
 // The shipped tracks, validated against the schema. `?track=<name>` picks one (default test1);
 // old names (lap1, lap2) resolve through the catalogue's aliases.
 // Falls back to the fixture so a broken track file shows a warning and a drivable scene instead of a blank page.
-import { menuOrder, nextInGroup, resolveAlias } from '../../track/catalogue'
-import { resolveTrack } from '../../track/kit'
-import { validate, type Track } from '../../track/schema'
+import { menuOrder, nextInGroup, resolveAlias } from './catalogue'
+import { resolveTrack } from './kit'
+import { validate, type Track } from './schema'
 import { FIXTURE_TRACK } from './fixture'
 
 // Every track JSON except the piece catalogue (pieces.json) is a drivable lap.
