@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { centreline } from '../track/centreline'
-import { loadLap } from './track/lap'
+import { loadLap } from '../track/registry'
 import { topCamFor, topCamRequested } from './topcam'
 
 describe('?cam=top', () => {

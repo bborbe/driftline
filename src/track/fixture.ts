@@ -1,6 +1,6 @@
 // Demo track exercising every segment type. Used by tests and as the scene's
 // track until the shipped lap file is wired in.
-import type { Track } from '../../track/schema'
+import type { Track } from './schema'
 
 export const FIXTURE_TRACK: Track = {
   name: 'render-fixture',

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { centreline } from '../../track/centreline'
 import type { Track } from '../../track/schema'
-import { FIXTURE_TRACK } from '../track/fixture'
-import { LAP_NAMES, loadLap } from '../track/lap'
+import { FIXTURE_TRACK } from '../../track/fixture'
+import { LAP_NAMES, loadLap } from '../../track/registry'
 import { GROUND_LEVEL, planSigns, SIGN_CLEARANCE } from './signs'
 
 // Every shipped track (campaign, test and multi-level) plus the all-segment-types fixture.

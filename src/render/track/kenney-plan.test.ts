@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { exitPose, poses, type Pose, type Track } from '../../track/schema'
-import { FIXTURE_TRACK } from './fixture'
+import { FIXTURE_TRACK } from '../../track/fixture'
 import { TRACK_WIDTH } from './geometry'
-import { placedRoadWidth, planPieces } from './pieces'
+import { placedRoadWidth, planPieces } from './kenney-plan'
 
 const lap = JSON.parse(readFileSync('assets/track/test1.json', 'utf8')) as Track
 const near = (a: Pose, b: Pose) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)

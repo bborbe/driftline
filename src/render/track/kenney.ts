@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Track } from '../../track/schema'
 import { createBarriers, createRampSupports, createTrackMesh, ROAD_ROUGHNESS } from './mesh'
 import { ASPHALT } from '../look'
-import { planPieces } from './pieces'
+import { planPieces } from './kenney-plan'
 import { createZoneMeshes } from './zones'
 
 // Vite bundles each piece and hands back its URL, so the build works under any base path.
