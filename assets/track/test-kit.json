@@ -1,0 +1,21 @@
+{
+  "name": "test-kit",
+  "kit": {
+    "start": { "cell": [0, 0], "level": 0, "dir": 0 },
+    "pieces": [
+      { "piece": "start" },
+      { "piece": "turbo" },
+      { "piece": "slope-up" },
+      { "piece": "slope-up" },
+      { "piece": "straight-2" },
+      { "piece": "curve-r2", "turn": "left" },
+      { "piece": "curve-r2", "turn": "left" },
+      { "piece": "checkpoint" },
+      { "piece": "slope-down" },
+      { "piece": "slope-down" },
+      { "piece": "bump" },
+      { "piece": "walled", "surface": "dirt" },
+      { "piece": "bank-180", "turn": "left" }
+    ]
+  }
+}

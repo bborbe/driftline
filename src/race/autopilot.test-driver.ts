@@ -3,10 +3,11 @@
 // the faster `racingLine`).
 import { readFileSync } from 'node:fs'
 import { dot, forwardOf, type CarInput, type CarState } from '../physics'
+import { resolveTrack } from '../track/kit'
 import { partialPose, poses, type Pose, type Segment, type Track } from '../track/schema'
 
 export const loadTrack = (name: string) =>
-  JSON.parse(readFileSync(new URL(`../../assets/track/${name}.json`, import.meta.url), 'utf8')) as Track
+  resolveTrack(JSON.parse(readFileSync(new URL(`../../assets/track/${name}.json`, import.meta.url), 'utf8'))) as Track
 
 export interface Sample {
   pose: Pose
