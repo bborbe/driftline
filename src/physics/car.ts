@@ -69,7 +69,10 @@ const WHEELS: Wheel[] = [
   { mount: v3(0.8, 0, -1.3), front: false },
 ]
 
-export const createCar = (position: Vec3 = v3(0, REST_LENGTH + WHEEL_RADIUS - 0.15, 0)): CarState => ({
+// Body height above the surface when spawned; the springs settle it from there.
+const SPAWN_HEIGHT = REST_LENGTH + WHEEL_RADIUS - 0.15
+
+export const createCar = (position: Vec3 = v3(0, SPAWN_HEIGHT, 0)): CarState => ({
   position,
   velocity: v3(),
   orientation: quatIdentity(),
@@ -77,6 +80,15 @@ export const createCar = (position: Vec3 = v3(0, REST_LENGTH + WHEEL_RADIUS - 0.
   steerAngle: 0,
   tick: 0,
 })
+
+/** Car at rest on a track pose, facing its heading (0 = +z). */
+export const createCarAt = (pose: { x: number; y: number; z: number; heading: number }): CarState => {
+  const half = pose.heading / 2
+  return {
+    ...createCar(v3(pose.x, pose.y + SPAWN_HEIGHT, pose.z)),
+    orientation: { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) },
+  }
+}
 
 export const forwardOf = (s: CarState): Vec3 => rotate(s.orientation, v3(0, 0, 1))
 
@@ -202,15 +214,18 @@ export class FixedStepper {
   private accumulator = 0
   state: CarState
 
-  constructor(state: CarState) {
+  private readonly surface: Surface
+
+  constructor(state: CarState, surface: Surface = FLAT) {
     this.state = state
+    this.surface = surface
   }
 
   advance(elapsedSeconds: number, input: CarInput): number {
     this.accumulator += Math.min(elapsedSeconds, 0.25)
     let ticks = 0
     while (this.accumulator >= DT) {
-      this.state = step(this.state, input)
+      this.state = step(this.state, input, this.surface)
       this.accumulator -= DT
       ticks++
     }
