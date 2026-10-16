@@ -69,18 +69,28 @@ const DRAG = 0.45
 const ROLLING = 30
 // Off-throttle coast-down (rolling resistance + drivetrain drag), as a fraction of wheel load.
 const COAST_RESISTANCE = 0.3
+// Yaw stability at speed: the soft tyres alone let a sharp input at 140 km/h overshoot the settled
+// yaw rate by ~100%. A yaw torque damps the body's rotation in excess of how fast its path turns
+// (zero in a steady corner, so it never limits the turn), at this rate (1/s). It fades out between
+// YAW_ASSIST_SLIP_LO and _HI degrees of body slip and is off on the handbrake, so drifts stay free.
+const YAW_ASSIST = 12
+const YAW_ASSIST_SLIP_LO = 8
+const YAW_ASSIST_SLIP_HI = 15
+const YAW_ASSIST_MIN_SPEED = 5 // m/s
 
 // Per-material handling. `grip` scales the tyre friction coefficient; `drag` is extra rolling
 // resistance as a fraction of wheel load, always on (grass and dirt bog the car down).
+// `driveGrip` (default `grip`) scales the friction available to the engine on its own, so ice
+// keeps most of its acceleration while losing side grip, Trackmania-style; brakes still use `grip`.
 // `maxSpeed` (m/s, default MAX_SPEED) caps what the engine drives a wheel to on that material;
 // above it the wheel is braked by OVERSPEED_DRAG, so diving onto it at speed bleeds speed fast.
-export type MaterialHandling = { grip: number; drag: number; maxSpeed?: number }
+export type MaterialHandling = { grip: number; drag: number; maxSpeed?: number; driveGrip?: number }
 export const MATERIALS: Readonly<Record<Material, MaterialHandling>> = {
   road: { grip: 1, drag: 0 },
   'turbo': { grip: 1, drag: 0 },
   'turbo-red': { grip: 1, drag: 0 },
   dirt: { grip: 0.6, drag: 0.04 },
-  ice: { grip: 0.18, drag: 0 },
+  ice: { grip: 0.18, drag: 0, driveGrip: 0.55 },
   grass: { grip: 0.5, drag: 0.12 },
   // Off-track ground, Trackmania-style: cutting across the field never beats the road.
   offroad: { grip: 0.45, drag: 0.1, maxSpeed: 10 },
@@ -287,7 +297,9 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     const vLong = dot(contactVel, fwd)
     const vLat = dot(contactVel, right)
 
-    const maxFriction = (wheel.front ? GRIP : REAR_GRIP) * handling.grip * normalForce
+    const tyre = (wheel.front ? GRIP : REAR_GRIP) * normalForce
+    const maxFriction = tyre * handling.grip
+    const maxLong = handling.driveGrip === undefined ? maxFriction : tyre * handling.driveGrip
     // Lateral: saturating slip-angle model.
     const slip = Math.atan2(vLat, Math.max(Math.abs(vLong), 1))
     let lateralGrip = maxFriction * Math.tanh(slip / PEAK_SLIP)
@@ -299,7 +311,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     if (!wheel.front) {
       const capFalloff = handling.maxSpeed === undefined ? 1 : clamp((handling.maxSpeed + 2 - Math.abs(speed)) / 12, 0, 1)
       const drive = (forwardDrive * ENGINE_FORCE * Math.min(driveFalloff, capFalloff) - reverseDrive * REVERSE_FORCE * reverseFalloff) / 2
-      const cap = DRIVE_SHARE * maxFriction
+      const cap = DRIVE_SHARE * maxLong
       fLong += clamp(drive, -cap, cap)
     }
     const brakeTotal = (brakeInput * BRAKE_FORCE) / 4 + (!wheel.front && input.handbrake ? HANDBRAKE_FORCE / 2 : 0)
@@ -311,11 +323,21 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     const coast = (forwardDrive <= 0 && reverseDrive <= 0 ? COAST_RESISTANCE * normalForce : 0) + handling.drag * normalForce
     fLong -= Math.sign(vLong) * Math.min(ROLLING / 4 + coast, (Math.abs(vLong) * MASS) / 4 / DT)
 
-    // Friction circle.
-    const total = Math.hypot(fLong, fLat)
-    if (total > maxFriction && total > 0) {
-      fLong *= maxFriction / total
-      fLat *= maxFriction / total
+    if (handling.driveGrip === undefined) {
+      // Friction circle.
+      const total = Math.hypot(fLong, fLat)
+      if (total > maxFriction && total > 0) {
+        fLong *= maxFriction / total
+        fLat *= maxFriction / total
+      }
+    } else if (maxFriction > 0) {
+      // Friction ellipse: under drive the longitudinal grip differs from the lateral on this material.
+      const longCap = brakeTotal > 0 ? maxFriction : maxLong
+      const use = Math.hypot(fLong / longCap, fLat / maxFriction)
+      if (use > 1) {
+        fLong /= use
+        fLat /= use
+      }
     }
 
     // Over a material's maxSpeed the ground itself holds the wheel back (soft ground, not tyre
@@ -336,6 +358,20 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
 
   const v = length(s.velocity)
   force = sub(force, scale(s.velocity, DRAG * v))
+
+  // Yaw stability assist (see YAW_ASSIST): damp yaw rate beyond the path's turn rate,
+  // the latter from this tick's horizontal force across the velocity.
+  const v2 = flatVel.x * flatVel.x + flatVel.z * flatVel.z
+  if (grounded && !input.handbrake && v2 > YAW_ASSIST_MIN_SPEED ** 2) {
+    const fwdFlat = Math.hypot(fwdBody.x, fwdBody.z)
+    const cosSlip = fwdFlat > 1e-6 ? (fwdBody.x * flatVel.x + fwdBody.z * flatVel.z) / (fwdFlat * Math.sqrt(v2)) : 1
+    const slipDeg = (Math.acos(clamp(cosSlip, -1, 1)) * 180) / Math.PI
+    const gate = clamp((YAW_ASSIST_SLIP_HI - slipDeg) / (YAW_ASSIST_SLIP_HI - YAW_ASSIST_SLIP_LO), 0, 1)
+    if (gate > 0) {
+      const pathRate = (flatVel.z * force.x - flatVel.x * force.z) / (MASS * v2)
+      torque = add(torque, v3(0, -YAW_ASSIST * gate * INERTIA.y * (s.angularVelocity.y - pathRate), 0))
+    }
+  }
 
   const velocity = add(s.velocity, scale(force, DT / MASS))
   const angAcc = angularAccel(s.orientation, torque)
