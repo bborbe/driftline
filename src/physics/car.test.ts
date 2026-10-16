@@ -63,6 +63,27 @@ describe('car physics', () => {
     expect(Math.abs(Math.atan2(f.x, f.z))).toBeGreaterThan(0.3)
   })
 
+  // Driver's view: car faces +z with +y up, so the driver's left is +x.
+  const headingAfterSteer = (steer: number) => {
+    let s = settled()
+    while (speedOf(s) < 10) s = step(s, { ...NO_INPUT, throttle: 1 })
+    s = run(s, TICK_HZ, { ...NO_INPUT, throttle: 0.3, steer })
+    const f = forwardOf(s)
+    return { heading: f, travelX: s.position.x }
+  }
+
+  it('steer left (-1) yaws the car to the driver\'s left', () => {
+    const { heading, travelX } = headingAfterSteer(-1)
+    expect(heading.x).toBeGreaterThan(0.2)
+    expect(travelX).toBeGreaterThan(0)
+  })
+
+  it('steer right (+1) yaws the car to the driver\'s right', () => {
+    const { heading, travelX } = headingAfterSteer(1)
+    expect(heading.x).toBeLessThan(-0.2)
+    expect(travelX).toBeLessThan(0)
+  })
+
   it('drifts: slip angle exceeds 15 degrees under steer + handbrake at 15 m/s', () => {
     let s = settled()
     while (speedOf(s) < 15) s = step(s, { ...NO_INPUT, throttle: 1 })

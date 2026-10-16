@@ -50,7 +50,7 @@ const STEER_RATE = 4 // rad/s
 const DRAG = 0.45
 const ROLLING = 30
 
-// Local frame: +z forward, +x right, +y up. Mount points sit at the top of each spring.
+// Local frame: +z forward, +y up, so +x is the driver's LEFT (right = forward × up = -x). Mount points sit at the top of each spring.
 type Wheel = { mount: Vec3; front: boolean }
 const WHEELS: Wheel[] = [
   { mount: v3(-0.8, 0, 1.3), front: true },
@@ -110,10 +110,11 @@ export const step = (s: CarState, input: CarInput): CarState => {
 
     // Tire frame projected onto the ground plane.
     const wheelYaw = wheel.front ? steerAngle : 0
-    const fwdLocal = v3(Math.sin(wheelYaw), 0, Math.cos(wheelYaw))
+    // Positive steer = right = toward -x.
+    const fwdLocal = v3(-Math.sin(wheelYaw), 0, Math.cos(wheelYaw))
     let fwd = rotate(s.orientation, fwdLocal)
     fwd = normalize(v3(fwd.x, 0, fwd.z))
-    const right = v3(fwd.z, 0, -fwd.x)
+    const right = v3(-fwd.z, 0, fwd.x) // fwd × up
 
     const vLong = dot(contactVel, fwd)
     const vLat = dot(contactVel, right)
