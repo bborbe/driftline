@@ -3,12 +3,12 @@ import { createCarAt, dot, FixedStepper, forwardOf, trackSurface } from './physi
 import { createChase, updateChase } from './camera/chase'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
-import { loadLap } from './render/track/lap'
+import { lapName, loadLap } from './render/track/lap'
 import { GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 import { mountBuildLabel } from './build-info'
-import { debugPose, frozen } from './race/debug-pose'
+import { debugPose, frozen, poseQuery, yawDeg } from './race/debug-pose'
 import { centreline } from './track/centreline'
 
 const track = loadLap()
@@ -57,6 +57,26 @@ const pose = debugPose(location.search)
 if (pose) sim.state = createCarAt(pose)
 const freeze = frozen(location.search)
 if (freeze) document.getElementById('begin')?.remove()
+// P copies the current pose as a debug-spawn URL, so a visual bug can be reproduced at the exact spot.
+const toast = document.createElement('div')
+toast.id = 'toast'
+document.body.appendChild(toast)
+let toastTimer = 0
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyP' || e.repeat) return
+  const s = sim.state
+  const url = `${location.origin}${location.pathname}${poseQuery(lapName(location.search), s.position, yawDeg(forwardOf(s)))}`
+  const show = (msg: string) => {
+    toast.textContent = msg
+    toast.classList.add('show')
+    clearTimeout(toastTimer)
+    toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1500)
+  }
+  navigator.clipboard.writeText(url).then(
+    () => show('copied spawn URL'),
+    () => show(url),
+  )
+})
 ;(window as unknown as { driftline: object }).driftline = { centreline: (step: number) => centreline(track, step), ready: true }
 let chase = createChase(sim.state.position, forwardOf(sim.state))
 let last = performance.now()
@@ -80,6 +100,6 @@ view.renderer.setAnimationLoop(() => {
   camera.updateProjectionMatrix()
   camera.lookAt(s.position.x, s.position.y + 0.8, s.position.z)
 
-  hud.textContent = `${backend}  ${track.name}  ${(Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}`
+  hud.textContent = `${backend}  ${track.name}  ${(Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}`
   view.frame(s, elapsed)
 })
