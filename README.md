@@ -10,6 +10,16 @@ make build
 
 See `VISION.md` and `AGENTS.md`.
 
+## Cars
+
+The player car is picked at build time from the registry in `src/render/cars.ts`:
+
+```bash
+VITE_CAR=race make build   # stadium (default) | race | raceFuture | box
+```
+
+An unknown id falls back to `box`. New entries must use CC0, CC-BY or MIT assets with their licence under `assets/LICENSES/`, and must never be Nadeo-derived.
+
 ## Deploy
 
 Every merge to `master` builds and deploys to https://bborbe.github.io/driftline/ via `.github/workflows/pages.yml` (GitHub Pages, source: GitHub Actions). The deployed commit SHA is in the page's `<meta name="commit">` tag.
