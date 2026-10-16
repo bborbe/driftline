@@ -43,6 +43,22 @@ export interface Medals {
   bronze: number
 }
 
+/** Special patches of road: turbo pads (yellow = short boost, red = strong) and low-grip surfaces. */
+export type ZoneKind = 'turbo' | 'turbo-red' | 'dirt' | 'ice' | 'grass'
+
+export const ZONE_KINDS: readonly ZoneKind[] = ['turbo', 'turbo-red', 'dirt', 'ice', 'grass']
+
+/** Segment types a zone may lie on: planar strips, so the patch is a flat quad on the road. */
+export const ZONE_SEGMENTS: readonly SegmentType[] = ['straight', 'ramp', 'drop']
+
+/** A full-width patch on segment `segment`, from fraction `from` to `to` (0..1) of its length. */
+export interface Zone {
+  kind: ZoneKind
+  segment: number
+  from: number
+  to: number
+}
+
 export interface Track {
   name: string
   start: Pose
@@ -50,6 +66,7 @@ export interface Track {
   gates: Gate[]
   /** Optional: not part of layoutId, so retuning medals keeps existing records. */
   medals?: Medals
+  zones?: Zone[]
 }
 
 /** Exit pose of one segment given its entry pose. */
@@ -133,7 +150,10 @@ export function gatePillars(track: Track, gate: Gate): Pillar[] {
  * the geometry or gates change, so per-layout records start fresh after a redesign. FNV-1a, 8 hex.
  */
 export function layoutId(track: Track): string {
-  const text = JSON.stringify([track.start, track.segments, track.gates])
+  // Zones join the key only when present, so tracks without any keep their original id.
+  const parts: unknown[] = [track.start, track.segments, track.gates]
+  if (track.zones?.length) parts.push(track.zones)
+  const text = JSON.stringify(parts)
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
   return (h >>> 0).toString(16).padStart(8, '0')
@@ -201,7 +221,45 @@ export function validate(data: unknown): string[] {
       errs.push('medals must be ordered author < gold < silver < bronze')
     }
   }
+  if (t.zones !== undefined) {
+    if (!Array.isArray(t.zones)) {
+      errs.push('zones must be an array')
+    } else {
+      const segs = Array.isArray(t.segments) ? t.segments : []
+      t.zones.forEach((z, i) => {
+        if (!ZONE_KINDS.includes(z?.kind)) errs.push(`zones[${i}]: unknown kind`)
+        const seg = Number.isInteger(z?.segment) ? segs[z.segment] : undefined
+        if (!seg) errs.push(`zones[${i}]: segment out of range`)
+        else if (!ZONE_SEGMENTS.includes(seg.type)) errs.push(`zones[${i}]: zones lie on ${ZONE_SEGMENTS.join('|')} only`)
+        if (!(Number.isFinite(z?.from) && Number.isFinite(z?.to) && z.from >= 0 && z.from < z.to && z.to <= 1)) {
+          errs.push(`zones[${i}]: needs 0 <= from < to <= 1`)
+        }
+      })
+    }
+  }
   return errs
+}
+
+/** Corners of a zone's quad on the road: [left, right] at `from`, then [left, right] at `to`. */
+export function zoneCorners(track: Track, zone: Zone, width: number): Pose[] {
+  const entry = poses(track)[zone.segment]
+  const seg = track.segments[zone.segment]
+  const length = 'length' in seg ? seg.length : 0
+  const dy = seg.type === 'ramp' ? seg.rise : seg.type === 'drop' ? -seg.fall : 0
+  const fx = Math.sin(entry.heading)
+  const fz = Math.cos(entry.heading)
+  const out: Pose[] = []
+  for (const f of [zone.from, zone.to]) {
+    for (const side of [1, -1]) {
+      out.push({
+        x: entry.x + fx * length * f + fz * side * (width / 2),
+        y: entry.y + dy * f,
+        z: entry.z + fz * length * f - fx * side * (width / 2),
+        heading: entry.heading,
+      })
+    }
+  }
+  return out
 }
 
 function isPose(p: unknown): p is Pose {

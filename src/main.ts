@@ -1,5 +1,5 @@
 import './style.css'
-import { createCarAt, dot, FixedStepper, forwardOf, trackSurface } from './physics'
+import { createCarAt, dot, FixedStepper, forwardOf, materialUnder, trackSurface } from './physics'
 import { createChase, updateChase } from './camera/chase'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
@@ -103,7 +103,8 @@ view.renderer.setAnimationLoop(() => {
     ghostCar.update(ghost.render(sim.alpha), race.paused ? 0 : elapsed)
   }
   const s = sim.render()
-  audio.update(s, carInput)
+  const material = materialUnder(s, sim.surface)
+  audio.update(s, carInput, material)
   const speed = dot(s.velocity, forwardOf(s))
 
   chase = updateChase(chase, s.position, forwardOf(s), Math.abs(speed), elapsed)
@@ -112,6 +113,6 @@ view.renderer.setAnimationLoop(() => {
   camera.updateProjectionMatrix()
   camera.lookAt(s.position.x, s.position.y + 0.8, s.position.z)
 
-  hud.textContent = `${backend}  ${track.name}  ${(Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}`
+  hud.textContent = `${backend}  ${track.name}  ${(Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`
   view.frame(s, elapsed)
 })

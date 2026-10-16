@@ -1,5 +1,5 @@
 // Pure car-state → sound-parameter mappings. No Web Audio here, so vitest covers them directly.
-import { MAX_SPEED } from '../physics'
+import { MAX_SPEED, type Material } from '../physics'
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x))
 
@@ -30,6 +30,28 @@ export const skidGain = (slipDeg: number, speed: number): number => {
   if (slip <= SKID_SLIP_DEG || Math.abs(speed) <= SKID_MIN_SPEED) return 0
   return SKID_MAX_GAIN * clamp01((slip - SKID_SLIP_DEG) / 30)
 }
+
+// Per-surface tyre sound: the skid band-pass centre (Hz) and a rolling rumble (low-passed noise)
+// whose gain rises with speed. Road is quiet; dirt and grass rumble low; ice hisses thin and high.
+export type SurfaceSound = { skidHz: number; rumbleHz: number; rumbleMax: number }
+export const SURFACE_SOUND: Readonly<Record<Material, SurfaceSound>> = {
+  road: { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  'turbo': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  'turbo-red': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  dirt: { skidHz: 900, rumbleHz: 350, rumbleMax: 0.35 },
+  grass: { skidHz: 700, rumbleHz: 220, rumbleMax: 0.3 },
+  ice: { skidHz: 5200, rumbleHz: 4000, rumbleMax: 0.08 },
+}
+
+// Rolling rumble gain on a surface at ground speed (m/s): linear in speed up to MAX_SPEED.
+export const rumbleGain = (material: Material, speed: number): number =>
+  SURFACE_SOUND[material].rumbleMax * clamp01(Math.abs(speed) / MAX_SPEED)
+
+export const TURBO_MAX_GAIN = 0.25
+
+// Turbo whoosh while a pad boost runs: louder for the stronger (red) pad.
+export const turboGain = (turboTicks: number, turboForce: number): number =>
+  turboTicks > 0 ? TURBO_MAX_GAIN * clamp01(turboForce / 14000) : 0
 
 // Master output gain: 0 when muted, otherwise the clamped volume slider value.
 export const masterGain = (muted: boolean, volume: number): number => (muted ? 0 : clamp01(volume))

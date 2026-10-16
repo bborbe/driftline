@@ -1,6 +1,6 @@
 // Web Audio graph for the car. Synthesis only — no audio files. Reads car state, never writes it.
-import { dot, forwardOf, length, slipAngleDeg, type CarInput, type CarState } from '../physics'
-import { engineFreq, masterGain, ONE_SHOTS, skidGain, windGain, type AudioEvent } from './mapping'
+import { dot, forwardOf, length, slipAngleDeg, type CarInput, type CarState, type Material } from '../physics'
+import { engineFreq, masterGain, ONE_SHOTS, rumbleGain, skidGain, SURFACE_SOUND, turboGain, windGain, type AudioEvent } from './mapping'
 
 // Smoothing time constant for continuous parameters, so per-frame updates never click.
 const SMOOTH = 0.05
@@ -20,6 +20,10 @@ export class GameAudio {
   private engineGain: GainNode | null = null
   private wind: GainNode | null = null
   private skid: GainNode | null = null
+  private skidFilter: BiquadFilterNode | null = null
+  private rumble: GainNode | null = null
+  private rumbleFilter: BiquadFilterNode | null = null
+  private turbo: GainNode | null = null
   private muted = false
   private volume = 0.7
 
@@ -64,8 +68,8 @@ export class GameAudio {
     this.applyMaster()
   }
 
-  // Called once per rendered frame with the latest simulation state.
-  update(state: Readonly<CarState>, input: Readonly<CarInput>): void {
+  // Called once per rendered frame with the latest simulation state and the surface under the car.
+  update(state: Readonly<CarState>, input: Readonly<CarInput>, material: Material = 'road'): void {
     const ctx = this.ctx
     if (!ctx || !this.engineLow || !this.engineHigh || !this.engineGain || !this.wind || !this.skid) return
     const t = ctx.currentTime
@@ -77,6 +81,11 @@ export class GameAudio {
     this.engineGain.gain.setTargetAtTime(0.18 + 0.12 * input.throttle, t, SMOOTH)
     this.wind.gain.setTargetAtTime(windGain(ground), t, SMOOTH)
     this.skid.gain.setTargetAtTime(skidGain(slipAngleDeg(state), ground), t, SMOOTH)
+    const sound = SURFACE_SOUND[material]
+    this.skidFilter?.frequency.setTargetAtTime(sound.skidHz, t, SMOOTH)
+    this.rumbleFilter?.frequency.setTargetAtTime(sound.rumbleHz, t, SMOOTH)
+    this.rumble?.gain.setTargetAtTime(rumbleGain(material, ground), t, SMOOTH)
+    this.turbo?.gain.setTargetAtTime(turboGain(state.turbo, state.turboForce), t, SMOOTH)
   }
 
   onCheckpoint(): void {
@@ -160,6 +169,20 @@ export class GameAudio {
     skidFilter.frequency.value = 2400
     skidFilter.Q.value = 3
     noise.connect(skidFilter).connect(this.skid).connect(this.master)
+    this.skidFilter = skidFilter
+    // Surface rumble (dirt, grass, ice) and the turbo whoosh: more filtered taps on the same noise.
+    this.rumble = ctx.createGain()
+    this.rumble.gain.value = 0
+    this.rumbleFilter = ctx.createBiquadFilter()
+    this.rumbleFilter.type = 'lowpass'
+    this.rumbleFilter.frequency.value = 300
+    noise.connect(this.rumbleFilter).connect(this.rumble).connect(this.master)
+    this.turbo = ctx.createGain()
+    this.turbo.gain.value = 0
+    const turboFilter = ctx.createBiquadFilter()
+    turboFilter.type = 'highpass'
+    turboFilter.frequency.value = 1500
+    noise.connect(turboFilter).connect(this.turbo).connect(this.master)
     noise.start()
   }
 }
