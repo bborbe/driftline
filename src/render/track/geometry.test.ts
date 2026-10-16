@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { poses, SEGMENT_TYPES, validate } from '../../track/schema'
 import { FIXTURE_TRACK } from './fixture'
-import { buildTrack, lateralPoint, rowCenter, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import { trackSurface } from '../../physics'
+import type { Segment } from '../../track/schema'
+import { buildApron, buildTrack, rowCenter, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
@@ -58,14 +60,38 @@ describe('render track geometry', () => {
     expect(maxY(geoms[r])).toBeGreaterThan(ps[r].y + ramp.rise)
   })
 
-  it('banked turn matches the physics surface: outer edge raised by (r - radius) * tan(bank)', () => {
+  it('banked turn surface matches the physics surface (src/track/bank.ts)', () => {
     const b = indexOf('banked')
-    const seg = segs[b] as { bank: number; turn: 'left' | 'right' }
-    const p = sampleSegment(ps[b], segs[b], 0.5)
-    expect(p.roll).toBe(seg.bank)
-    const outer = seg.turn === 'right' ? 1 : -1 // lateral u > 0 is left of travel
-    const s = seg.turn === 'right' ? -1 : 1
-    const [, y] = lateralPoint(p, outer * 5, s)
-    expect(y - SURFACE_LIFT - p.y).toBeCloseTo(5 * Math.tan(seg.bank), 6)
+    const seg = segs[b] as Segment & { type: 'banked' }
+    const surf = trackSurface({ ...FIXTURE_TRACK, segments: [seg], start: ps[b] }, { groundY: null })
+    const g = geoms[b]
+    for (let row = 0; row < g.rows; row++) {
+      for (let c = 0; c < g.perRow - 2; c++) {
+        const i = (row * g.perRow + c) * 3
+        const [x, y, z] = [g.positions[i], g.positions[i + 1], g.positions[i + 2]]
+        const hit = surf.raycast({ x, y: y + 5, z }, { x: 0, y: -1, z: 0 }, 20)
+        if (hit) expect(y - SURFACE_LIFT - (y + 5 - hit.distance), `row ${row} col ${c}`).toBeCloseTo(0, 3)
+      }
+    }
+  })
+
+  it('banked turn starts and ends flat, reaching its full bank mid-turn', () => {
+    const b = indexOf('banked')
+    const seg = segs[b] as { bank: number }
+    expect(sampleSegment(ps[b], segs[b], 0).roll).toBe(0)
+    expect(sampleSegment(ps[b], segs[b], 1).roll).toBe(0)
+    expect(sampleSegment(ps[b], segs[b], 0.5).roll).toBeCloseTo(seg.bank, 9)
+  })
+
+  it('banked apron rises from the dipped inner edge to the road plane, and the skirt drops to it', () => {
+    const b = indexOf('banked')
+    const apron = buildApron(ps[b], segs[b])!
+    const y = (row: number, k: number) => apron.positions[(row * apron.perRow + k) * 3 + 1] - SURFACE_LIFT
+    const mid = Math.floor(apron.rows / 2)
+    expect(y(mid, 0)).toBeLessThan(ps[b].y - 0.5) // inner edge dips mid-turn
+    expect(y(mid, 1)).toBeCloseTo(ps[b].y, 6) // apron rim on the road plane
+    expect(y(mid, 2)).toBeGreaterThan(ps[b].y + 0.5) // outer edge raised
+    expect(y(mid, 3)).toBeCloseTo(ps[b].y, 6) // skirt foot on the road plane
+    expect(buildApron(ps[0], segs[0])).toBeNull()
   })
 })

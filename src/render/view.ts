@@ -16,7 +16,11 @@ export type View = {
 
 const SKY = 0x8fd3ff
 
-const createGround = (): THREE.Mesh => {
+/**
+ * Grass ground plane. Drawn first and without depth writes, so it can never hide the road:
+ * a banked turn's inner half dips below it mid-turn (src/track/bank.ts).
+ */
+export const createGround = (): THREE.Mesh => {
   // Two-tone grass checker so motion stays readable off-track.
   const checker = new Uint8Array(2 * 2 * 4)
   checker.set([96, 168, 72, 255, 84, 150, 62, 255, 84, 150, 62, 255, 96, 168, 72, 255])
@@ -25,8 +29,12 @@ const createGround = (): THREE.Mesh => {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping
   tex.repeat.set(200, 200)
   tex.needsUpdate = true
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ map: tex }))
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(2000, 2000),
+    new THREE.MeshStandardMaterial({ map: tex, depthWrite: false }),
+  )
   ground.rotation.x = -Math.PI / 2
+  ground.renderOrder = -1
   ground.receiveShadow = true
   return ground
 }
