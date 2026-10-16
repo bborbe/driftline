@@ -118,3 +118,20 @@ describe('GameAudio countdown beeps', () => {
     expect(master().gain.value).toBe(0)
   })
 })
+
+describe('GameAudio finish', () => {
+  const throttle = { ...NO_INPUT, throttle: 1 }
+  it('silences the engine after the finish and brings it back on restart', async () => {
+    const { ctx, audio } = setup()
+    await audio.begin()
+    const engine = ctx.gains[1]
+    audio.update(createCar(), throttle)
+    expect(engine.gain.value).toBeGreaterThan(0)
+    audio.onFinish()
+    audio.update(createCar(), throttle)
+    expect(engine.gain.value).toBe(0)
+    audio.onRestart()
+    audio.update(createCar(), throttle)
+    expect(engine.gain.value).toBeGreaterThan(0)
+  })
+})
