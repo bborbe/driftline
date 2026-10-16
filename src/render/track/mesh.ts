@@ -1,6 +1,6 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
-import { poses, type Track } from '../../track/schema'
+import { gateLine, type Track } from '../../track/schema'
 import { buildTrack, TRACK_WIDTH, type SegmentGeometry } from './geometry'
 
 const ROAD = new THREE.Color(0x3a4150)
@@ -64,10 +64,9 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
     mesh.receiveShadow = true
     group.add(mesh)
   })
-  const ps = poses(track)
   for (const [i, gate] of track.gates.entries()) {
     if (gates && !gates.includes(i)) continue
-    const p = ps[gate.segment]
+    const p = gateLine(track, gate)
     const arch = gateArch(gate.kind)
     arch.position.set(p.x, p.y, p.z)
     arch.rotation.y = p.heading

@@ -2,10 +2,10 @@
 // Pure TypeScript: no three, so placements are unit-testable.
 // Piece convention (scripts/build-pieces.mjs): entry edge bottom-center at the origin,
 // running along +z, so a piece sits at a schema Pose with rotation.y = heading.
-import { exitPose, poses, type Pose, type Segment, type Track } from '../../track/schema'
+import { exitPose, poses, TILE_LENGTH, tileLength, type Pose, type Segment, type Track } from '../../track/schema'
 
 /** Native dimensions of the normalized pieces, from assets/track/pieces.json. */
-const STRAIGHT_LENGTH = 20
+const STRAIGHT_LENGTH = TILE_LENGTH
 const RAMP_RISE = 5.2
 const CORNER_RADIUS = 15 // the corner piece turns RIGHT at this radius
 
@@ -35,8 +35,8 @@ const quarter = (turn: 'left' | 'right', radius: number): Segment => ({ type: 'c
 const planSegment = (entry: Pose, seg: Segment, startLine: boolean): Placement[] | null => {
   switch (seg.type) {
     case 'straight': {
-      const n = Math.max(1, Math.round(seg.length / STRAIGHT_LENGTH))
-      const len = seg.length / n
+      const len = tileLength(seg.length)
+      const n = Math.round(seg.length / len)
       return Array.from({ length: n }, (_, i) => ({
         piece: startLine && i === 0 ? 'start' : 'straight',
         pose: advance(entry, i * len),

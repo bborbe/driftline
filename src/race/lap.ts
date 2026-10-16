@@ -4,7 +4,7 @@
 import {
   createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Vec3,
 } from '../physics'
-import { poses, type Pose, type Track } from '../track/schema'
+import { gateLine, type Pose, type Track } from '../track/schema'
 
 export const COUNTDOWN_TICKS = 3 * TICK_HZ
 /** Half the gate width in metres: a crossing counts within this lateral distance of the gate centre. */
@@ -52,10 +52,9 @@ export class LapLoop {
   constructor(track: Track, isNewBest: (lapTimeMs: number) => boolean) {
     this.track = track
     this.isNewBest = isNewBest
-    const p = poses(track)
-    this.checkpoints = track.gates.filter((g) => g.kind === 'checkpoint').map((g) => ({ pose: p[g.segment] }))
+    this.checkpoints = track.gates.filter((g) => g.kind === 'checkpoint').map((g) => ({ pose: gateLine(track, g) }))
     const sf = track.gates.find((g) => g.kind === 'start-finish')
-    this.finish = { pose: sf ? p[sf.segment] : track.start }
+    this.finish = { pose: sf ? gateLine(track, sf) : track.start }
   }
 
   on(events: RaceEvents): void {

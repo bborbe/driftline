@@ -1,7 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { readGlb, type Gltf } from '../assets/glb'
-import { poses, validate, type Track } from './schema'
+import { LapLoop } from '../race/lap'
+import { planPieces } from '../render/track/pieces'
+import { gateLine, poses, START_ARCH_FRACTION, TILE_LENGTH, validate, type Track } from './schema'
 
 interface PieceSpec {
   cell: number
@@ -152,5 +154,46 @@ describe('asset licensing', () => {
 
   it('mentions no third-party game IP', () => {
     for (const f of models('assets')) expect(f.toLowerCase()).not.toContain('nadeo')
+  })
+})
+
+// The finish trigger (src/race) and the arch you see (src/render) both come from gateLine();
+// this pins gateLine() to where the start model actually draws its banner.
+describe('start/finish line', () => {
+  // z-centre of the start tile's overhead banner: vertices more than 2 m above the road.
+  function bannerZ(path: string): number {
+    const buf = readFileSync(path)
+    const jsonLen = buf.readUInt32LE(12)
+    const json = JSON.parse(buf.subarray(20, 20 + jsonLen).toString('utf8')) as {
+      meshes: { primitives: { attributes: { POSITION: number } }[] }[]
+      accessors: { bufferView: number; byteOffset?: number; count: number }[]
+      bufferViews: { byteOffset?: number; byteStride?: number }[]
+    }
+    const bin = buf.subarray(20 + jsonLen + 8)
+    const zs: number[] = []
+    for (const prim of json.meshes[0].primitives) {
+      const a = json.accessors[prim.attributes.POSITION]
+      const v = json.bufferViews[a.bufferView]
+      const off = (v.byteOffset ?? 0) + (a.byteOffset ?? 0)
+      const stride = v.byteStride ?? 12
+      for (let i = 0; i < a.count; i++) {
+        if (bin.readFloatLE(off + i * stride + 4) > 2) zs.push(bin.readFloatLE(off + i * stride + 8))
+      }
+    }
+    return (Math.min(...zs) + Math.max(...zs)) / 2
+  }
+
+  it('the start model draws its banner at START_ARCH_FRACTION of the tile', () => {
+    expect(Math.abs(bannerZ('assets/pieces/start.glb') - TILE_LENGTH * START_ARCH_FRACTION)).toBeLessThan(1)
+  })
+
+  it.each(laps)('$name: the finish trigger sits under the rendered start arch', (lap) => {
+    const sf = lap.gates.find((g) => g.kind === 'start-finish')!
+    const start = planPieces(lap).placements.find((p) => p.piece === 'start')!
+    const line = gateLine(lap, sf)
+    const finish = new LapLoop(lap, () => true)['finish'].pose
+    expect(finish).toEqual(line)
+    const along = (line.x - start.pose.x) * Math.sin(start.pose.heading) + (line.z - start.pose.z) * Math.cos(start.pose.heading)
+    expect(Math.abs(along - TILE_LENGTH * start.scale[2] * START_ARCH_FRACTION)).toBeLessThan(1e-9)
   })
 })
