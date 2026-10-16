@@ -22,6 +22,8 @@ export const mountAudioControls = (audio: GameAudio): void => {
   slider.title = 'Volume (M to mute)'
   slider.style.cssText = 'position:fixed;right:12px;top:12px;z-index:10'
   slider.addEventListener('input', () => audio.setVolume(Number(slider.value)))
+  // Drop focus after use so arrow keys keep steering instead of nudging the volume.
+  slider.addEventListener('pointerup', () => slider.blur())
   document.body.appendChild(slider)
 
   window.addEventListener('keydown', (e) => {
