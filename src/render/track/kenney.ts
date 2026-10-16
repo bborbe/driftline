@@ -4,6 +4,7 @@ import * as THREE from 'three/webgpu'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Track } from '../../track/schema'
 import { createBarriers, createRampSupports, createTrackMesh, ROAD_ROUGHNESS } from './mesh'
+import { ASPHALT } from '../look'
 import { planPieces } from './pieces'
 import { createZoneMeshes } from './zones'
 
@@ -36,6 +37,7 @@ export const preparePiece = (root: THREE.Object3D): THREE.Object3D => {
         mat.shadowSide = THREE.BackSide
         const std = mat as THREE.MeshStandardMaterial
         if (std.isMeshStandardMaterial) std.roughness = Math.min(std.roughness, ROAD_ROUGHNESS)
+        if (mat.name === 'road') std.color.copy(ASPHALT) // same asphalt as the procedural road (look.ts)
       }
     }
   })
