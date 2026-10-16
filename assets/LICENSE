@@ -1,0 +1,12 @@
+Asset origins for driftline. Every model file under assets/ comes from one of
+the packs below. Generated files (assets/collision/) are derived from these packs.
+
+| Path                 | Pack                     | Source                                | License |
+|----------------------|--------------------------|---------------------------------------|---------|
+| assets/racing-kit/   | Kenney Racing Kit (2.0)  | https://kenney.nl/assets/racing-kit   | CC0 1.0 |
+| assets/car-kit/      | Kenney Car Kit           | https://kenney.nl/assets/car-kit      | CC0 1.0 |
+
+Original license files: assets/LICENSES/. CC0 1.0:
+http://creativecommons.org/publicdomain/zero/1.0/
+
+Only CC0 packs are allowed in this directory; no paid-license or third-party game assets.
