@@ -1,0 +1,28 @@
+{
+  "name": "test-kit-all",
+  "kit": {
+    "start": { "cell": [0, 0], "level": 0, "dir": 0 },
+    "pieces": [
+      { "piece": "start" },
+      { "piece": "turbo" },
+      { "piece": "turbo-red" },
+      { "piece": "checkpoint" },
+      { "piece": "straight-1", "surface": "ice" },
+      { "piece": "bump" },
+      { "piece": "walled", "surface": "grass" },
+      { "piece": "slope-up" },
+      { "piece": "straight-2" },
+      { "piece": "curve-r2", "turn": "left" },
+      { "piece": "bank-90", "turn": "left" },
+      { "piece": "slope-down", "surface": "dirt" },
+      { "piece": "curve-r3", "turn": "right" },
+      { "piece": "hairpin", "turn": "left" },
+      { "piece": "curve-r1", "turn": "right" },
+      { "piece": "curve-r1", "turn": "left" },
+      { "piece": "curve-r1", "turn": "right" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "bank-180", "turn": "left" }
+    ]
+  }
+}
