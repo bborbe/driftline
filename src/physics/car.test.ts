@@ -163,4 +163,26 @@ describe('car physics', () => {
     }
     expect(maxSlip).toBeGreaterThan(15)
   })
+
+  // Step steer at a held speed: yaw rate's peak against its settled value (3–4 s in), and the
+  // time to 63% of it. Without yaw damping a full-lock flick at 140 km/h overshot by ~100%.
+  const stepSteer = (speed: number, steer: number) => {
+    let s = settled()
+    while (speedOf(s) < speed) s = step(s, { ...NO_INPUT, throttle: 1 })
+    const yaw: number[] = []
+    for (let t = 0; t < 4 * TICK_HZ; t++) {
+      s = step(s, { ...NO_INPUT, throttle: speedOf(s) < speed ? 1 : 0, steer })
+      yaw.push(Math.abs(s.angularVelocity.y))
+    }
+    const settledYaw = yaw.slice(3 * TICK_HZ).reduce((a, b) => a + b, 0) / TICK_HZ
+    return { overshoot: Math.max(...yaw) / settledYaw - 1, turnIn: yaw.findIndex((y) => y >= 0.63 * settledYaw) / TICK_HZ }
+  }
+
+  it('turns in crisply at speed without overshooting the settled yaw rate', () => {
+    for (const [speed, steer] of [[38.9, 1], [38.9, 0.3], [27.8, 1], [27.8, 0.3]]) {
+      const { overshoot, turnIn } = stepSteer(speed, steer)
+      expect(overshoot).toBeLessThanOrEqual(0.3)
+      expect(turnIn).toBeLessThanOrEqual(0.12)
+    }
+  })
 })

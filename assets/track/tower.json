@@ -298,6 +298,15 @@
         31.86,
         -73.63
       ]
+    },
+    {
+      "segment": 8,
+      "side": "left",
+      "from": 0.5
+    },
+    {
+      "segment": 9,
+      "side": "left"
     }
   ]
 }

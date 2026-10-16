@@ -145,7 +145,23 @@ describe('surface grip', () => {
     expect(ice).toBeLessThan(dirt * 0.6)
   })
 
-  it('grass slows a car under full throttle', () => {
+  it('ice keeps its acceleration (0→60 km/h within 2× road) while losing side grip', () => {
+    // Full throttle from rest on a straight of `kind`: seconds to 60 km/h.
+    const to60 = (kind?: ZoneKind) => {
+      const surface = trackSurface(straight(kind))
+      let s = run(straight(kind), 100, () => NO_INPUT)
+      let ticks = 0
+      while (speedOf(s) < 60 / 3.6 && ticks < 3000) {
+        s = step(s, { ...NO_INPUT, throttle: 1 }, surface)
+        ticks++
+      }
+      return ticks / 100
+    }
+    expect(to60('ice')).toBeLessThanOrEqual(2 * to60())
+    expect(turned('ice')).toBeLessThan(turned() * 0.5)
+  })
+
+    it('grass slows a car under full throttle', () => {
     const top = (kind?: ZoneKind) => speedOf(run(straight(kind), 500, () => ({ ...NO_INPUT, throttle: 1 }), launched(15)))
     expect(top('grass')).toBeLessThan(top() - 3)
   })

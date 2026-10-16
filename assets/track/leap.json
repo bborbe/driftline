@@ -23,7 +23,7 @@
       { "piece": "straight-2", "surface": "ice" },
       { "piece": "straight-2", "surface": "ice" },
       { "piece": "checkpoint" },
-      { "piece": "straight-2" },
+      { "piece": "walled" },
       { "piece": "bank-180", "turn": "right" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
