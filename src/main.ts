@@ -165,5 +165,5 @@ view.renderer.setAnimationLoop(() => {
   }
 
   hud.textContent = `${backend}  ${track.name}  ${(Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`
-  view.frame(s, elapsed)
+  view.frame(s, elapsed, material)
 })

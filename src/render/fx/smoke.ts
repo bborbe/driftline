@@ -79,7 +79,7 @@ export const puffScale = (p: Puff): number => {
 export type Smoke = { object: THREE.InstancedMesh; pool: SmokePool; update: (s: CarState, dt: number, camera: THREE.Camera) => void }
 
 // Radial falloff so a puff reads as a soft blob, not a square.
-const softDisc = (): THREE.Texture => {
+export const softDisc = (): THREE.Texture => {
   const c = document.createElement('canvas')
   c.width = c.height = 64
   const g = c.getContext('2d')!
