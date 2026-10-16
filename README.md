@@ -26,6 +26,7 @@ The start screen shows two groups (↑/↓ switches group, ←/→ picks a track
 | `test-bank` | banked 180° turns |
 | `test-surfaces` | asphalt → dirt → ice → grass strips |
 | `test-turbo` | yellow and red turbo pads |
+| `test-effects` | effect pads: no-steer, cruise, fragile, engine-off, slow-mo, then reset |
 | `test-checkpoint` | four checkpoints in a row: split deltas, respawn at the last one |
 
 Any other `assets/track/test*.json` joins the Test group; any other track joins the end of the campaign.

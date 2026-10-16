@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { isPad, padForward, poses, type Track, type Zone } from '../../track/schema'
+import { isEffect, isPad, padForward, poses, type Track, type Zone } from '../../track/schema'
 import { createCarAt, type CarState } from '../../physics'
 import { dustIntensity, DustPool } from '../fx/dust'
-import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, zoneQuad } from './zones'
+import { effectIcon } from './effect-pads'
+import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, ZONE_WIDTH, zoneQuad } from './zones'
 
 const lap2 = JSON.parse(readFileSync(new URL('../../../assets/track/test2.json', import.meta.url), 'utf8')) as Track
 
@@ -30,10 +31,13 @@ describe('lap2 zone decals', () => {
   it.each(zones.map((z) => [`${z.kind} on segment ${z.segment}`, z] as const))('%s lies on the asphalt, between the curbs', (_name, zone) => {
     const seg = lap2.segments[zone.segment]
     const length = 'length' in seg ? seg.length : 0
+    const kind = zone.kind
     const buffers =
-      zone.kind === 'turbo' || zone.kind === 'turbo-red'
+      kind === 'turbo' || kind === 'turbo-red'
         ? [zoneQuad(lap2, zone), turboChevrons(lap2, zone)]
-        : [surfacePatch(lap2, { ...zone, kind: zone.kind }).positions]
+        : isEffect(kind)
+          ? [zoneQuad(lap2, zone), effectIcon(lap2, { ...zone, kind }, ZONE_WIDTH, ZONE_LIFT + 0.002)]
+          : [surfacePatch(lap2, { ...zone, kind }).positions]
     for (const b of buffers) {
       for (const p of local(lap2, zone, b)) {
         expect(Math.abs(p.lat)).toBeLessThanOrEqual(ROAD_HALF_WIDTH + 1e-4)
