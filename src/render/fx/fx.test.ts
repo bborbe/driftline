@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createCar, dot, forwardOf, NO_INPUT, step, TICK_HZ, type CarInput, type CarState } from '../../physics'
 import { parseFx, pipelinePasses } from './flags'
 import { SkidTrail } from './skid'
+import { MAX_SMOKE, smokeIntensity, SmokePool } from './smoke'
 import { MAX_SPEEDLINES, speedLineCount } from './speedlines'
 import { FrameStats } from './stats'
 
@@ -22,6 +23,7 @@ const atSpeed = (v: number) => {
 describe('?fx= flags', () => {
   it('parses known effects and ignores unknown ones', () => {
     expect([...parseFx('?fx=bloom,speedlines,skid')].sort()).toEqual(['bloom', 'skid', 'speedlines'])
+    expect([...parseFx('?fx=smoke')]).toEqual(['smoke'])
     expect([...parseFx('?fx=skid,nope')]).toEqual(['skid'])
     expect(parseFx('').size).toBe(0)
   })
@@ -52,6 +54,34 @@ describe('skid marks', () => {
     const trail = new SkidTrail()
     run(atSpeed(15), 2 * TICK_HZ, { ...NO_INPUT, steer: 1, handbrake: true }, (s) => trail.update(s))
     expect(trail.count).toBeGreaterThan(0)
+  })
+})
+
+describe('drift smoke', () => {
+  it('none when driving straight', () => {
+    const pool = new SmokePool()
+    run(createCar(), 4 * TICK_HZ, { ...NO_INPUT, throttle: 1 }, (s) => pool.update(s, 1 / TICK_HZ))
+    expect(pool.emitted).toBe(0)
+  })
+
+  it('puffs during a handbrake turn, more at higher slip, bounded by the pool', () => {
+    const pool = new SmokePool()
+    let peak = 0
+    run(atSpeed(15), 2 * TICK_HZ, { ...NO_INPUT, steer: 1, handbrake: true }, (s) => {
+      peak = Math.max(peak, smokeIntensity(s))
+      pool.update(s, 1 / TICK_HZ)
+    })
+    expect(pool.emitted).toBeGreaterThan(0)
+    expect(peak).toBeGreaterThan(0)
+    expect(pool.puffs.length).toBeLessThanOrEqual(MAX_SMOKE)
+  })
+
+  it('puffs fade out once the slide ends', () => {
+    const pool = new SmokePool()
+    const s = run(atSpeed(15), 2 * TICK_HZ, { ...NO_INPUT, steer: 1, handbrake: true }, (st) => pool.update(st, 1 / TICK_HZ))
+    const still = { ...s, velocity: { x: 0, y: 0, z: 0 } }
+    for (let i = 0; i < 2 * TICK_HZ; i++) pool.update(still, 1 / TICK_HZ)
+    expect(pool.puffs.length).toBe(0)
   })
 })
 

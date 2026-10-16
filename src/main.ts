@@ -1,6 +1,7 @@
 import './style.css'
 import { createCarAt, dot, FixedStepper, forwardOf, materialUnder, trackSurface } from './physics'
-import { createChase, updateChase } from './camera/chase'
+import { cockpitPose, COCKPIT_FOV, createChase, FAR_RIG, CLOSE_RIG, updateChase } from './camera/chase'
+import { CAMERA_EVENT, loadView, saveView, viewForKey, type ViewMode } from './camera/views'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './render/track/lap'
@@ -105,7 +106,21 @@ window.addEventListener('keydown', (e) => {
   )
 })
 ;(window as unknown as { driftline: object }).driftline = { centreline: (step: number) => centreline(track, step), ready: true }
-let chase = createChase(sim.state.position, forwardOf(sim.state))
+// Camera views: 1 close chase, 2 far chase, 3 in-car; the choice survives reloads.
+let viewMode = loadView(localStorage)
+const rigFor = () => (viewMode === 'far' ? FAR_RIG : CLOSE_RIG)
+let chase = createChase(sim.state.position, forwardOf(sim.state), rigFor())
+const setView = (mode: ViewMode) => {
+  viewMode = mode
+  chase = createChase(sim.state.position, forwardOf(sim.state), rigFor())
+}
+window.addEventListener('keydown', (e) => {
+  const mode = viewForKey(e.code)
+  if (!mode || e.repeat || e.target instanceof HTMLInputElement) return
+  saveView(localStorage, mode)
+  setView(mode)
+})
+window.addEventListener(CAMERA_EVENT, (e) => setView((e as CustomEvent<ViewMode>).detail))
 let last = performance.now()
 
 view.renderer.setAnimationLoop(() => {
@@ -125,11 +140,22 @@ view.renderer.setAnimationLoop(() => {
   audio.update(s, carInput, material)
   const speed = dot(s.velocity, forwardOf(s))
 
-  chase = updateChase(chase, s.position, forwardOf(s), Math.abs(speed), elapsed)
-  camera.position.set(chase.position.x, chase.position.y, chase.position.z)
-  camera.fov = chase.fov
-  camera.updateProjectionMatrix()
-  camera.lookAt(s.position.x, s.position.y + 0.8, s.position.z)
+  view.car.visible = viewMode !== 'cockpit'
+  if (viewMode === 'cockpit') {
+    const c = cockpitPose(s.position, s.orientation)
+    camera.position.set(c.eye.x, c.eye.y, c.eye.z)
+    camera.up.set(c.up.x, c.up.y, c.up.z)
+    camera.fov = COCKPIT_FOV
+    camera.updateProjectionMatrix()
+    camera.lookAt(c.look.x, c.look.y, c.look.z)
+  } else {
+    chase = updateChase(chase, s.position, forwardOf(s), Math.abs(speed), elapsed, rigFor())
+    camera.position.set(chase.position.x, chase.position.y, chase.position.z)
+    camera.up.set(0, 1, 0)
+    camera.fov = chase.fov
+    camera.updateProjectionMatrix()
+    camera.lookAt(s.position.x, s.position.y + 0.8, s.position.z)
+  }
 
   hud.textContent = `${backend}  ${track.name}  ${(Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`
   view.frame(s, elapsed)
