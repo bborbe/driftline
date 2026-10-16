@@ -27,6 +27,7 @@ An unknown id falls back to `box`. New entries must use CC0, CC-BY or MIT assets
 ## Debug screenshots
 
 - `?track=lap2&x=-108&y=0.8&z=-59&yaw=90` spawns the car at that pose (yaw in degrees, 0 = +z, CCW positive). Without all four params the car spawns at the start line as usual. The HUD shows the current `yaw` in the same convention; press `P` to copy the current pose as a full `?track&x&y&z&yaw&freeze=1` URL (a toast confirms).
+- The small corner text (pose, fps, build label, key hints) is the debug overlay; `H` toggles it and `&debug=0` starts it hidden. The race HUD (timer, speed, LAP / CP, splits) is separate and always shown.
 - `&freeze=1` holds physics and the countdown and hides the Begin overlay, so the frame is stable. Add `&renderer=webgl2` in headless browsers (headless WebGPU renders blank).
 - `&cam=top` swaps the chase camera for one straight above the track, framing the whole lap (fog off), e.g. `?track=lap2&cam=top&freeze=1&renderer=webgl2`.
 - `make shots` (`npm run shots [-- lap1 lap2]`, env `STEP=20`, `OUT=shots`) starts a Vite dev server, walks each lap's centreline every `STEP` metres and writes `shots/<lap>/NNN.png` (gitignored). First run: `npx playwright install chromium-headless-shell`.

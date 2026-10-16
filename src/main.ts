@@ -11,6 +11,7 @@ import { lapCount } from './race/lap'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 import { mountBuildLabel } from './build-info'
 import { debugPose, frozen, poseQuery, yawDeg } from './race/debug-pose'
+import { debugVisible } from './race/hud'
 import { centreline } from './track/centreline'
 import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
@@ -25,10 +26,17 @@ const track = loadLap(trackName)
 const view = await createView(track, effectiveFxQuery(location.search, settings))
 const { camera, backend } = view
 
+// Debug overlay (pose, fps, build label, key hints) in the corners; H or ?debug=0 hides it. The race HUD lives in src/race/view.ts.
 const hud = document.createElement('div')
 hud.id = 'hud'
 document.body.appendChild(hud)
 mountBuildLabel()
+document.documentElement.classList.toggle('debug-off', !debugVisible(location.search))
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyH' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
+  document.documentElement.classList.toggle('debug-off')
+})
 
 const input = new KeyboardInput()
 const audio = new GameAudio()
@@ -165,6 +173,6 @@ view.renderer.setAnimationLoop(() => {
     camera.lookAt(s.position.x, s.position.y + 0.8, s.position.z)
   }
 
-  hud.textContent = `${backend}  ${track.name}  ${race.loop.phase === 'finished' ? 0 : (Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`
+  hud.textContent = `${backend}  ${track.name}  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`
   view.frame(s, elapsed, material)
 })
