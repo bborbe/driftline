@@ -34,7 +34,7 @@ function longestJump(track: Track, samples: Sample[]): Landing {
   let takeoffSpeed = 0
   let best: Landing | null = null
   let open: (Landing & { speed: number; tick: number }) | null = null
-  for (let i = 0; i < COUNTDOWN_TICKS + 60 * TICK_HZ && loop.phase !== 'finished'; i++) {
+  for (let i = 0; i < COUNTDOWN_TICKS + 90 * TICK_HZ && loop.phase !== 'finished'; i++) {
     const input = loop.phase === 'racing' ? drive(sim.state) : NO_INPUT
     advanceRace(loop, sim, 1 / TICK_HZ, open ? { ...input, throttle: 1, brake: 0 } : input)
     const s = sim.state
@@ -72,6 +72,9 @@ const ramp = loadTrack('test-ramp')
 const crossover = loadTrack('crossover')
 const tower = loadTrack('tower')
 const crossGap = firstOf(crossover, 'gap')
+// The kit's gap-jump piece (src/track/kit.ts): A05 leap jumps it from a 12 m deck onto a 4 m one.
+const leap = loadTrack('leap')
+const leapGap = firstOf(leap, 'gap')
 const towerDrop = firstOf(tower, 'drop')
 
 const CASES = [
@@ -81,6 +84,8 @@ const CASES = [
   { name: 'crossover gap flat out down the long straight', track: crossover, samples: flatOut(crossover, crossGap - 2, crossGap + 1), minAir: 1, minSpeed: 35 },
   // tower's drop is a crest at the end of a long straight: flat out it is a jump too.
   { name: 'tower drop flat out', track: tower, samples: flatOut(tower, towerDrop - 1, towerDrop), minAir: 0.8, minSpeed: 35 },
+  { name: 'leap gap-jump at autopilot pace', track: leap, samples: centreline(leap), minAir: 0.5, minSpeed: 14 },
+  { name: 'leap gap-jump flat out off the deck', track: leap, samples: flatOut(leap, leapGap - 3, leapGap + 1), minAir: 1, minSpeed: 30 },
 ]
 
 describe.each(CASES)('jump landing: $name', ({ track, samples, minAir, minSpeed }) => {

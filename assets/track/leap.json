@@ -49,6 +49,8 @@
       { "piece": "straight-2" },
       { "piece": "straight-1" },
       { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
       { "piece": "curve-r2", "turn": "right" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
@@ -68,5 +70,5 @@
       { "piece": "straight-2" }
     ]
   },
-  "medals": { "author": 41500, "gold": 45000, "silver": 50500, "bronze": 59000 }
+  "medals": { "author": 44000, "gold": 47500, "silver": 53500, "bronze": 62500 }
 }

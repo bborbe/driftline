@@ -121,18 +121,19 @@ export const KIT_PIECES: readonly PieceDef[] = [
   },
   {
     // Kicker, gap, landing: crossover's jump on the grid. Both connectors are road; the air is
-    // inside the piece. The landing slope lies under the flight arc from ~16 m/s (the autopilot's
-    // jump speed) to flat out, so slow and fast cars both touch down on the downslope.
+    // inside the piece. A 5.7° lip, then a landing slope that continues the line from the lip and
+    // runs long enough for a flat-out car, so it lands tangent to the arc at any speed (AGENTS.md).
     id: 'gap-jump',
     family: 'slope',
     surfaces: ROAD_ONLY,
     turns: false,
-    out: road(6, 0, -2, 0),
+    out: road(10, 0, -2, 0),
     expand: () =>
       plain([
         { type: 'ramp', length: CELL, rise: 1 },
-        { type: 'gap', length: 1.4 * CELL, fall: LEVEL },
-        { type: 'drop', length: 3.6 * CELL, fall: 2 * LEVEL - 3 },
+        { type: 'gap', length: CELL, fall: 1.8 },
+        // Net two levels down: +1 lip, −1.8 gap, −7.2 landing.
+        { type: 'drop', length: 8 * CELL, fall: 7.2 },
       ]),
   },
   flat('turbo', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.25, to: 0.75 }] }),
