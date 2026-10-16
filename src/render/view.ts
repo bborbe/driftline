@@ -61,6 +61,7 @@ export const createView = async (track: Track): Promise<View> => {
   const sun = new THREE.DirectionalLight(0xfff4e0, 2.5)
   sun.castShadow = true
   sun.shadow.mapSize.set(2048, 2048)
+  sun.shadow.normalBias = 0.05 // keeps lit surfaces from self-shadowing (acne)
   const sc = sun.shadow.camera
   sc.left = sc.bottom = -60
   sc.right = sc.top = 60

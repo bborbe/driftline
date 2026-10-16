@@ -19,7 +19,7 @@ const urlFor = (piece: string): string => {
 }
 
 /**
- * Shadows on, and every material double-sided: the Kenney pieces are single-sided, so an
+ * Shadows on, and every material double-sided (back-face shadow casting): the Kenney pieces are single-sided, so an
  * elevated ramp or bridge was see-through from the grass below (backface culling).
  */
 export const preparePiece = (root: THREE.Object3D): THREE.Object3D => {
@@ -27,7 +27,14 @@ export const preparePiece = (root: THREE.Object3D): THREE.Object3D => {
     o.castShadow = true
     o.receiveShadow = true
     const m = (o as THREE.Mesh).material
-    if (m) for (const mat of Array.isArray(m) ? m : [m]) mat.side = THREE.DoubleSide
+    if (m) {
+      for (const mat of Array.isArray(m) ? m : [m]) {
+        mat.side = THREE.DoubleSide
+        // Cast shadows from the back face only: a double-sided caster shadows its own
+        // front face, which showed as moiré striping (shadow acne) on the road.
+        mat.shadowSide = THREE.BackSide
+      }
+    }
   })
   return root
 }

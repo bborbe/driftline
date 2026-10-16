@@ -11,6 +11,7 @@ describe('Kenney piece preparation', () => {
     preparePiece(root)
     expect((single.material as THREE.Material).side).toBe(THREE.DoubleSide)
     for (const m of multi.material as THREE.Material[]) expect(m.side).toBe(THREE.DoubleSide)
+    expect((single.material as THREE.Material).shadowSide).toBe(THREE.BackSide)
     expect(single.castShadow).toBe(true)
   })
 })
