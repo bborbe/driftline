@@ -19,7 +19,14 @@ const input = new KeyboardInput()
 const audio = new GameAudio()
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
 const race = initRace(sim, track, {
-  listeners: [{ checkpoint: () => audio.onCheckpoint(), lapFinish: () => audio.onFinish(), respawn: () => audio.onRespawn() }],
+  listeners: [
+    {
+      countdown: (_t, n) => audio.onCountdown(n),
+      checkpoint: () => audio.onCheckpoint(),
+      lapFinish: () => audio.onFinish(),
+      respawn: () => audio.onRespawn(),
+    },
+  ],
 })
 mountAudioControls(audio, () => race.start())
 let chase = createChase(sim.state.position, forwardOf(sim.state))

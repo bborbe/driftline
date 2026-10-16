@@ -55,6 +55,28 @@ describe('LapLoop', () => {
     expect(loop.phase).toBe('racing')
   })
 
+  it('announces the countdown exactly 4 times: 3, 2, 1, then 0 on GO', () => {
+    const loop = new LapLoop(FLAT_OVAL, () => true)
+    const calls: [number, number][] = []
+    loop.on({ countdown: (t, n) => calls.push([n, t]) })
+    loop.start(100)
+    // Per-tick updates through the countdown and 2 s beyond.
+    for (let t = 101; t <= 100 + COUNTDOWN_TICKS + 2 * TICK_HZ; t++) loop.update({ ...loop.spawn(), tick: t })
+    expect(calls.map(([n]) => n)).toEqual([3, 2, 1, 0])
+    expect(calls.map(([, t]) => t)).toEqual([100, 100 + TICK_HZ, 100 + 2 * TICK_HZ, 100 + COUNTDOWN_TICKS])
+  })
+
+  it('announces the countdown the same with coarse per-frame updates, and again on restart', () => {
+    const loop = new LapLoop(FLAT_OVAL, () => true)
+    const ns: number[] = []
+    loop.on({ countdown: (_t, n) => ns.push(n) })
+    loop.start(0)
+    for (let t = 7; t <= COUNTDOWN_TICKS + 50; t += 7) loop.update({ ...loop.spawn(), tick: t }) // ~14 fps
+    loop.restart(COUNTDOWN_TICKS + 60)
+    for (let t = COUNTDOWN_TICKS + 61; t <= 2 * COUNTDOWN_TICKS + 100; t++) loop.update({ ...loop.spawn(), tick: t })
+    expect(ns).toEqual([3, 2, 1, 0, 3, 2, 1, 0])
+  })
+
   it('passes input only while racing', () => {
     const loop = new LapLoop(FLAT_OVAL, () => true)
     const throttle = { ...NO_INPUT, throttle: 1 }
