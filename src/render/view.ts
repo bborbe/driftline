@@ -1,9 +1,15 @@
 // Scene owner: renderer (WebGPU, WebGL2 fallback), track and car mesh; the look lives in scene.ts.
 // main.ts calls createView() once and view.frame(state) every frame; nothing here writes car state.
 import * as THREE from 'three/webgpu'
-import type { CarState } from '../physics'
+import { pass } from 'three/tsl'
+import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js'
+import { dot, forwardOf, type CarState } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
+import { parseFx } from './fx/flags'
+import { createSkidMarks } from './fx/skid'
+import { createSpeedLines } from './fx/speedlines'
+import { FrameStats } from './fx/stats'
 import { createScene } from './scene'
 import { createPieceTrack } from './track/kenney'
 
@@ -39,10 +45,45 @@ export const createView = async (track: Track): Promise<View> => {
     renderer.setSize(window.innerWidth, window.innerHeight)
   })
 
+  // Effects behind ?fx=bloom,speedlines,skid; all read car state only.
+  const fx = parseFx(location.search)
+  let draw = () => renderer.render(scene, camera)
+  if (fx.has('bloom')) {
+    const pipeline = new THREE.RenderPipeline(renderer)
+    const scenePass = pass(scene, camera)
+    pipeline.outputNode = scenePass.add(bloom(scenePass, 0.3, 0.4, 0.9))
+    draw = () => pipeline.render()
+  }
+  const speedLines = fx.has('speedlines') ? createSpeedLines() : null
+  if (speedLines) {
+    camera.add(speedLines.object)
+    scene.add(camera) // camera children render only when the camera is in the scene
+  }
+  const skid = fx.has('skid') ? createSkidMarks() : null
+  if (skid) scene.add(skid.object)
+
+  // HUD "1% low": 1st percentile of per-frame fps over the last 60 s, refreshed twice a second.
+  const stats = new FrameStats()
+  const fpsLabel = document.createElement('div')
+  fpsLabel.id = 'fps'
+  // Styled here, not in style.css, so the render module stays self-contained; matches #hud.
+  fpsLabel.style.cssText =
+    'position:fixed;right:8px;top:36px;padding:4px 8px;pointer-events:none;font:14px/1.4 ui-monospace,monospace;color:#fff;background:rgba(0,0,0,0.5)'
+  document.body.appendChild(fpsLabel)
+  let sinceLabel = 0
+
   const frame = (s: CarState, dt: number) => {
     car.update(s, dt)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
-    renderer.render(scene, camera)
+    speedLines?.update(dot(s.velocity, forwardOf(s)), dt)
+    skid?.update(s)
+    draw()
+    stats.push(performance.now(), dt)
+    sinceLabel += dt
+    if (sinceLabel >= 0.5) {
+      sinceLabel = 0
+      fpsLabel.textContent = `1% low ${stats.onePercentLow().toFixed(1)} fps · avg ${stats.average().toFixed(0)}`
+    }
   }
 
   return { renderer, camera, backend, scene, frame }
