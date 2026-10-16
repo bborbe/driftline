@@ -3,14 +3,15 @@
 import * as THREE from 'three/webgpu'
 import type { CarState } from '../physics'
 import type { Track } from '../track/schema'
+import { createCarView } from './car/model'
 import { createPieceTrack } from './track/kenney'
 
 export type View = {
   renderer: THREE.WebGPURenderer
   camera: THREE.PerspectiveCamera
   backend: 'WebGPU' | 'WebGL2'
-  /** Pose the car from physics state and draw one frame. */
-  frame: (state: CarState) => void
+  /** Pose the car from physics state and draw one frame; dt in seconds. */
+  frame: (state: CarState, dt: number) => void
 }
 
 const SKY = 0x8fd3ff
@@ -28,20 +29,6 @@ const createGround = (): THREE.Mesh => {
   ground.rotation.x = -Math.PI / 2
   ground.receiveShadow = true
   return ground
-}
-
-const createCarMesh = (): THREE.Group => {
-  // Placeholder car: body + nose marker so heading is readable.
-  const car = new THREE.Group()
-  const paint = new THREE.MeshPhysicalMaterial({ color: 0xd62828, clearcoat: 1, roughness: 0.3 })
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.7, 4.2), paint)
-  body.position.y = 0.1
-  car.add(body)
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.6), new THREE.MeshStandardMaterial({ color: 0xffffff }))
-  nose.position.set(0, 0.55, 1.6)
-  car.add(nose)
-  car.traverse((o) => (o.castShadow = true))
-  return car
 }
 
 export const createView = async (track: Track): Promise<View> => {
@@ -72,8 +59,8 @@ export const createView = async (track: Track): Promise<View> => {
   scene.add(sun, sun.target)
 
   scene.add(createGround(), await createPieceTrack(track))
-  const car = createCarMesh()
-  scene.add(car)
+  const car = await createCarView()
+  scene.add(car.object)
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 3000)
   window.addEventListener('resize', () => {
@@ -82,9 +69,8 @@ export const createView = async (track: Track): Promise<View> => {
     renderer.setSize(window.innerWidth, window.innerHeight)
   })
 
-  const frame = (s: CarState) => {
-    car.position.set(s.position.x, s.position.y, s.position.z)
-    car.quaternion.set(s.orientation.x, s.orientation.y, s.orientation.z, s.orientation.w)
+  const frame = (s: CarState, dt: number) => {
+    car.update(s, dt)
     // Shadow frustum follows the car.
     sun.position.set(s.position.x + 40, s.position.y + 80, s.position.z + 30)
     sun.target.position.set(s.position.x, s.position.y, s.position.z)
