@@ -38,3 +38,5 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 ## Workflow
 
 Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). No releases or tags.
+
+- **Visual changes are verified with the debug spawn** (README § Debug screenshots): before reporting, shoot the change from the chase cam and from off-track (side, below) on lap1 and lap2 (`?x&y&z&yaw&freeze=1`, `&cam=top`, `make shots`) and judge shape and material, not only seams. A fix for a reported visual bug also gets a shot of the reporter's exact pose on the live site once its `<meta name="commit">` shows the merge.
