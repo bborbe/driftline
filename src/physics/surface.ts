@@ -1,6 +1,6 @@
 // Drivable surfaces for the wheel raycasts. Pure and deterministic: no three.js,
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
-import { barrierPillars, barrierPosts, CELL, gatePillars, isPad, padForward, poses, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
+import { barrierPillars, barrierPosts, gatePillars, isPad, padForward, poses, ROAD_WIDTH, turnCentre, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
 import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
 import { normalize, v3, type Vec3 } from './vec'
 
@@ -24,8 +24,8 @@ export interface Surface {
   obstacles?: readonly Pillar[]
 }
 
-// Driving width of every track piece; pieces sit on a CELL grid.
-export const TRACK_WIDTH = CELL
+// Driving width of every track piece (ROAD_WIDTH, src/track/pose.ts); pieces sit on a CELL grid.
+export const TRACK_WIDTH = ROAD_WIDTH
 
 const UP = v3(0, 1, 0)
 
@@ -63,13 +63,12 @@ const strip = (p: Pose, length: number, dy: number, width: number): Piece => {
   }
 }
 
-// curve / hairpin / banked: an annular sector around the turn centre (same geometry as
-// schema.ts `arc`). `bank` raises the outer edge about the centreline, easing in and out at
-// both ends (src/track/bank.ts — shared with the renderer).
+// curve / hairpin / banked: an annular sector around the turn centre (turnCentre, the same
+// circle pose.ts sweeps the centreline on). `bank` raises the outer edge about the centreline,
+// easing in and out at both ends (src/track/bank.ts — shared with the renderer).
 const sector = (p: Pose, left: boolean, radius: number, angle: number, bank: number, width: number): Piece => {
   const s = left ? 1 : -1
-  const cx = p.x + Math.cos(p.heading) * radius * s
-  const cz = p.z - Math.sin(p.heading) * radius * s
+  const [cx, cz] = turnCentre(p, left ? 'left' : 'right', radius)
   return (x, z) => {
     const rx = x - cx
     const rz = z - cz

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { centreline } from '../track/centreline'
-import { loadLap } from './track/lap'
-import { FIXTURE_TRACK } from './track/fixture'
+import { loadLap } from '../track/registry'
+import { FIXTURE_TRACK } from '../track/fixture'
 import { CLEARANCE, planScenery } from './scenery'
 
 const tracks = { test1: loadLap('test1'), test2: loadLap('test2'), crossover: loadLap('crossover'), tower: loadLap('tower'), fixture: FIXTURE_TRACK }

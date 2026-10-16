@@ -1,8 +1,9 @@
 // The shipped tracks, validated against the schema. `?track=<name>` picks one (default test1);
 // old names (lap1, lap2) resolve through the catalogue's aliases.
 // Falls back to the fixture so a broken track file shows a warning and a drivable scene instead of a blank page.
-import { menuOrder, nextInGroup, resolveAlias } from '../../track/catalogue'
-import { validate, type Track } from '../../track/schema'
+import { menuOrder, nextInGroup, resolveAlias } from './catalogue'
+import { resolveTrack } from './kit'
+import { validate, type Track } from './schema'
 import { FIXTURE_TRACK } from './fixture'
 
 // Every track JSON except the piece catalogue (pieces.json) is a drivable lap.
@@ -26,7 +27,14 @@ export const lapName = (search: string): string => {
 }
 
 export const loadLap = (name: string = lapName(location.search)): Track => {
-  const data = LAPS[`/assets/track/${resolveAlias(name)}.json`]
+  let data: unknown
+  try {
+    // Kit tracks (a `kit` piece list) compile to a plain Track; spline tracks pass through.
+    data = resolveTrack(LAPS[`/assets/track/${resolveAlias(name)}.json`])
+  } catch (e) {
+    console.warn(`${name}.json kit does not compile, using fixture track: ${(e as Error).message}`)
+    return FIXTURE_TRACK
+  }
   const errs = validate(data)
   if (errs.length > 0) {
     console.warn(`${name}.json invalid, using fixture track: ${errs.join('; ')}`)

@@ -23,7 +23,7 @@ import {
 import { viewForKey } from './views'
 import { debugPose } from '../race/debug-pose'
 import { centreline } from '../track/centreline'
-import { loadLap } from '../render/track/lap'
+import { loadLap } from '../track/registry'
 import { length, sub, v3 } from '../physics/vec'
 
 const idle = { forward: 0, right: 0, up: 0, fast: false }

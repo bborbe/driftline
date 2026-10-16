@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LAP_NAMES, lapName } from './lap'
+import { LAP_NAMES, lapName } from './registry'
 
 describe('shipped tracks', () => {
   it('lists the multi-level campaign tracks, never the piece catalogue', () => {

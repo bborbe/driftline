@@ -1,10 +1,13 @@
 // Track mesh generation from the shared schema. Pure TypeScript (no three) so it
 // is unit-testable in Node; src/render/track/mesh.ts wraps the arrays for three.js.
-import { bankAngleAt, bankRise } from '../../track/bank'
-import { poses, type Pose, type Segment, type Track } from '../../track/schema'
+import { bankRise } from '../../track/bank'
+import { poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, type Sample } from '../../track/pose'
+import type { Pose, Segment, Track } from '../../track/schema'
 
-/** Road width in metres. */
-export const TRACK_WIDTH = 10 // matches the Kenney road pieces
+export { sampleSegment, segmentLength, type Sample } from '../../track/pose'
+
+/** Road width in metres (ROAD_WIDTH, src/track/pose.ts). */
+export const TRACK_WIDTH = ROAD_WIDTH
 /**
  * Lift of the procedural surface above the schema pose. Zero: it must sit exactly at the
  * Kenney pieces' height, or the step at every glb/procedural joint draws a dark seam line.
@@ -12,75 +15,11 @@ export const TRACK_WIDTH = 10 // matches the Kenney road pieces
  */
 export const SURFACE_LIFT = 0
 
-/** A point on a segment's centerline: world position, heading and road roll (radians). */
-export type Sample = { x: number; y: number; z: number; heading: number; roll: number }
-
 export type SegmentGeometry = {
   positions: Float32Array // xyz triples
   indices: Uint32Array // triangle list
   rows: number // centerline samples; first row = entry edge, last row = exit edge
   perRow: number // vertices per row: surface columns + 2 curb tops
-}
-
-
-const turnSign = (seg: Segment): number => ('turn' in seg && seg.turn === 'right' ? -1 : 1)
-
-/** Arc angle (radians) for curved segments, 0 for straight-line ones. */
-const arcAngle = (seg: Segment): number => {
-  switch (seg.type) {
-    case 'curve':
-    case 'banked':
-      return (seg.angle * Math.PI) / 180
-    case 'hairpin':
-      return Math.PI
-    default:
-      return 0
-  }
-}
-
-/** Centerline length in metres. */
-export const segmentLength = (seg: Segment): number => {
-  switch (seg.type) {
-    case 'straight':
-    case 'ramp':
-    case 'drop':
-    case 'gap':
-      return seg.length
-    default:
-      return seg.radius * arcAngle(seg)
-  }
-}
-
-/** Sample a segment's centerline at t in [0, 1]; t = 0 is the entry pose, t = 1 the exit pose. */
-export const sampleSegment = (entry: Pose, seg: Segment, t: number): Sample => {
-  switch (seg.type) {
-    case 'straight':
-    case 'ramp':
-    case 'drop':
-    case 'gap': {
-      const dy = seg.type === 'ramp' ? seg.rise : seg.type === 'drop' ? -seg.fall : seg.type === 'gap' ? -(seg.fall ?? 0) : 0
-      const d = seg.length * t
-      return {
-        x: entry.x + Math.sin(entry.heading) * d,
-        // Linear, exactly the planar strip physics drives on (src/physics/surface.ts): no bump at the foot.
-        y: entry.y + dy * t,
-        z: entry.z + Math.cos(entry.heading) * d,
-        heading: entry.heading,
-        roll: 0,
-      }
-    }
-    default: {
-      // Same arc construction as schema.ts so the exit edge meets poses() exactly.
-      const s = turnSign(seg)
-      const r = seg.radius
-      const cx = entry.x + Math.cos(entry.heading) * r * s
-      const cz = entry.z - Math.sin(entry.heading) * r * s
-      const heading = entry.heading + s * arcAngle(seg) * t
-      // Eased bank angle, shared with physics (src/track/bank.ts).
-      const roll = seg.type === 'banked' ? bankAngleAt(seg.bank, t) : 0
-      return { x: cx - Math.cos(heading) * r * s, y: entry.y, z: cz + Math.sin(heading) * r * s, heading, roll }
-    }
-  }
 }
 
 /**
@@ -258,7 +197,7 @@ export const buildDeck = (entry: Pose, seg: Segment): SegmentGeometry | null => 
     const b = (r + 1) * perRow
     idx.push(a, a + 1, b, a + 1, b + 1, b) // left skirt
     idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3) // right skirt
-    idx.push(a + 1, a + 3, b + 1, a + 3, b + 3, b + 1) // soffit
+    idx.push(a + 1, b + 1, a + 3, a + 3, b + 1, b + 3) // soffit, wound to face down so it lights from below
   }
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }
