@@ -19,6 +19,8 @@ const CASES = [
   { track: load('crossover'), minMs: 40_000, maxMs: 65_000 },
   // Built only from kit pieces (assets/track/test-kit.json, src/track/kit.ts).
   { track: load('test-kit'), minMs: 10_000, maxMs: 40_000 },
+  // Every kit piece type once: the catalogue track behind docs/track-kit.md.
+  { track: load('test-kit-all'), minMs: 15_000, maxMs: 60_000 },
   { track: load('tower'), minMs: 40_000, maxMs: 65_000 },
 ]
 

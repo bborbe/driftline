@@ -167,6 +167,11 @@ describe('kit level format', () => {
     for (const spline of ['test1', 'test2', 'crossover', 'tower']) expect(isKitTrack(read(spline)), spline).toBe(false)
   })
 
+  it('test-kit-all.json uses every kit piece type (the docs/track-kit.md catalogue track)', () => {
+    const used = new Set((read('test-kit-all') as KitTrack).kit.pieces.map((p) => p.piece))
+    expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).sort())
+  })
+
   describe('test-kit.json demo', () => {
     const kt = read('test-kit') as KitTrack
     const { track, firstSegment } = compileKit(kt)
