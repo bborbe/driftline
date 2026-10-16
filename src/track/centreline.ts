@@ -8,6 +8,7 @@ export function segmentLength(seg: Segment): number {
     case 'straight':
     case 'ramp':
     case 'drop':
+    case 'gap':
       return seg.length
     case 'curve':
     case 'banked':
@@ -26,6 +27,8 @@ export function partialPose(entry: Pose, seg: Segment, f: number): Pose {
       return exitPose(entry, { ...seg, length: seg.length * f, rise: seg.rise * f })
     case 'drop':
       return exitPose(entry, { ...seg, length: seg.length * f, fall: seg.fall * f })
+    case 'gap':
+      return exitPose(entry, { ...seg, length: seg.length * f, fall: (seg.fall ?? 0) * f })
     case 'curve':
     case 'banked':
       return exitPose(entry, { ...seg, angle: seg.angle * f } as Segment)

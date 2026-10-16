@@ -44,6 +44,7 @@ export const segmentLength = (seg: Segment): number => {
     case 'straight':
     case 'ramp':
     case 'drop':
+    case 'gap':
       return seg.length
     default:
       return seg.radius * arcAngle(seg)
@@ -55,8 +56,9 @@ export const sampleSegment = (entry: Pose, seg: Segment, t: number): Sample => {
   switch (seg.type) {
     case 'straight':
     case 'ramp':
-    case 'drop': {
-      const dy = seg.type === 'ramp' ? seg.rise : seg.type === 'drop' ? -seg.fall : 0
+    case 'drop':
+    case 'gap': {
+      const dy = seg.type === 'ramp' ? seg.rise : seg.type === 'drop' ? -seg.fall : seg.type === 'gap' ? -(seg.fall ?? 0) : 0
       const d = seg.length * t
       return {
         x: entry.x + Math.sin(entry.heading) * d,
@@ -221,4 +223,76 @@ export const buildRampSupport = (entry: Pose, seg: Segment): SegmentGeometry | n
     idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3) // right wall
   }
   return { positions, indices: new Uint32Array(idx), rows, perRow }
+}
+
+/** Lowest road height that gets a deck underneath; below it the road reads as sitting on the ground. */
+export const DECK_MIN_HEIGHT = 1
+/** Thickness of an elevated deck's concrete box under the road. */
+export const DECK_DEPTH = 1
+
+/**
+ * Visual-only box section under an elevated flat piece (straight, curve, hairpin, banked): a
+ * skirt down DECK_DEPTH from each road edge and a soffit joining them, so a bridge reads as a
+ * solid deck from below and from the side. Ramps and drops keep their full walls
+ * (buildRampSupport); gaps and ground-level pieces get nothing. Rows: left top, left foot,
+ * right top, right foot.
+ */
+export const buildDeck = (entry: Pose, seg: Segment): SegmentGeometry | null => {
+  if (seg.type === 'ramp' || seg.type === 'drop' || seg.type === 'gap' || entry.y < DECK_MIN_HEIGHT) return null
+  const rows = rowCount(seg)
+  const s = turnSign(seg)
+  const half = TRACK_WIDTH / 2
+  const perRow = 4
+  const positions = new Float32Array(rows * perRow * 3)
+  for (let r = 0; r < rows; r++) {
+    const p = sampleSegment(entry, seg, r / (rows - 1))
+    for (const [k, u] of [[0, half], [2, -half]]) {
+      const [x, y, z] = lateralPoint(p, u, s)
+      positions.set([x, y, z], (r * perRow + k) * 3)
+      positions.set([x, y - DECK_DEPTH, z], (r * perRow + k + 1) * 3)
+    }
+  }
+  const idx: number[] = []
+  for (let r = 0; r < rows - 1; r++) {
+    const a = r * perRow
+    const b = (r + 1) * perRow
+    idx.push(a, a + 1, b, a + 1, b + 1, b) // left skirt
+    idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3) // right skirt
+    idx.push(a + 1, a + 3, b + 1, a + 3, b + 3, b + 1) // soffit
+  }
+  return { positions, indices: new Uint32Array(idx), rows, perRow }
+}
+
+/** Spacing of the pillars under a deck, and the clearance they keep from any road below. */
+export const DECK_PILLAR_STEP = 12
+export const DECK_PILLAR_CLEAR = TRACK_WIDTH / 2 + 2
+
+/** A deck pillar: centred on (x, z), standing on the ground, reaching up to `top`. */
+export type DeckPillar = { x: number; z: number; top: number }
+
+/**
+ * Pillars under the centreline of every deck (buildDeck), one every DECK_PILLAR_STEP metres.
+ * A pillar that would stand on another part of the lap (an underpass) is left out, so the
+ * road below stays open.
+ */
+export const planDeckPillars = (track: Track): DeckPillar[] => {
+  const ps = poses(track)
+  const road: Sample[] = []
+  track.segments.forEach((seg, i) => {
+    if (seg.type === 'gap') return
+    const n = Math.max(1, Math.ceil(segmentLength(seg) / 1.5))
+    for (let k = 0; k <= n; k++) road.push(sampleSegment(ps[i], seg, k / n))
+  })
+  const out: DeckPillar[] = []
+  track.segments.forEach((seg, i) => {
+    if (!buildDeck(ps[i], seg)) return
+    const len = segmentLength(seg)
+    for (let d = DECK_PILLAR_STEP / 2; d < len; d += DECK_PILLAR_STEP) {
+      const p = sampleSegment(ps[i], seg, d / len)
+      const top = p.y - DECK_DEPTH
+      const blocked = road.some((q) => q.y < top - 1 && Math.hypot(q.x - p.x, q.z - p.z) < DECK_PILLAR_CLEAR)
+      if (!blocked) out.push({ x: p.x, z: p.z, top })
+    }
+  })
+  return out
 }

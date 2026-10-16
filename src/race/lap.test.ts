@@ -283,4 +283,9 @@ describe('crosses', () => {
     expect(crosses(gate, v3(0, 0, 11), v3(0, 0, 9))).toBe(false)
     expect(crosses(gate, v3(20, 0, 9), v3(20, 0, 11))).toBe(false)
   })
+  it('ignores a road passing under the gate (multi-level tracks); a jump over it still counts', () => {
+    expect(crosses(gate, v3(0, -8, 9), v3(0, -8, 11))).toBe(false) // an underpass below a deck gate
+    expect(crosses(gate, v3(0, 9, 9), v3(0, 9, 11))).toBe(true) // airborne over the arch after a gap jump
+    expect(crosses(gate, v3(0, 25, 9), v3(0, 25, 11))).toBe(false) // far above: a different level
+  })
 })
