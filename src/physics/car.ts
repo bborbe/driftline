@@ -1,7 +1,7 @@
 // Raycast-wheel car on a drivable Surface (default: flat y = 0 plane), stepped at a fixed 100 Hz.
 // Pure and deterministic: no three.js, no clocks, no randomness.
 import {
-  add, cross, dot, integrateQuat, length, normalize, quatIdentity, rotate, scale, sub, v3,
+  add, cross, dot, integrateQuat, length, normalize, quatIdentity, quatNormalize, rotate, scale, sub, v3,
   type Quat, type Vec3,
 } from './vec'
 import { FLAT, type RayHit, type Surface } from './surface'
@@ -230,12 +230,47 @@ export class FixedStepper {
     this.accumulator += Math.min(elapsedSeconds, 0.25)
     let ticks = 0
     while (this.accumulator >= DT) {
+      this.previous = this.state
       this.state = step(this.state, input, this.surface)
+      this.stepped = this.state
       this.accumulator -= DT
       ticks++
     }
     return ticks
   }
+
+  // State to draw: blended between the last two ticks by the leftover accumulator, so a
+  // display rate that is not a multiple of 100 Hz moves the car evenly every frame.
+  // Snaps to `state` when it was replaced outside advance() (spawn, respawn, restart).
+  render(): CarState {
+    if (this.previous === undefined || this.stepped !== this.state) return this.state
+    return interpolate(this.previous, this.state, this.alpha)
+  }
+
+  // Fraction of a tick left in the accumulator, 0..1.
+  get alpha(): number {
+    return this.accumulator / DT
+  }
+
+  private previous: CarState | undefined
+  private stepped: CarState | undefined
+}
+
+export const interpolate = (a: CarState, b: CarState, t: number): CarState => ({
+  ...b,
+  position: add(a.position, scale(sub(b.position, a.position), t)),
+  orientation: nlerp(a.orientation, b.orientation, t),
+  steerAngle: a.steerAngle + (b.steerAngle - a.steerAngle) * t,
+})
+
+const nlerp = (a: Quat, b: Quat, t: number): Quat => {
+  const sign = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w < 0 ? -1 : 1
+  return quatNormalize({
+    x: a.x + (sign * b.x - a.x) * t,
+    y: a.y + (sign * b.y - a.y) * t,
+    z: a.z + (sign * b.z - a.z) * t,
+    w: a.w + (sign * b.w - a.w) * t,
+  })
 }
 
 // Number of wheels whose suspension ray reaches the surface (0 = airborne).

@@ -91,8 +91,11 @@ view.renderer.setAnimationLoop(() => {
   const carInput = input.read()
   if (!freeze) race.frame(elapsed, carInput)
   ghostRecorder.frame(race.loop.input(carInput), sim.state.tick)
-  if (ghost) ghostCar.update(ghost.advanceTo(sim.state.tick - lapStartTick), race.paused ? 0 : elapsed)
-  const s = sim.state
+  if (ghost) {
+    ghost.advanceTo(sim.state.tick - lapStartTick)
+    ghostCar.update(ghost.render(sim.alpha), race.paused ? 0 : elapsed)
+  }
+  const s = sim.render()
   audio.update(s, carInput)
   const speed = dot(s.velocity, forwardOf(s))
 

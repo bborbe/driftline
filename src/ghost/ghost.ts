@@ -1,7 +1,7 @@
 // Best-run ghost: record per-tick CarInput of each lap, keep the session's fastest run in memory,
 // replay it by re-simulating through the deterministic physics step.
 // Pure TypeScript: no three.js, no clocks, no randomness.
-import { FLAT, step, type CarInput, type CarState, type Surface } from '../physics'
+import { FLAT, interpolate, step, type CarInput, type CarState, type Surface } from '../physics'
 import type { RaceEvents } from '../race/lap'
 
 export type GhostRun = {
@@ -83,6 +83,7 @@ export class GhostReplayer {
     this.run = run
     this.surface = surface
     this.state = run.start
+    this.previous = run.start
   }
 
   get done(): boolean {
@@ -91,9 +92,17 @@ export class GhostReplayer {
 
   // Advance one physics tick; holds the final state once the run is exhausted.
   advance(): CarState {
+    this.previous = this.state
     if (!this.done) this.state = step(this.state, this.run.inputs[this.tick++], this.surface)
     return this.state
   }
+
+  // Pose to draw, blended by the live sim's `alpha` so the ghost moves as evenly as the car.
+  render(alpha: number): CarState {
+    return interpolate(this.previous, this.state, alpha)
+  }
+
+  private previous: CarState
 
   // Advance until the replay reaches `ticksSinceStart` ticks after its lapStart.
   advanceTo(ticksSinceStart: number): CarState {
