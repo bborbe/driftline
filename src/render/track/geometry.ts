@@ -3,7 +3,7 @@
 import { poses, type Pose, type Segment, type Track } from '../../track/schema'
 
 /** Road width in metres. */
-export const TRACK_WIDTH = 12
+export const TRACK_WIDTH = 10 // matches the Kenney road pieces
 /** Curb height on both road edges, in metres. */
 export const CURB_HEIGHT = 0.3
 /** Road surface sits this far above the ground plane to avoid z-fighting. */

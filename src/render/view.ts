@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu'
 import type { CarState } from '../physics'
 import type { Track } from '../track/schema'
-import { createTrackMesh } from './track/mesh'
+import { createPieceTrack } from './track/kenney'
 
 export type View = {
   renderer: THREE.WebGPURenderer
@@ -71,7 +71,7 @@ export const createView = async (track: Track): Promise<View> => {
   sc.far = 200
   scene.add(sun, sun.target)
 
-  scene.add(createGround(), createTrackMesh(track))
+  scene.add(createGround(), await createPieceTrack(track))
   const car = createCarMesh()
   scene.add(car)
 
