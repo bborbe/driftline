@@ -207,6 +207,7 @@ describe('surface patch on arcs', () => {
     const [cx, cz] = turnCentre(start, 'turn' in seg ? seg.turn : 'left', radius)
     const { positions } = surfacePatch(track, zone)
     expect(positions.length / 3).toBeGreaterThan(100)
+    const cols = Math.round((2 * ROAD_HALF_WIDTH) / 0.3) + 1
     for (let i = 0; i < positions.length; i += 3) {
       const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]]
       // Rows are chords of the arc like the road mesh's, so allow the chord sag.
@@ -218,7 +219,8 @@ describe('surface patch on arcs', () => {
       // The first and last rows sit on the piece's end lines, where a single-piece raycast can fall a
       // rounding error outside the sector; every vertex between must read the zone's material.
       const hit = physics.raycast({ x, y: y + 2, z }, { x: 0, y: -1, z: 0 }, 10)
-      if (hit) expect(hit.material).toBe('ice')
+      const endRow = i / 3 < cols || i / 3 >= positions.length / 3 - cols
+      if (!endRow) expect(hit?.material, `vertex ${i / 3}`).toBe('ice')
     }
   })
 

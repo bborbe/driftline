@@ -37,7 +37,6 @@ const PAD_LOOK: Record<'turbo' | 'turbo-red', { color: number; emissive: number 
   'turbo-red': { color: 0xff2a2a, emissive: 0.6 },
 }
 
-
 // Base colour (sRGB) and the two noise layers mixed into it. `dark`/`light` are the extremes the
 // mottling swings between; `streak` stretches the noise along the road (ice reads as polished, dirt as tracked).
 const SURFACE_LOOK: Record<SurfaceKind, { dark: [number, number, number]; light: [number, number, number]; streak: number }> = {
@@ -153,8 +152,9 @@ export const surfacePatch = (track: Track, zone: Zone & { kind: SurfaceKind }, o
     const at = Math.min(roadRows - 1 - 1e-9, Math.max(0, f * (roadRows - 1)))
     const r0 = Math.floor(at)
     const k = at - r0
-    const c = Math.min(ROAD_COLUMNS.length - 2, Math.max(0, ROAD_COLUMNS.findIndex((u, i) => i < ROAD_COLUMNS.length - 1 && lat <= u && lat >= ROAD_COLUMNS[i + 1])))
-    const w = (ROAD_COLUMNS[c] - lat) / (ROAD_COLUMNS[c] - ROAD_COLUMNS[c + 1])
+    const l = Math.min(ROAD_COLUMNS[0], Math.max(ROAD_COLUMNS[ROAD_COLUMNS.length - 1], lat))
+    const c = Math.max(0, ROAD_COLUMNS.findIndex((u, i) => i < ROAD_COLUMNS.length - 1 && l <= u && l >= ROAD_COLUMNS[i + 1]))
+    const w = (ROAD_COLUMNS[c] - l) / (ROAD_COLUMNS[c] - ROAD_COLUMNS[c + 1])
     const A = lateralPoint(road[r0], ROAD_COLUMNS[c], s)
     const B = lateralPoint(road[r0], ROAD_COLUMNS[c + 1], s)
     const C = lateralPoint(road[r0 + 1], ROAD_COLUMNS[c], s)
