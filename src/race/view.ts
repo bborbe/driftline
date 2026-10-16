@@ -1,5 +1,6 @@
-// DOM overlay: lap HUD, countdown, finish panel with name entry, leaderboard.
+// DOM overlay: lap HUD, countdown, finish panel with name entry, leaderboard, Esc menu.
 import './race.css'
+import { menuList, type MenuList } from '../menu/list'
 import { formatDelta, MEDAL_LABEL, type Medal } from './medals'
 import { formatLapTime, type RaceStore } from './store'
 
@@ -11,6 +12,16 @@ export interface MedalResult {
   next: Medal | null
   nextMs: number | null
   best: Medal | null
+}
+
+/** In-race menu actions (Esc menu and finish panel). */
+export interface MenuActions {
+  resume(): void
+  restart(): void
+  backToMenu(): void
+  nextTrack(): void
+  /** A fresh settings panel (the same one the start screen shows). */
+  settings(): HTMLElement
 }
 
 export interface HudState {
@@ -28,16 +39,50 @@ export class RaceView {
   private readonly split = el('div', 'race-split')
   private splitTimer: ReturnType<typeof setTimeout> | undefined
   typing = false
+  private pauseMenu: MenuList | null = null
+  private finishMenu: MenuList | null = null
+  private readonly pauseSettings = el('div', '')
 
   private readonly store: RaceStore
+  private readonly actions: MenuActions | null
 
-  constructor(store: RaceStore) {
+  constructor(store: RaceStore, actions: MenuActions | null = null) {
     this.store = store
+    this.actions = actions
     document.body.append(this.hud, this.countdown, this.panel, this.pause, this.split)
     this.split.hidden = true
     this.panel.hidden = true
     this.pause.hidden = true
-    this.pause.append(el('h2', '', 'PAUSED — Esc to resume'), el('p', '', '[R] respawn  [⌫] restart  [L] leaderboard'))
+    this.pauseSettings.hidden = true
+    this.pause.append(el('h2', '', 'PAUSED'))
+    if (actions) {
+      this.pauseMenu = menuList([
+        { label: 'Resume', action: () => actions.resume() },
+        { label: 'Restart', action: () => actions.restart() },
+        { label: 'Settings', action: () => this.toggleSettings() },
+        { label: 'Back to menu', action: () => actions.backToMenu() },
+      ])
+      this.pause.append(this.pauseMenu.element, this.pauseSettings)
+    }
+    this.pause.append(el('p', '', 'Esc resume  [R] respawn  [⌫] restart  [L] leaderboard'))
+  }
+
+  /** True while the Esc menu's settings panel is open (Esc closes it before resuming). */
+  get settingsOpen(): boolean {
+    return !this.pauseSettings.hidden
+  }
+
+  toggleSettings(): void {
+    if (!this.actions) return
+    if (this.pauseSettings.hidden) this.pauseSettings.replaceChildren(this.actions.settings())
+    this.pauseSettings.hidden = !this.pauseSettings.hidden
+  }
+
+  /** Arrows / Enter for whichever menu is open; returns true when the key was used. */
+  menuKey(code: string, paused: boolean): boolean {
+    if (paused) return this.pauseMenu?.key(code) ?? false
+    if (this.panel.hidden || this.typing) return false
+    return this.finishMenu?.key(code) ?? false
   }
 
   render(s: HudState): void {
@@ -58,6 +103,8 @@ export class RaceView {
 
   showPause(paused: boolean): void {
     this.pause.hidden = !paused
+    this.pauseSettings.hidden = true
+    this.pauseMenu?.focus(0)
   }
 
   showFinish(lapTimeMs: number, isNewBest: boolean, medals?: MedalResult): void {
@@ -65,7 +112,7 @@ export class RaceView {
     this.panel.replaceChildren(el('h2', '', `${isNewBest ? 'NEW BEST! ' : ''}${formatLapTime(lapTimeMs)}`))
     if (medals) this.panel.append(medalLine(medals))
     if (!this.store.qualifies(lapTimeMs)) {
-      this.panel.append(this.board(), el('p', '', 'Backspace to race again'))
+      this.panel.append(this.board(), this.finishActions())
       return
     }
     const name = document.createElement('input')
@@ -78,7 +125,7 @@ export class RaceView {
       if (e.key !== 'Enter') return
       this.store.addToLeaderboard(name.value, lapTimeMs)
       this.typing = false
-      this.panel.replaceChildren(el('h2', '', formatLapTime(lapTimeMs)), this.board(lapTimeMs), el('p', '', 'Backspace to race again'))
+      this.panel.replaceChildren(el('h2', '', formatLapTime(lapTimeMs)), this.board(lapTimeMs), this.finishActions())
     })
     this.panel.append(el('p', '', 'Top 10! Enter your name:'), name)
     name.focus()
@@ -87,10 +134,24 @@ export class RaceView {
   hideFinish(): void {
     this.panel.hidden = true
     this.typing = false
+    this.finishMenu = null
+  }
+
+  /** Improve (= restart) and Next track; plain hint when there are no menu actions. */
+  private finishActions(): HTMLElement {
+    const a = this.actions
+    if (!a) return el('p', '', 'Backspace to race again')
+    this.finishMenu = menuList([
+      { label: 'Improve', action: () => a.restart() },
+      { label: 'Next track', action: () => a.nextTrack() },
+      { label: 'Back to menu', action: () => a.backToMenu() },
+    ])
+    return this.finishMenu.element
   }
 
   toggleLeaderboard(): void {
     if (!this.panel.hidden) return this.hideFinish()
+    this.finishMenu = null
     this.panel.replaceChildren(this.board(), el('p', '', 'L to close'))
     this.panel.hidden = false
   }

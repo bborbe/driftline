@@ -7,6 +7,14 @@ const LAPS = import.meta.glob('/assets/track/lap*.json', { import: 'default', ea
 
 export const DEFAULT_LAP = 'lap1'
 
+/** Shipped lap names in order (lap1, lap2, …). */
+export const LAP_NAMES = Object.keys(LAPS)
+  .map((k) => k.slice('/assets/track/'.length, -'.json'.length))
+  .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+
+/** The lap after `name`, wrapping to the first. */
+export const nextLap = (name: string, names: string[] = LAP_NAMES): string => names[(names.indexOf(name) + 1) % names.length]
+
 /** Track name from a URL query string; unknown or missing names fall back to DEFAULT_LAP. */
 export const lapName = (search: string): string => {
   const name = new URLSearchParams(search).get('track') ?? DEFAULT_LAP

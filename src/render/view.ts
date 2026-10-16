@@ -24,7 +24,7 @@ export type View = {
   frame: (state: CarState, dt: number) => void
 }
 
-export const createView = async (track: Track): Promise<View> => {
+export const createView = async (track: Track, fxQuery: string = location.search): Promise<View> => {
   const forceWebGL = new URLSearchParams(location.search).get('renderer') === 'webgl2'
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL })
   renderer.setPixelRatio(window.devicePixelRatio)
@@ -47,7 +47,7 @@ export const createView = async (track: Track): Promise<View> => {
   })
 
   // Effects behind ?fx=bloom,speedlines,skid; all read car state only.
-  const fx = parseFx(location.search)
+  const fx = parseFx(fxQuery)
   let draw = () => renderer.render(scene, camera)
   if (fx.has('bloom')) {
     const pipeline = new THREE.RenderPipeline(renderer)

@@ -16,6 +16,8 @@ export const mountAudioControls = (
   audio: GameAudio,
   onBegin: () => void = () => {},
   canBegin: () => boolean = () => true,
+  volume = 0.7,
+  onVolume: (v: number) => void = () => {},
 ): void => {
   const overlay = document.createElement('button')
   overlay.id = 'begin'
@@ -46,10 +48,13 @@ export const mountAudioControls = (
   slider.min = '0'
   slider.max = '1'
   slider.step = '0.05'
-  slider.value = '0.7'
+  slider.value = String(volume)
   slider.title = 'Volume (M to mute)'
   slider.style.cssText = 'position:fixed;right:12px;top:12px;z-index:10'
-  slider.addEventListener('input', () => audio.setVolume(Number(slider.value)))
+  slider.addEventListener('input', () => {
+    audio.setVolume(Number(slider.value))
+    onVolume(Number(slider.value))
+  })
   // Drop focus after use so arrow keys keep steering instead of nudging the volume.
   slider.addEventListener('pointerup', () => slider.blur())
   document.body.appendChild(slider)
