@@ -1,0 +1,65 @@
+{
+  "name": "lap1",
+  "start": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "heading": 0
+  },
+  "segments": [
+    {
+      "type": "straight",
+      "length": 40
+    },
+    {
+      "type": "ramp",
+      "length": 20,
+      "rise": 5.2
+    },
+    {
+      "type": "drop",
+      "length": 20,
+      "fall": 5.2
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    },
+    {
+      "type": "straight",
+      "length": 110
+    },
+    {
+      "type": "banked",
+      "turn": "right",
+      "radius": 15,
+      "angle": 90,
+      "bank": 0.26
+    },
+    {
+      "type": "curve",
+      "turn": "right",
+      "radius": 15,
+      "angle": 90
+    },
+    {
+      "type": "straight",
+      "length": 30
+    }
+  ],
+  "gates": [
+    {
+      "kind": "start-finish",
+      "segment": 0
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 4
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 6
+    }
+  ]
+}
