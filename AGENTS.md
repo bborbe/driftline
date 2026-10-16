@@ -18,6 +18,7 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 |---|---|
 | `src/physics/` | Car simulation. Fixed 100 Hz tick (`step`, `FixedStepper`). Pure TypeScript. |
 | `src/camera/chase.ts` | Chase camera math (position, speed-based FOV). Pure TypeScript. |
+| `src/race/` | Lap loop: no input until Begin (`race.start()`, wired to the audio Begin overlay) and the 3-2-1 countdown, ordered checkpoint gates, lap timer, respawn (R) / restart (Backspace), auto-respawn when the car falls 5 m below the ground or is airborne > 3 s, best time + top-10 leaderboard (L) in localStorage. `lap.ts` and `store.ts` are pure and tested; `index.ts` is the one `initRace()` + `race.frame()` hook for `main.ts`. Emits `lapStart` / `checkpoint` / `lapFinish` / `respawn` to listeners (audio, ghost). |
 | `src/input.ts` | Keyboard → `CarInput` (WASD / arrows, Space = handbrake) |
 | `src/main.ts` | three.js shell: renderer (WebGPU, WebGL2 fallback), scene, HUD, frame loop |
 

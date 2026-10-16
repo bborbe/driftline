@@ -1,0 +1,6 @@
+.race-hud { position: fixed; bottom: 12px; left: 12px; color: #fff; font: 16px monospace; text-shadow: 0 0 3px #000; }
+.race-countdown { position: fixed; top: 35%; width: 100%; text-align: center; color: #fff; font: bold 96px sans-serif; text-shadow: 0 0 8px #000; pointer-events: none; }
+.race-panel { position: fixed; top: 15%; left: 50%; transform: translateX(-50%); min-width: 280px; padding: 16px 24px; background: rgba(0, 0, 0, 0.8); color: #fff; font: 16px monospace; border-radius: 8px; text-align: center; }
+.race-panel input { font: 18px monospace; text-transform: uppercase; text-align: center; }
+.race-board ol { text-align: left; }
+.race-mine { color: #ffc300; }

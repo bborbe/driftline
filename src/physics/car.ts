@@ -1,9 +1,10 @@
-// Raycast-wheel car on a flat ground plane (y = 0), stepped at a fixed 100 Hz.
+// Raycast-wheel car on a drivable Surface (default: flat y = 0 plane), stepped at a fixed 100 Hz.
 // Pure and deterministic: no three.js, no clocks, no randomness.
 import {
   add, cross, dot, integrateQuat, length, normalize, quatIdentity, rotate, scale, sub, v3,
   type Quat, type Vec3,
 } from './vec'
+import { FLAT, type RayHit, type Surface } from './surface'
 
 export const TICK_HZ = 100
 export const DT = 1 / TICK_HZ
@@ -40,9 +41,20 @@ const REST_LENGTH = 0.5
 const SPRING = 40000
 const DAMPER = 4500
 const WHEEL_RADIUS = 0.35
-const GRIP = 1.6 // friction coefficient (arcade)
+// Wheel rays start this far above the spring mount (about the chassis top), so a mount that
+// has sunk through the surface on a hard landing still finds it and the spring pushes back.
+const RAY_LIFT = 1.0
+// Compression cap: bounds the spring force when the car is pressed deep into a surface.
+const MAX_COMPRESSION = REST_LENGTH + RAY_LIFT
+// Floor for dot(body-up, surface normal) in the compression rate (car tilted < ~72°).
+const MIN_UP_DOT = 0.3
+const GRIP = 1.6 // front friction coefficient (arcade)
+const REAR_GRIP = 2.0 // rear grips more than front: stable, understeer-leaning balance
+// Traction control: drive force on a rear wheel is capped to this share of its grip,
+// so full throttle still leaves lateral grip (power oversteer otherwise spins the car).
+const DRIVE_SHARE = 0.75
 const HANDBRAKE_REAR_GRIP = 0.3 // fraction of rear lateral grip kept on handbrake
-const PEAK_SLIP = 0.12 // rad
+const PEAK_SLIP = 0.15 // rad — softer slip curve, grip builds more gradually
 const ENGINE_FORCE = 9000 // N, rear-wheel drive total
 const BRAKE_FORCE = 16000 // N, all wheels total
 const REVERSE_FORCE = 6000 // N, rear-wheel drive total
@@ -64,7 +76,10 @@ const WHEELS: Wheel[] = [
   { mount: v3(0.8, 0, -1.3), front: false },
 ]
 
-export const createCar = (position: Vec3 = v3(0, REST_LENGTH + WHEEL_RADIUS - 0.15, 0)): CarState => ({
+// Body height above the surface when spawned; the springs settle it from there.
+const SPAWN_HEIGHT = REST_LENGTH + WHEEL_RADIUS - 0.15
+
+export const createCar = (position: Vec3 = v3(0, SPAWN_HEIGHT, 0)): CarState => ({
   position,
   velocity: v3(),
   orientation: quatIdentity(),
@@ -72,6 +87,15 @@ export const createCar = (position: Vec3 = v3(0, REST_LENGTH + WHEEL_RADIUS - 0.
   steerAngle: 0,
   tick: 0,
 })
+
+/** Car at rest on a track pose, facing its heading (0 = +z). */
+export const createCarAt = (pose: { x: number; y: number; z: number; heading: number }): CarState => {
+  const half = pose.heading / 2
+  return {
+    ...createCar(v3(pose.x, pose.y + SPAWN_HEIGHT, pose.z)),
+    orientation: { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) },
+  }
+}
 
 export const forwardOf = (s: CarState): Vec3 => rotate(s.orientation, v3(0, 0, 1))
 
@@ -85,7 +109,7 @@ const angularAccel = (q: Quat, torque: Vec3): Vec3 => {
   return rotate(q, v3(local.x / INERTIA.x, local.y / INERTIA.y, local.z / INERTIA.z))
 }
 
-export const step = (s: CarState, input: CarInput): CarState => {
+export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): CarState => {
   const steerTarget = clamp(input.steer, -1, 1) * MAX_STEER * (1 - 0.5 * clamp(length(s.velocity) / MAX_SPEED, 0, 1))
   const steerDelta = clamp(steerTarget - s.steerAngle, -STEER_RATE * DT, STEER_RATE * DT)
   const steerAngle = s.steerAngle + steerDelta
@@ -110,30 +134,30 @@ export const step = (s: CarState, input: CarInput): CarState => {
 
   for (const wheel of WHEELS) {
     const r = rotate(s.orientation, wheel.mount)
-    const mount = add(s.position, r)
-    // Ray along body-down to the ground plane y = 0.
-    const down = scale(up, -1)
-    if (down.y >= -1e-6) continue
-    const dist = -mount.y / down.y - WHEEL_RADIUS
-    if (dist > REST_LENGTH) continue
-    const compression = REST_LENGTH - dist
+    const contact = wheelContact(add(s.position, r), up, surface)
+    if (!contact) continue
+    const { hit, compression } = contact
 
     const contactVel = add(s.velocity, cross(s.angularVelocity, r))
-    const springVel = -dot(contactVel, up)
+    // Compression rate = rate the ray length shrinks against the surface. Measured along
+    // the surface normal, not body-up: on a tilted landing the forward speed has a large
+    // body-up component that would otherwise read as the spring extending and cancel it.
+    const springVel = -dot(contactVel, hit.normal) / Math.max(dot(up, hit.normal), MIN_UP_DOT)
     const normalForce = Math.max(0, SPRING * compression + DAMPER * springVel)
 
-    // Tire frame projected onto the ground plane.
+    // Tire frame projected onto the contact plane.
     const wheelYaw = wheel.front ? steerAngle : 0
     // Positive steer = right = toward -x.
     const fwdLocal = v3(-Math.sin(wheelYaw), 0, Math.cos(wheelYaw))
     let fwd = rotate(s.orientation, fwdLocal)
-    fwd = normalize(v3(fwd.x, 0, fwd.z))
-    const right = v3(-fwd.z, 0, fwd.x) // fwd × up
+    const n = hit.normal
+    fwd = normalize(sub(fwd, scale(n, dot(fwd, n))))
+    const right = cross(fwd, n)
 
     const vLong = dot(contactVel, fwd)
     const vLat = dot(contactVel, right)
 
-    const maxFriction = GRIP * normalForce
+    const maxFriction = (wheel.front ? GRIP : REAR_GRIP) * normalForce
     // Lateral: saturating slip-angle model.
     const slip = Math.atan2(vLat, Math.max(Math.abs(vLong), 1))
     let lateralGrip = maxFriction * Math.tanh(slip / PEAK_SLIP)
@@ -142,7 +166,11 @@ export const step = (s: CarState, input: CarInput): CarState => {
 
     // Longitudinal: drive (rear), brake (all), handbrake (rear).
     let fLong = 0
-    if (!wheel.front) fLong += (forwardDrive * ENGINE_FORCE * driveFalloff - reverseDrive * REVERSE_FORCE * reverseFalloff) / 2
+    if (!wheel.front) {
+      const drive = (forwardDrive * ENGINE_FORCE * driveFalloff - reverseDrive * REVERSE_FORCE * reverseFalloff) / 2
+      const cap = DRIVE_SHARE * maxFriction
+      fLong += clamp(drive, -cap, cap)
+    }
     const brakeTotal = (brakeInput * BRAKE_FORCE) / 4 + (!wheel.front && input.handbrake ? HANDBRAKE_FORCE / 2 : 0)
     if (brakeTotal > 0) {
       // Never reverse the wheel: cap braking to what stops it this tick.
@@ -191,18 +219,42 @@ export class FixedStepper {
   private accumulator = 0
   state: CarState
 
-  constructor(state: CarState) {
+  readonly surface: Surface
+
+  constructor(state: CarState, surface: Surface = FLAT) {
     this.state = state
+    this.surface = surface
   }
 
   advance(elapsedSeconds: number, input: CarInput): number {
     this.accumulator += Math.min(elapsedSeconds, 0.25)
     let ticks = 0
     while (this.accumulator >= DT) {
-      this.state = step(this.state, input)
+      this.state = step(this.state, input, this.surface)
       this.accumulator -= DT
       ticks++
     }
     return ticks
   }
+}
+
+// Number of wheels whose suspension ray reaches the surface (0 = airborne).
+export const wheelContacts = (s: CarState, surface: Surface = FLAT): number => {
+  const up = rotate(s.orientation, v3(0, 1, 0))
+  let n = 0
+  for (const wheel of WHEELS) {
+    if (wheelContact(add(s.position, rotate(s.orientation, wheel.mount)), up, surface)) n++
+  }
+  return n
+}
+
+// Suspension ray along body-down from RAY_LIFT above the mount. Null when the wheel is
+// off the ground; otherwise the hit and the spring compression (> REST_LENGTH = penetrating).
+function wheelContact(mount: Vec3, up: Vec3, surface: Surface): { hit: RayHit; compression: number } | null {
+  const origin = add(mount, scale(up, RAY_LIFT))
+  const hit = surface.raycast(origin, scale(up, -1), RAY_LIFT + REST_LENGTH + WHEEL_RADIUS)
+  if (!hit) return null
+  const dist = hit.distance - RAY_LIFT - WHEEL_RADIUS
+  if (dist > REST_LENGTH) return null
+  return { hit, compression: Math.min(REST_LENGTH - dist, MAX_COMPRESSION) }
 }

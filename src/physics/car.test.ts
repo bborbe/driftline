@@ -140,6 +140,19 @@ describe('car physics', () => {
     expect(travelX).toBeLessThan(0)
   })
 
+  it('holds a full-throttle corner at 15 m/s without the handbrake (no power oversteer)', () => {
+    for (const steer of [0.5, 1]) {
+      let s = settled()
+      while (speedOf(s) < 15) s = step(s, { ...NO_INPUT, throttle: 1 })
+      let maxSlip = 0
+      for (let t = 0; t < 3 * TICK_HZ; t++) {
+        s = step(s, { ...NO_INPUT, throttle: 1, steer })
+        maxSlip = Math.max(maxSlip, slipAngleDeg(s))
+      }
+      expect(maxSlip).toBeLessThan(15)
+    }
+  })
+
   it('drifts: slip angle exceeds 15 degrees under steer + handbrake at 15 m/s', () => {
     let s = settled()
     while (speedOf(s) < 15) s = step(s, { ...NO_INPUT, throttle: 1 })
