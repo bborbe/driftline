@@ -8,10 +8,11 @@ import {
 export const TICK_HZ = 100
 export const DT = 1 / TICK_HZ
 export const MAX_SPEED = 40 // m/s
+export const MAX_REVERSE_SPEED = 10 // m/s
 
 export type CarInput = {
   throttle: number // 0..1
-  brake: number // 0..1
+  brake: number // 0..1 — brakes when moving forward, reverses once stopped
   steer: number // -1 (left) .. 1 (right)
   handbrake: boolean
 }
@@ -44,11 +45,15 @@ const HANDBRAKE_REAR_GRIP = 0.3 // fraction of rear lateral grip kept on handbra
 const PEAK_SLIP = 0.12 // rad
 const ENGINE_FORCE = 9000 // N, rear-wheel drive total
 const BRAKE_FORCE = 16000 // N, all wheels total
+const REVERSE_FORCE = 6000 // N, rear-wheel drive total
+const STOPPED = 0.5 // m/s — below this, brake input becomes reverse and throttle drives forward
 const HANDBRAKE_FORCE = 3000 // N, rear wheels total
 const MAX_STEER = 0.5 // rad
 const STEER_RATE = 4 // rad/s
 const DRAG = 0.45
 const ROLLING = 30
+// Off-throttle coast-down (rolling resistance + drivetrain drag), as a fraction of wheel load.
+const COAST_RESISTANCE = 0.3
 
 // Local frame: +z forward, +y up, so +x is the driver's LEFT (right = forward × up = -x). Mount points sit at the top of each spring.
 type Wheel = { mount: Vec3; front: boolean }
@@ -92,7 +97,16 @@ export const step = (s: CarState, input: CarInput): CarState => {
   let torque = v3()
 
   const speed = dot(s.velocity, fwdBody)
+  const throttle = clamp(input.throttle, 0, 1)
+  const brake = clamp(input.brake, 0, 1)
+  // Trackmania-style pedals: S brakes until stopped, then reverses; W while rolling
+  // backwards brakes first, then drives forward.
+  const reversing = speed < -STOPPED
+  const forwardDrive = reversing ? 0 : throttle
+  const reverseDrive = speed < STOPPED ? brake : 0
+  const brakeInput = (speed >= STOPPED ? brake : 0) + (reversing ? throttle : 0)
   const driveFalloff = clamp((MAX_SPEED + 2 - Math.abs(speed)) / 12, 0, 1)
+  const reverseFalloff = clamp((MAX_REVERSE_SPEED + Math.min(speed, 0)) / 2, 0, 1)
 
   for (const wheel of WHEELS) {
     const r = rotate(s.orientation, wheel.mount)
@@ -128,14 +142,15 @@ export const step = (s: CarState, input: CarInput): CarState => {
 
     // Longitudinal: drive (rear), brake (all), handbrake (rear).
     let fLong = 0
-    if (!wheel.front) fLong += (clamp(input.throttle, 0, 1) * ENGINE_FORCE * driveFalloff) / 2
-    const brakeTotal = (clamp(input.brake, 0, 1) * BRAKE_FORCE) / 4 + (!wheel.front && input.handbrake ? HANDBRAKE_FORCE / 2 : 0)
+    if (!wheel.front) fLong += (forwardDrive * ENGINE_FORCE * driveFalloff - reverseDrive * REVERSE_FORCE * reverseFalloff) / 2
+    const brakeTotal = (brakeInput * BRAKE_FORCE) / 4 + (!wheel.front && input.handbrake ? HANDBRAKE_FORCE / 2 : 0)
     if (brakeTotal > 0) {
       // Never reverse the wheel: cap braking to what stops it this tick.
       const stopForce = (Math.abs(vLong) * MASS) / 4 / DT
       fLong -= Math.sign(vLong) * Math.min(brakeTotal, stopForce)
     }
-    fLong -= Math.sign(vLong) * Math.min(ROLLING / 4, (Math.abs(vLong) * MASS) / 4 / DT)
+    const coast = forwardDrive <= 0 && reverseDrive <= 0 ? COAST_RESISTANCE * normalForce : 0
+    fLong -= Math.sign(vLong) * Math.min(ROLLING / 4 + coast, (Math.abs(vLong) * MASS) / 4 / DT)
 
     // Friction circle.
     const total = Math.hypot(fLong, fLat)
