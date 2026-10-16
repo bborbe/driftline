@@ -1,4 +1,5 @@
-// Best lap time and top-10 leaderboard in localStorage (same pattern as bborbe/snake).
+// Best lap time, its checkpoint splits, best medal and top-10 leaderboard in localStorage (same pattern as bborbe/snake).
+import { isBetterMedal, MEDAL_ORDER, type Medal } from './medals'
 
 export const MAX_LEADERBOARD_ENTRIES = 10
 
@@ -21,12 +22,16 @@ export class RaceStore {
   private readonly storage: KeyValueStore
   private readonly bestKey: string
   private readonly boardKey: string
+  private readonly splitsKey: string
+  private readonly medalKey: string
 
   /** Best time and leaderboard are kept per track and layout (see layoutId); the last player name is shared. */
   constructor(storage: KeyValueStore, track: string = LEGACY_TRACK, layout = '') {
     this.storage = storage
     this.bestKey = `driftline-best${suffix(track, layout)}`
     this.boardKey = `driftline-leaderboard${suffix(track, layout)}`
+    this.splitsKey = `driftline-splits${suffix(track, layout)}`
+    this.medalKey = `driftline-medal${suffix(track, layout)}`
   }
 
   best(): number | null {
@@ -39,6 +44,33 @@ export class RaceStore {
     const best = this.best()
     if (best !== null && lapTimeMs >= best) return false
     this.storage.setItem(this.bestKey, String(lapTimeMs))
+    return true
+  }
+
+  /** Checkpoint lap times (ms) of the best lap, or null when none is stored. */
+  bestSplits(): number[] | null {
+    try {
+      const parsed = JSON.parse(this.storage.getItem(this.splitsKey) ?? 'null')
+      return Array.isArray(parsed) && parsed.every((v) => Number.isFinite(v)) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+
+  /** Call after recordLap returned true, with that lap's checkpoint times. */
+  recordSplits(splits: number[]): void {
+    this.storage.setItem(this.splitsKey, JSON.stringify(splits))
+  }
+
+  bestMedal(): Medal | null {
+    const v = this.storage.getItem(this.medalKey)
+    return MEDAL_ORDER.find((m) => m === v) ?? null
+  }
+
+  /** Keeps the better of the stored and the given medal; returns true when it improved. */
+  recordMedal(medal: Medal | null): boolean {
+    if (!isBetterMedal(medal, this.bestMedal())) return false
+    this.storage.setItem(this.medalKey, medal as Medal)
     return true
   }
 

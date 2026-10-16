@@ -5,3 +5,12 @@
 .race-board ol { text-align: left; }
 .race-mine { color: #ffc300; }
 .race-pause { position: fixed; top: 40%; left: 50%; transform: translateX(-50%); padding: 16px 24px; background: rgba(0, 0, 0, 0.8); color: #fff; font: 16px monospace; border-radius: 8px; text-align: center; }
+.race-split { position: fixed; top: 22%; width: 100%; text-align: center; font: bold 40px monospace; text-shadow: 0 0 6px #000; pointer-events: none; }
+.race-ahead { color: #3fa9ff; }
+.race-behind { color: #ff4040; }
+.race-medal { font-weight: bold; font-size: 20px; }
+.race-medal-author { color: #3fe08a; }
+.race-medal-gold { color: #ffc300; }
+.race-medal-silver { color: #c8d0d8; }
+.race-medal-bronze { color: #d08040; }
+.race-medal-none { color: #888; }

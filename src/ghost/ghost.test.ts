@@ -132,3 +132,20 @@ describe('ghost', () => {
     expect(rec.best).toBeNull()
   })
 })
+
+describe('ghost on restart', () => {
+  it('a fresh replayer of a finished run snaps to the start pose and holds it through the countdown', () => {
+    const rec = new GhostRecorder()
+    const start = createCar()
+    driveLap(rec, start, 300, 3000)
+    const old = new GhostReplayer(rec.best!)
+    old.advanceTo(10_000) // finished lap: ghost parked at its last pose, far from the start
+    expect(old.render(0.5).position).not.toEqual(start.position)
+    // Restart (main.ts): new replayer, lapStartTick = +Infinity until the countdown ends.
+    const ghost = new GhostReplayer(rec.best!)
+    for (const alpha of [0, 0.5, 1]) {
+      ghost.advanceTo(-Infinity)
+      expect(ghost.render(alpha).position).toEqual(start.position)
+    }
+  })
+})

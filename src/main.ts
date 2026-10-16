@@ -44,6 +44,13 @@ const race = initRace(sim, track, {
         ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
         ghostCar.object.visible = ghost !== null
       },
+      // Backspace: put the ghost back on the start grid with the car now, not after the countdown.
+      // A fresh replayer has previous = state = run start, so it snaps there with no blend.
+      restart: () => {
+        lapStartTick = Number.POSITIVE_INFINITY // advanceTo(-Infinity) holds the start pose until lapStart
+        ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
+        ghostCar.object.visible = ghost !== null
+      },
       // Dev-only split log: the lap-2 ghost check compares these against the best lap.
       checkpoint: (tick, index) => {
         if (import.meta.env.DEV) console.info(`split: checkpoint ${index} at tick ${tick - lapStartTick}`)

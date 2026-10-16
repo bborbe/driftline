@@ -1,11 +1,13 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
-// Keys: R = respawn at last checkpoint, Backspace = restart, L = toggle leaderboard, Esc = pause.
+// Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, Esc = pause.
+// Checkpoints and the finish flash the split delta vs the personal best; the finish panel shows medals.
 // Hiding the tab pauses too; R / Backspace from the pause overlay act and resume.
 import { TICK_HZ, type CarInput, type FixedStepper } from '../physics'
 import { layoutId, type Track } from '../track/schema'
 import { advanceRace, LapLoop, type RaceEvents } from './lap'
+import { earnedMedal, nextMedal, SplitTracker } from './medals'
 import { formatLapTime, RaceStore } from './store'
 import { RaceView } from './view'
 
@@ -33,9 +35,20 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
   const store = new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track))
   const loop = new LapLoop(track, (ms) => store.recordLap(ms))
   const view = new RaceView(store)
+  const splits = new SplitTracker()
   for (const l of opts.listeners ?? []) loop.on(l)
   loop.on({
-    lapFinish: (_t, ms, isNewBest) => view.showFinish(ms, isNewBest),
+    lapStart: () => splits.begin(store.best(), store.bestSplits()),
+    checkpoint: (t, i) => view.showSplit(splits.checkpoint(i, loop.lapTimeMs(t))),
+    lapFinish: (_t, ms, isNewBest) => {
+      // store.best() is already this lap when it is a new best; the delta is against the previous one.
+      view.showSplit(splits.finish(ms))
+      if (isNewBest) store.recordSplits(splits.splits)
+      const medal = track.medals ? earnedMedal(track.medals, ms) : null
+      if (track.medals) store.recordMedal(medal)
+      const next = track.medals ? nextMedal(medal) : null
+      view.showFinish(ms, isNewBest, track.medals && { earned: medal, next, nextMs: next && track.medals[next], best: store.bestMedal() })
+    },
   })
   sim.state = loop.spawn()
 
@@ -73,6 +86,7 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
       if (pending === 'restart') {
         sim.state = loop.restart(sim.state.tick)
         view.hideFinish()
+        view.showSplit(null)
       }
       if (pending) setPaused(false)
       pending = null

@@ -35,11 +35,21 @@ export interface Gate {
   segment: number
 }
 
+/** Medal target lap times in ms; author is the fastest. */
+export interface Medals {
+  author: number
+  gold: number
+  silver: number
+  bronze: number
+}
+
 export interface Track {
   name: string
   start: Pose
   segments: Segment[]
   gates: Gate[]
+  /** Optional: not part of layoutId, so retuning medals keeps existing records. */
+  medals?: Medals
 }
 
 /** Exit pose of one segment given its entry pose. */
@@ -182,6 +192,14 @@ export function validate(data: unknown): string[] {
       if (g?.kind !== 'start-finish' && g?.kind !== 'checkpoint') errs.push(`gates[${i}]: unknown kind`)
       if (!Number.isInteger(g?.segment) || g.segment < 0 || g.segment >= n) errs.push(`gates[${i}]: segment out of range`)
     })
+  }
+  if (t.medals !== undefined) {
+    const m = t.medals as Partial<Medals>
+    const times = [m?.author, m?.gold, m?.silver, m?.bronze]
+    if (!times.every(pos)) errs.push('medals must have positive author, gold, silver, bronze times')
+    else if (!times.every((v, i) => i === 0 || (v as number) > (times[i - 1] as number))) {
+      errs.push('medals must be ordered author < gold < silver < bronze')
+    }
   }
   return errs
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { NO_INPUT, TICK_HZ, v3, type CarState } from '../physics'
 import { gateLine } from '../track/schema'
-import { COUNTDOWN_TICKS, LapLoop, crosses } from './lap'
+import { COUNTDOWN_TICKS, LapLoop, RESTART_COUNTDOWN_TICKS, crosses } from './lap'
 import { FLAT_OVAL } from './fixture.test-track'
 
 const gatePoses = () => {
@@ -31,6 +31,7 @@ function race(isNewBest = () => true) {
       finishes.push(ms)
     },
     respawn: () => events.push('respawn'),
+    restart: () => events.push('restart'),
   })
   let car = loop.spawn()
   loop.start(0)
@@ -73,7 +74,7 @@ describe('LapLoop', () => {
     for (let t = 7; t <= COUNTDOWN_TICKS + 50; t += 7) loop.update({ ...loop.spawn(), tick: t }) // ~14 fps
     loop.restart(COUNTDOWN_TICKS + 60)
     for (let t = COUNTDOWN_TICKS + 61; t <= 2 * COUNTDOWN_TICKS + 100; t++) loop.update({ ...loop.spawn(), tick: t })
-    expect(ns).toEqual([3, 2, 1, 0, 3, 2, 1, 0])
+    expect(ns).toEqual([3, 2, 1, 0, 1, 0]) // restart: short countdown
   })
 
   it('passes input only while racing', () => {
@@ -156,12 +157,27 @@ describe('LapLoop', () => {
   })
 
   it('restart returns to a fresh countdown', () => {
-    const { loop } = race()
+    const { loop, events } = race()
     const r = loop.restart(1000)
-    expect(loop.phase).toBe('countdown') // Begin already given: straight to 3-2-1
+    expect(events.at(-1)).toBe('restart')
+    expect(loop.phase).toBe('countdown') // Begin already given: straight to a short countdown
     expect(loop.passed).toBe(0)
-    expect(loop.countdownLeft(1000)).toBe(COUNTDOWN_TICKS)
+    expect(loop.countdownLeft(1000)).toBe(RESTART_COUNTDOWN_TICKS)
     expect(r.tick).toBe(1000)
+  })
+
+  it('restart gives control back in under a second, also from the finish panel', () => {
+    const { loop, car: start } = race()
+    let car = start
+    for (const g of gatePoses().filter((g) => g.kind === 'checkpoint')) car = passGate(loop, car, g.pose)
+    car = passGate(loop, car, gatePoses().find((g) => g.kind === 'start-finish')!.pose)
+    expect(loop.phase).toBe('finished')
+    loop.restart(2000)
+    let t = 2000
+    while (loop.phase !== 'racing' && t < 2000 + 3 * TICK_HZ) loop.update({ ...loop.spawn(), tick: ++t })
+    expect(loop.phase).toBe('racing')
+    expect(((t - 2000) * 1000) / TICK_HZ).toBeLessThan(1000)
+    expect(loop.input({ ...NO_INPUT, throttle: 1 }).throttle).toBe(1)
   })
 })
 
