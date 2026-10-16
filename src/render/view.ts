@@ -3,11 +3,12 @@
 import * as THREE from 'three/webgpu'
 import { pass } from 'three/tsl'
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js'
-import { dot, forwardOf, type CarState } from '../physics'
+import { dot, forwardOf, type CarState, type Material } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
 import { parseFx } from './fx/flags'
 import { createSkidMarks } from './fx/skid'
+import { createDust } from './fx/dust'
 import { createSmoke } from './fx/smoke'
 import { createSpeedLines } from './fx/speedlines'
 import { FrameStats } from './fx/stats'
@@ -24,8 +25,8 @@ export type View = {
   car: THREE.Object3D
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
-  /** Pose the car from physics state and draw one frame; dt in seconds. */
-  frame: (state: CarState, dt: number) => void
+  /** Pose the car from physics state and draw one frame; dt in seconds; `material` is the surface under the car. */
+  frame: (state: CarState, dt: number, material?: Material) => void
 }
 
 export const createView = async (track: Track, fxQuery: string = location.search): Promise<View> => {
@@ -70,6 +71,9 @@ export const createView = async (track: Track, fxQuery: string = location.search
   if (skid) scene.add(skid.object)
   const smoke = fx.has('smoke') ? createSmoke() : null
   if (smoke) scene.add(smoke.object)
+  // Dust off dirt and grass is surface feedback, so it is always on.
+  const dust = createDust()
+  scene.add(dust.object)
 
   // HUD "1% low": 1st percentile of per-frame fps over the last 60 s, refreshed twice a second.
   const stats = new FrameStats()
@@ -84,7 +88,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
   const topCam = topCamRequested(location.search)
   if (topCam) scene.fog = null // the camera sits hundreds of metres up, inside the fog range
 
-  const frame = (s: CarState, dt: number) => {
+  const frame = (s: CarState, dt: number, material: Material = 'road') => {
     car.update(s, dt)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     speedLines?.update(dot(s.velocity, forwardOf(s)), dt)
@@ -97,6 +101,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
       camera.lookAt(t.x, 0, t.z)
     }
     smoke?.update(s, dt, camera) // after the camera override, so puffs face the final camera
+    dust.update(s, material, dt, camera)
     draw()
     stats.push(performance.now(), dt)
     sinceLabel += dt
