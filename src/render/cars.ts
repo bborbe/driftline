@@ -1,4 +1,4 @@
-// Car registry. The car is chosen at build time: VITE_CAR=<id> (default `stadium`);
+// Car registry. The car is chosen at build time: VITE_CAR=<id> (default `race`);
 // an unknown id falls back to `box`. Every entry exposes the four wheel nodes named in
 // src/car/wheels.ts, so steering and wheel spin work the same for every model.
 //
@@ -20,7 +20,7 @@ export type CarEntry = {
   build: () => Promise<THREE.Object3D>
 }
 
-export const DEFAULT_CAR: CarId = 'stadium'
+export const DEFAULT_CAR: CarId = 'race'
 export const FALLBACK_CAR: CarId = 'box'
 
 // Physics wheel layout (src/physics/car.ts): mounts at x ±0.8, z ±1.3.

@@ -1,6 +1,7 @@
 // Drivable surfaces for the wheel raycasts. Pure and deterministic: no three.js,
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
 import { CELL, poses, type Pose, type Segment, type Track } from '../track/schema'
+import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
 import { normalize, v3, type Vec3 } from './vec'
 
 export type RayHit = {
@@ -51,12 +52,12 @@ const strip = (p: Pose, length: number, dy: number, width: number): Piece => {
 }
 
 // curve / hairpin / banked: an annular sector around the turn centre (same geometry as
-// schema.ts `arc`). `bank` raises the outer edge: y = entry.y + (r - radius) · tan(bank).
+// schema.ts `arc`). `bank` raises the outer edge about the centreline, easing in and out at
+// both ends (src/track/bank.ts — shared with the renderer).
 const sector = (p: Pose, left: boolean, radius: number, angle: number, bank: number, width: number): Piece => {
   const s = left ? 1 : -1
   const cx = p.x + Math.cos(p.heading) * radius * s
   const cz = p.z - Math.sin(p.heading) * radius * s
-  const tb = Math.tan(bank)
   return (x, z) => {
     const rx = x - cx
     const rz = z - cz
@@ -66,7 +67,17 @@ const sector = (p: Pose, left: boolean, radius: number, angle: number, bank: num
     let theta = s * (Math.atan2(s * rz, -s * rx) - p.heading)
     theta = ((theta % TWO_PI) + TWO_PI) % TWO_PI
     if (theta > angle) return null
-    return { y: p.y + (r - radius) * tb, gx: (tb * rx) / r, gz: (tb * rz) / r }
+    if (bank === 0) return { y: p.y, gx: 0, gz: 0 }
+    const t = theta / angle
+    const b = bankAngleAt(bank, t)
+    const tb = Math.tan(b)
+    // h(r, θ) = (r - radius) · tan(b(θ/angle)); ∇r = (rx, rz)/r, ∇θ = s · (rz, -rx)/r².
+    const dhdTheta = ((r - radius) * bankAngleSlope(bank, t)) / (Math.cos(b) ** 2 * angle)
+    return {
+      y: p.y + bankRise(b, r - radius),
+      gx: (tb * rx) / r + (dhdTheta * s * rz) / (r * r),
+      gz: (tb * rz) / r - (dhdTheta * s * rx) / (r * r),
+    }
   }
 }
 
