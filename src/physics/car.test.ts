@@ -1,0 +1,76 @@
+import { describe, expect, it } from 'vitest'
+import { createCar, dot, forwardOf, NO_INPUT, slipAngleDeg, step, TICK_HZ, type CarInput, type CarState } from './index'
+
+const run = (s: CarState, ticks: number, input: CarInput | ((t: number) => CarInput)): CarState => {
+  for (let t = 0; t < ticks; t++) s = step(s, typeof input === 'function' ? input(t) : input)
+  return s
+}
+const speedOf = (s: CarState) => dot(s.velocity, forwardOf(s))
+const settled = () => run(createCar(), TICK_HZ, NO_INPUT)
+
+// Scripted sequence exercising throttle, steer, brake, handbrake.
+const script = (t: number): CarInput => ({
+  throttle: t < 500 ? 1 : t < 700 ? 0.5 : 0,
+  brake: t >= 850 ? 1 : 0,
+  steer: Math.sin(t / 40),
+  handbrake: t >= 600 && t < 750,
+})
+
+describe('car physics', () => {
+  it('is deterministic over 1000 ticks of scripted input', () => {
+    let a = createCar()
+    let travelled = 0
+    for (let t = 0; t < 1000; t++) {
+      const next = step(a, script(t))
+      travelled += Math.hypot(next.position.x - a.position.x, next.position.z - a.position.z)
+      a = next
+    }
+    const b = run(createCar(), 1000, script)
+    expect(a.tick).toBe(1000)
+    expect(a.position).toEqual(b.position)
+    expect(a.velocity).toEqual(b.velocity)
+    expect(a.orientation).toEqual(b.orientation)
+    // Sanity: the script actually moved the car.
+    expect(travelled).toBeGreaterThan(50)
+  })
+
+  it('settles on the plane at rest without drifting', () => {
+    const s = settled()
+    const later = run(s, 2 * TICK_HZ, NO_INPUT)
+    expect(Math.abs(later.position.x - s.position.x)).toBeLessThan(1e-6)
+    expect(Math.abs(later.position.z - s.position.z)).toBeLessThan(1e-6)
+  })
+
+  it('accelerates 0 to 20 m/s within 3 s of full throttle', () => {
+    const s = run(settled(), 3 * TICK_HZ, { ...NO_INPUT, throttle: 1 })
+    expect(speedOf(s)).toBeGreaterThanOrEqual(20)
+  })
+
+  it('brakes from 20 m/s to 0 within 30 m', () => {
+    let s = settled()
+    while (speedOf(s) < 20) s = step(s, { ...NO_INPUT, throttle: 1 })
+    const start = s.position
+    s = run(s, 5 * TICK_HZ, { ...NO_INPUT, brake: 1 })
+    expect(Math.abs(speedOf(s))).toBeLessThan(0.1)
+    expect(Math.hypot(s.position.x - start.x, s.position.z - start.z)).toBeLessThanOrEqual(30)
+  })
+
+  it('steers: the heading turns under steer input', () => {
+    let s = settled()
+    while (speedOf(s) < 10) s = step(s, { ...NO_INPUT, throttle: 1 })
+    s = run(s, TICK_HZ, { ...NO_INPUT, throttle: 0.3, steer: 1 })
+    const f = forwardOf(s)
+    expect(Math.abs(Math.atan2(f.x, f.z))).toBeGreaterThan(0.3)
+  })
+
+  it('drifts: slip angle exceeds 15 degrees under steer + handbrake at 15 m/s', () => {
+    let s = settled()
+    while (speedOf(s) < 15) s = step(s, { ...NO_INPUT, throttle: 1 })
+    let maxSlip = 0
+    for (let t = 0; t < 2 * TICK_HZ; t++) {
+      s = step(s, { ...NO_INPUT, steer: 1, handbrake: true })
+      maxSlip = Math.max(maxSlip, slipAngleDeg(s))
+    }
+    expect(maxSlip).toBeGreaterThan(15)
+  })
+})
