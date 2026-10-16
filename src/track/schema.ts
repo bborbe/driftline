@@ -1,9 +1,13 @@
 // Shared track format. Consumed by render (src/render/), physics (src/physics/)
 // and the lap loop (src/race/). Pure TypeScript: no three, no browser APIs, so
-// physics may import it.
+// physics may import it. The centreline (length, pose, roll, road width) lives in pose.ts and
+// is re-exported here, so every importer of the format keeps one entry point.
+import { exitPose, partialPose, poses, ROAD_WIDTH, segmentLength } from './pose'
 
-/** Grid cell size in metres. Every piece's footprint is a multiple of it. */
-export const CELL = 10
+export { exitPose, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, type Sample } from './pose'
+
+/** Grid cell size in metres: one road width. Every piece's footprint is a multiple of it. */
+export const CELL = ROAD_WIDTH
 
 /** World pose at a piece connection edge: bottom-center, heading in radians (0 = +z, CCW positive). */
 export interface Pose {
@@ -103,26 +107,6 @@ export interface Track {
   barriers?: Barrier[]
 }
 
-/** Exit pose of one segment given its entry pose. */
-export function exitPose(entry: Pose, seg: Segment): Pose {
-  switch (seg.type) {
-    case 'straight':
-      return advance(entry, seg.length, 0)
-    case 'ramp':
-      return advance(entry, seg.length, seg.rise)
-    case 'drop':
-      return advance(entry, seg.length, -seg.fall)
-    case 'gap':
-      return advance(entry, seg.length, -(seg.fall ?? 0))
-    case 'curve':
-      return arc(entry, seg.turn, seg.radius, (seg.angle * Math.PI) / 180)
-    case 'hairpin':
-      return arc(entry, seg.turn, seg.radius, Math.PI)
-    case 'banked':
-      return arc(entry, seg.turn, seg.radius, (seg.angle * Math.PI) / 180)
-  }
-}
-
 /** Native length of a straight road tile (assets/track/pieces.json); straights are split into tiles of about this length. */
 export const TILE_LENGTH = 20
 
@@ -179,41 +163,6 @@ export function gatePillars(track: Track, gate: Gate): Pillar[] {
     halfDepth: GATE_PILLAR.halfDepth,
     height: GATE_PILLAR.height,
   }))
-}
-
-/** Centreline length of one segment in metres (arcs by radius × angle, ramps/drops by run). */
-export function segmentLength(seg: Segment): number {
-  switch (seg.type) {
-    case 'straight':
-    case 'ramp':
-    case 'drop':
-    case 'gap':
-      return seg.length
-    case 'curve':
-    case 'banked':
-      return (seg.radius * seg.angle * Math.PI) / 180
-    case 'hairpin':
-      return seg.radius * Math.PI
-  }
-}
-
-/** Pose `f` (0..1) of the way through a segment. */
-export function partialPose(entry: Pose, seg: Segment, f: number): Pose {
-  switch (seg.type) {
-    case 'straight':
-      return exitPose(entry, { ...seg, length: seg.length * f })
-    case 'ramp':
-      return exitPose(entry, { ...seg, length: seg.length * f, rise: seg.rise * f })
-    case 'drop':
-      return exitPose(entry, { ...seg, length: seg.length * f, fall: seg.fall * f })
-    case 'gap':
-      return exitPose(entry, { ...seg, length: seg.length * f, fall: (seg.fall ?? 0) * f })
-    case 'curve':
-    case 'banked':
-      return exitPose(entry, { ...seg, angle: seg.angle * f } as Segment)
-    case 'hairpin':
-      return exitPose(entry, { type: 'curve', turn: seg.turn, radius: seg.radius, angle: 180 * f } as Segment)
-  }
 }
 
 // Each barrier as the [x, z] points of its wall line: a road-following one is sampled every
@@ -278,36 +227,6 @@ export function layoutId(track: Track): string {
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
   return (h >>> 0).toString(16).padStart(8, '0')
-}
-
-/** Entry pose of every segment followed by the final exit pose (length segments + 1). */
-export function poses(track: Track): Pose[] {
-  const out = [track.start]
-  for (const seg of track.segments) out.push(exitPose(out[out.length - 1], seg))
-  return out
-}
-
-function advance(p: Pose, length: number, dy: number): Pose {
-  return {
-    x: p.x + Math.sin(p.heading) * length,
-    y: p.y + dy,
-    z: p.z + Math.cos(p.heading) * length,
-    heading: p.heading,
-  }
-}
-
-function arc(p: Pose, turn: Turn, radius: number, angle: number): Pose {
-  const s = turn === 'left' ? 1 : -1
-  // Center of the turn circle, perpendicular to heading.
-  const cx = p.x + Math.cos(p.heading) * radius * s
-  const cz = p.z - Math.sin(p.heading) * radius * s
-  const heading = p.heading + s * angle
-  return {
-    x: cx - Math.cos(heading) * radius * s,
-    y: p.y,
-    z: cz + Math.sin(heading) * radius * s,
-    heading,
-  }
 }
 
 /** Structural validation of untrusted JSON. Returns a list of problems, empty when valid. */
