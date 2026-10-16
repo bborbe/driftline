@@ -71,5 +71,5 @@ view.renderer.setAnimationLoop(() => {
   camera.lookAt(s.position.x, s.position.y + 0.8, s.position.z)
 
   hud.textContent = `${backend}  ${(Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}`
-  view.frame(s)
+  view.frame(s, elapsed)
 })

@@ -2,9 +2,9 @@
 // real lap loop, start to finish. Proves the shipped track is completable as a lap.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { dot, FixedStepper, forwardOf, NO_INPUT, TICK_HZ, trackSurface, wheelContacts, type CarInput } from '../physics'
+import { dot, FixedStepper, forwardOf, NO_INPUT, TICK_HZ, trackSurface, type CarInput } from '../physics'
 import { exitPose, poses, type Pose, type Segment, type Track } from '../track/schema'
-import { COUNTDOWN_TICKS, LapLoop } from './lap'
+import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
 
 const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/lap1.json', import.meta.url), 'utf8')) as Track
 
@@ -100,11 +100,16 @@ describe('lap1 end to end', () => {
     loop.start(sim.state.tick)
     for (let i = 0; i < COUNTDOWN_TICKS + 90 * TICK_HZ && loop.phase !== 'finished'; i++) {
       const raw = loop.phase === 'racing' ? drive(sim.state) : NO_INPUT
-      sim.advance(1 / TICK_HZ, loop.input(raw))
-      const respawned = loop.update(sim.state, wheelContacts(sim.state, sim.surface))
-      if (respawned) sim.state = respawned
+      advanceRace(loop, sim, 1 / TICK_HZ, raw)
     }
     expect(events).toEqual(['start', 'cp1', 'cp2', 'finish'])
+
+    // Behind the finish panel the car stays exactly where it crossed the line, with input held.
+    const atFinish = sim.state
+    expect(Math.hypot(atFinish.velocity.x, atFinish.velocity.z)).toBeGreaterThan(5) // it was moving
+    for (let i = 0; i < 3 * TICK_HZ; i++) advanceRace(loop, sim, 1 / TICK_HZ, { ...NO_INPUT, throttle: 1, steer: 1 })
+    expect(sim.state.position).toEqual(atFinish.position)
+    expect(loop.phase).toBe('finished')
     expect(lapTime).toBeGreaterThan(10_000)
     expect(lapTime).toBeLessThan(90_000)
     console.log(`lap1 autopilot lap time: ${(lapTime / 1000).toFixed(2)} s`)

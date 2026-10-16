@@ -1,19 +1,16 @@
 // The lap loop driving the real car physics on lap1: input gating and the fall safety net.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { createCarAt, FixedStepper, NO_INPUT, TICK_HZ, trackSurface, wheelContacts, type CarInput, type Surface } from '../physics'
+import { createCarAt, FixedStepper, NO_INPUT, TICK_HZ, trackSurface, type CarInput, type Surface } from '../physics'
 import type { Track } from '../track/schema'
-import { COUNTDOWN_TICKS, FALL_DEPTH, GROUND_Y, LapLoop } from './lap'
+import { advanceRace, COUNTDOWN_TICKS, FALL_DEPTH, GROUND_Y, LapLoop } from './lap'
 
 const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/lap1.json', import.meta.url), 'utf8')) as Track
 const THROTTLE: CarInput = { ...NO_INPUT, throttle: 1 }
 
 // One physics tick through the loop, exactly as race.frame() does it.
 function tick(loop: LapLoop, sim: FixedStepper, raw: CarInput): CarState | null {
-  sim.advance(1 / TICK_HZ, loop.input(raw))
-  const respawned = loop.update(sim.state, wheelContacts(sim.state, sim.surface))
-  if (respawned) sim.state = respawned
-  return respawned
+  return advanceRace(loop, sim, 1 / TICK_HZ, raw)
 }
 type CarState = FixedStepper['state']
 

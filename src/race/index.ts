@@ -2,9 +2,9 @@
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
 // Keys: R = respawn at last checkpoint, Backspace = restart, L = toggle leaderboard.
-import { TICK_HZ, wheelContacts, type CarInput, type FixedStepper } from '../physics'
+import { TICK_HZ, type CarInput, type FixedStepper } from '../physics'
 import type { Track } from '../track/schema'
-import { LapLoop, type RaceEvents } from './lap'
+import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { formatLapTime, RaceStore } from './store'
 import { RaceView } from './view'
 
@@ -20,7 +20,7 @@ export interface Race {
   loop: LapLoop
   /** Begin clicked: start the countdown. */
   start(): void
-  /** Advances the sim (no input before go), updates lap state, auto-respawns on a fall, draws the HUD. */
+  /** Advances the sim (no input before go, frozen after the finish), updates lap state, auto-respawns on a fall, draws the HUD. */
   frame(elapsedSeconds: number, input: CarInput): void
 }
 
@@ -54,9 +54,7 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
         view.hideFinish()
       }
       pending = null
-      sim.advance(elapsedSeconds, loop.input(input))
-      const respawned = loop.update(sim.state, wheelContacts(sim.state, sim.surface))
-      if (respawned) sim.state = respawned
+      advanceRace(loop, sim, elapsedSeconds, input)
       const tick = sim.state.tick
       const left = loop.countdownLeft(tick)
       view.render({

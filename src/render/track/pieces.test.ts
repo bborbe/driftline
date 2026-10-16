@@ -8,10 +8,20 @@ const lap = JSON.parse(readFileSync('assets/track/lap1.json', 'utf8')) as Track
 const near = (a: Pose, b: Pose) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 
 describe('piece placement', () => {
-  it('maps every lap1 segment and gate to pieces', () => {
+  it('renders a road for every lap1 segment: a road piece placed at it, or the procedural mesh', () => {
+    const ps = poses(lap)
     const plan = planPieces(lap)
-    expect(plan.procedural).toEqual([])
-    expect(plan.proceduralGates).toEqual([])
+    const road = new Set(['straight', 'start', 'corner', 'ramp'])
+    lap.segments.forEach((seg, i) => {
+      const at = seg.type === 'drop' ? ps[i + 1] : ps[i]
+      const piece = plan.placements.some((p) => road.has(p.piece) && near(p.pose, at) < 0.01)
+      expect(piece || plan.procedural.includes(i), `segment ${i} (${seg.type}) has no road`).toBe(true)
+    })
+  })
+
+  it('renders banked turns procedurally (banked.glb has no material or normals)', () => {
+    const i = lap.segments.findIndex((s) => s.type === 'banked')
+    expect(planPieces(lap).procedural).toContain(i)
   })
 
   it('places every referenced piece file that exists under assets/pieces', () => {
@@ -22,9 +32,10 @@ describe('piece placement', () => {
 
   it('starts each mapped segment at its poses() entry', () => {
     const ps = poses(lap)
-    const placed = planPieces(lap).placements
+    const plan = planPieces(lap)
+    const placed = plan.placements
     lap.segments.forEach((seg, i) => {
-      if (seg.type === 'drop') return
+      if (seg.type === 'drop' || plan.procedural.includes(i)) return
       expect(placed.some((p) => near(p.pose, ps[i]) < 0.01 && p.piece !== 'checkpoint'), `segment ${i}`).toBe(true)
     })
   })
