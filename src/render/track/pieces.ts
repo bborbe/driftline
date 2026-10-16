@@ -2,14 +2,14 @@
 // Pure TypeScript: no three, so placements are unit-testable.
 // Piece convention (scripts/build-pieces.mjs): entry edge bottom-center at the origin,
 // running along +z, so a piece sits at a schema Pose with rotation.y = heading.
-import { exitPose, poses, TILE_LENGTH, tileLength, type Pose, type Segment, type Track } from '../../track/schema'
+import { exitPose, poses, ROAD_WIDTH, TILE_LENGTH, tileLength, type Pose, type Segment, type Track } from '../../track/schema'
 
 /** Native dimensions of the normalized pieces, from assets/track/pieces.json. */
 const STRAIGHT_LENGTH = TILE_LENGTH
 const CORNER_RADIUS = 15 // the corner piece turns RIGHT at this radius
 
-/** Road width of every normalized piece at scale 1, in metres (TRACK_WIDTH in geometry.ts matches). */
-export const PIECE_ROAD_WIDTH = 10
+/** Road width of every normalized piece at scale 1, in metres: the one ROAD_WIDTH (src/track/pose.ts). */
+export const PIECE_ROAD_WIDTH = ROAD_WIDTH
 
 /** Road width a placement actually draws: only an x scale changes it. */
 export const placedRoadWidth = (p: Placement): number => PIECE_ROAD_WIDTH * Math.abs(p.scale[0])
@@ -28,12 +28,6 @@ export type PiecePlan = {
   proceduralGates: number[]
 }
 
-const advance = (p: Pose, d: number): Pose => ({
-  ...p,
-  x: p.x + Math.sin(p.heading) * d,
-  z: p.z + Math.cos(p.heading) * d,
-})
-
 const quarter = (turn: 'left' | 'right', radius: number): Segment => ({ type: 'curve', turn, radius, angle: 90 })
 
 /** Pieces for one segment, or null when no piece fits it. */
@@ -44,7 +38,7 @@ const planSegment = (entry: Pose, seg: Segment, startLine: boolean): Placement[]
       const n = Math.round(seg.length / len)
       return Array.from({ length: n }, (_, i) => ({
         piece: startLine && i === 0 ? 'start' : 'straight',
-        pose: advance(entry, i * len),
+        pose: exitPose(entry, { type: 'straight', length: i * len }),
         scale: [1, 1, len / STRAIGHT_LENGTH] as [number, number, number],
       }))
     }

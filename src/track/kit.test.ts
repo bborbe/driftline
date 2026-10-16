@@ -3,11 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { trackSurface } from '../physics'
 import { buildDeck, DECK_MIN_HEIGHT, lateralPoint, planDeckPillars, PROFILE, sampleSegment } from '../render/track/geometry'
 import { compileKit, connectorPose, isKitTrack, KIT_PIECES, LEVEL, onGrid, outConnector, resolveTrack, type KitTrack, type PieceDef } from './kit'
-import { CELL, exitPose, poses, validate, type Pose, type Segment, type Turn } from './schema'
+import { CELL, exitPose, poses, turnSign, validate, type Pose, type Turn } from './schema'
 
 const EPS = 1e-6
 const turnsOf = (def: PieceDef): Turn[] => (def.turns ? ['left', 'right'] : ['left'])
-const turnSign = (seg: Segment): number => ('turn' in seg && seg.turn === 'right' ? -1 : 1)
 
 /** Geometric exit of a piece: its expanded segments chained through schema exitPose. */
 const geometricExit = (entry: Pose, def: PieceDef, turn: Turn): Pose =>
@@ -165,6 +164,11 @@ describe('kit level format', () => {
       if (!isKitTrack(raw)) expect(track, name).toBe(raw)
     }
     for (const spline of ['test1', 'test2', 'crossover', 'tower']) expect(isKitTrack(read(spline)), spline).toBe(false)
+  })
+
+  it('test-kit-all.json uses every kit piece type (the docs/track-kit.md catalogue track)', () => {
+    const used = new Set((read('test-kit-all') as KitTrack).kit.pieces.map((p) => p.piece))
+    expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).sort())
   })
 
   describe('test-kit.json demo', () => {
