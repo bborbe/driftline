@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Track } from '../../track/schema'
-import { createTrackMesh } from './mesh'
+import { createTrackMesh, ROAD_ROUGHNESS } from './mesh'
 import { planPieces } from './pieces'
 
 // Vite bundles each piece and hands back its URL, so the build works under any base path.
@@ -33,6 +33,8 @@ export const preparePiece = (root: THREE.Object3D): THREE.Object3D => {
         // Cast shadows from the back face only: a double-sided caster shadows its own
         // front face, which showed as moiré striping (shadow acne) on the road.
         mat.shadowSide = THREE.BackSide
+        const std = mat as THREE.MeshStandardMaterial
+        if (std.isMeshStandardMaterial) std.roughness = Math.min(std.roughness, ROAD_ROUGHNESS)
       }
     }
   })

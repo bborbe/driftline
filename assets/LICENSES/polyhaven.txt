@@ -1,0 +1,12 @@
+Poly Haven assets (https://polyhaven.com/license)
+
+License: CC0 1.0 Universal (public domain dedication)
+https://creativecommons.org/publicdomain/zero/1.0/
+"All assets on Poly Haven are CC0 ... you can use them for any purpose, including commercial work,
+without attribution."
+
+Files in this repo:
+- assets/sky/kloofendal_48d_partly_cloudy_puresky_1k.hdr
+  https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky (HDRI, 1K)
+- assets/textures/grass_diff_1k.jpg
+  https://polyhaven.com/a/aerial_grass_rock (diffuse, 1K)

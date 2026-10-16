@@ -12,11 +12,15 @@ const BAND: Record<Band, THREE.Color> = {
   grass: linear(0.302, 0.561, 0.431),
 }
 
+/** Shared with the Kenney pieces (kenney.ts), so both kinds of road read equally glossy. */
+export const ROAD_ROUGHNESS = 0.5
+
 const roadMaterial = new THREE.MeshPhysicalMaterial({
   vertexColors: true,
-  // Gloss stays low until an environment map exists: clearcoat with no env
-  // reflects black at grazing angles. The HDRI scene step raises it.
-  roughness: 0.55,
+  // Glossy, Trackmania-like: the HDRI environment (scene.ts) gives the clearcoat something to reflect.
+  roughness: ROAD_ROUGHNESS,
+  clearcoat: 0.3,
+  clearcoatRoughness: 0.25,
   metalness: 0,
   side: THREE.DoubleSide,
   shadowSide: THREE.BackSide, // a double-sided caster would otherwise shadow itself (acne)

@@ -1,9 +1,10 @@
-// Scene owner: renderer (WebGPU, WebGL2 fallback), sky, lighting, ground, track and car mesh.
+// Scene owner: renderer (WebGPU, WebGL2 fallback), track and car mesh; the look lives in scene.ts.
 // main.ts calls createView() once and view.frame(state) every frame; nothing here writes car state.
 import * as THREE from 'three/webgpu'
 import type { CarState } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
+import { createScene } from './scene'
 import { createPieceTrack } from './track/kenney'
 
 export type View = {
@@ -14,31 +15,6 @@ export type View = {
   scene: THREE.Scene
   /** Pose the car from physics state and draw one frame; dt in seconds. */
   frame: (state: CarState, dt: number) => void
-}
-
-const SKY = 0x8fd3ff
-
-/**
- * Grass ground plane. Drawn first and without depth writes, so it can never hide the road:
- * a banked turn's inner half dips below it mid-turn (src/track/bank.ts).
- */
-export const createGround = (): THREE.Mesh => {
-  // Two-tone grass checker so motion stays readable off-track.
-  const checker = new Uint8Array(2 * 2 * 4)
-  checker.set([96, 168, 72, 255, 84, 150, 62, 255, 84, 150, 62, 255, 96, 168, 72, 255])
-  const tex = new THREE.DataTexture(checker, 2, 2)
-  tex.magFilter = THREE.NearestFilter
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-  tex.repeat.set(200, 200)
-  tex.needsUpdate = true
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(2000, 2000),
-    new THREE.MeshStandardMaterial({ map: tex, depthWrite: false }),
-  )
-  ground.rotation.x = -Math.PI / 2
-  ground.renderOrder = -1
-  ground.receiveShadow = true
-  return ground
 }
 
 export const createView = async (track: Track): Promise<View> => {
@@ -53,25 +29,8 @@ export const createView = async (track: Track): Promise<View> => {
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2'
   console.log(`renderer: ${backend}`)
 
-  const scene = new THREE.Scene()
-  scene.background = new THREE.Color(SKY)
-  scene.fog = new THREE.Fog(SKY, 250, 1200)
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x4a7a3a, 1.4))
-
-  const sun = new THREE.DirectionalLight(0xfff4e0, 2.5)
-  sun.castShadow = true
-  sun.shadow.mapSize.set(2048, 2048)
-  sun.shadow.normalBias = 0.05 // keeps lit surfaces from self-shadowing (acne)
-  const sc = sun.shadow.camera
-  sc.left = sc.bottom = -60
-  sc.right = sc.top = 60
-  sc.near = 1
-  sc.far = 200
-  scene.add(sun, sun.target)
-
-  scene.add(createGround(), await createPieceTrack(track))
-  const car = await createCarView()
-  scene.add(car.object)
+  const [{ scene, follow }, trackMesh, car] = await Promise.all([createScene(track), createPieceTrack(track), createCarView()])
+  scene.add(trackMesh, car.object)
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 3000)
   window.addEventListener('resize', () => {
@@ -82,9 +41,7 @@ export const createView = async (track: Track): Promise<View> => {
 
   const frame = (s: CarState, dt: number) => {
     car.update(s, dt)
-    // Shadow frustum follows the car.
-    sun.position.set(s.position.x + 40, s.position.y + 80, s.position.z + 30)
-    sun.target.position.set(s.position.x, s.position.y, s.position.z)
+    follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     renderer.render(scene, camera)
   }
 

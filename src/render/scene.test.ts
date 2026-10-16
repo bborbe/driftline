@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createGround } from './view'
+import { createGround } from './scene'
 
 describe('ground plane', () => {
   it('never occludes the road: drawn first, no depth writes', () => {
