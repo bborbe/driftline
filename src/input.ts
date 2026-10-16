@@ -14,6 +14,11 @@ export class KeyboardInput {
     return codes.some((c) => this.down.has(c))
   }
 
+  /** Key codes held right now (the free-fly camera reads its own keys from these). */
+  held(): ReadonlySet<string> {
+    return this.down
+  }
+
   read(): CarInput {
     return {
       throttle: this.any('KeyW', 'ArrowUp') ? 1 : 0,

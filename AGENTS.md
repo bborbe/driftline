@@ -24,6 +24,7 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 | `src/track/catalogue.ts` | Campaign levels (id, tier) and the Test-track order, `lap1`/`lap2` aliases, `nextInGroup` for Next track. Pure and tested. Track files are `assets/track/*.json`; a new test track is named `test-<feature>`, ≤ 20 s and autopilot-lapped in `src/race/full-lap.test.ts`. |
 | `src/build-info.ts` | Bottom-right build label (short SHA · UTC build time · version). Values come from `define` in `vite.config.ts`, fed by `VITE_COMMIT_SHA` (CI) or `git rev-parse HEAD` (local) — the same value as the `<meta name="commit">` tag. |
 | `src/input.ts` | Keyboard → `CarInput` (WASD / arrows, Space = handbrake) |
+| `src/camera/fly.ts` | Free-fly camera (C, `?cam=fly`, `&pitch`, `&orbit=1`): pose integration, ground clamp, mouse look, track orbit, the P fly-view URL. Pure TypeScript; `main.ts` freezes race, ghost and audio while it is active |
 | `src/camera/views.ts` | Camera view keys 1 / 2 / 3 (close chase, far chase, in-car), persisted in localStorage |
 | `src/fullscreen.ts` | F toggles fullscreen; an Esc that only leaves fullscreen does not pause |
 | `src/main.ts` | three.js shell: renderer (WebGPU, WebGL2 fallback), scene, HUD, frame loop |

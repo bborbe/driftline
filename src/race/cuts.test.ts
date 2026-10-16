@@ -9,6 +9,8 @@ import { advanceRace, COUNTDOWN_TICKS, crosses, LapLoop } from './lap'
 import { autopilot, loadTrack, racingLine, type Sample } from './autopilot.test-driver'
 
 const CORNER = new Set(['curve', 'hairpin', 'banked'])
+// Each case drives up to ~15 full-physics runs over a leg; well past vitest's 5 s default under load.
+const CUT_TIMEOUT = 30_000
 const LOOKAHEAD = 0.5 // s
 // A run counts as a grass cut once this share of its ticks is off the road.
 const GRASS_SHARE = 0.1
@@ -113,7 +115,7 @@ describe.each(['test1', 'test2', 'crossover', 'tower'])('%s grass cuts', (name) 
     const roadBest = Math.min(b - a, ...runs.filter((r) => !onGrass(r)).map((r) => r.ticks))
     const cutBest = Math.min(...runs.filter(onGrass).map((r) => r.ticks))
     expect(cutBest, `best grass cut ${cutBest} ticks vs road ${roadBest}`).toBeGreaterThan(roadBest)
-  })
+  }, CUT_TIMEOUT)
 })
 
 // A skilled grass line through one corner piece: brake on the road, then a tighter arc across the
@@ -178,7 +180,7 @@ describe.each(['test1', 'test2'])('%s skilled grass lines', (name) => {
     }))
     const best = runs.reduce((m, r) => (r.ticks < m.ticks ? r : m), { inside: 0, ticks: Infinity, grass: 0 })
     expect(best.ticks, `${name} corner ${i}: ${best.inside} m inside took ${best.ticks} ticks vs road ${b - a}`).toBeGreaterThan(b - a)
-  })
+  }, CUT_TIMEOUT)
 })
 
 // Skilled lines found by hand on the live game: leave the road after gate `from`, drive the
@@ -230,6 +232,6 @@ describe.each(Object.keys(SKILLED))('%s skilled lines', (name) => {
     )
     const best = Math.min(...runs.map((r) => r.ticks))
     expect(best, `best ${best} ticks vs road ${b - a}`).toBeGreaterThan(b - a)
-  })
+  }, CUT_TIMEOUT)
 })
 
