@@ -139,3 +139,13 @@ describe('ramp supports', () => {
     })
   })
 })
+
+describe('ramp profile', () => {
+  it('is linear like the physics strip (src/physics/surface.ts), so the foot joint has no bump', () => {
+    const entry = { x: 0, y: 0, z: 0, heading: 0 }
+    for (const seg of [{ type: 'ramp', length: 30, rise: 7.8 }, { type: 'drop', length: 30, fall: 7.8 }] as Segment[]) {
+      const dy = seg.type === 'ramp' ? 7.8 : -7.8
+      for (const t of [0, 0.1, 0.5, 0.9, 1]) expect(sampleSegment(entry, seg, t).y).toBeCloseTo(dy * t, 6)
+    }
+  })
+})

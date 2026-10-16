@@ -22,7 +22,6 @@ export type SegmentGeometry = {
   perRow: number // vertices per row: surface columns + 2 curb tops
 }
 
-const smoothstep = (t: number): number => t * t * (3 - 2 * t)
 
 const turnSign = (seg: Segment): number => ('turn' in seg && seg.turn === 'right' ? -1 : 1)
 
@@ -61,7 +60,8 @@ export const sampleSegment = (entry: Pose, seg: Segment, t: number): Sample => {
       const d = seg.length * t
       return {
         x: entry.x + Math.sin(entry.heading) * d,
-        y: entry.y + dy * smoothstep(t),
+        // Linear, exactly the planar strip physics drives on (src/physics/surface.ts): no bump at the foot.
+        y: entry.y + dy * t,
         z: entry.z + Math.cos(entry.heading) * d,
         heading: entry.heading,
         roll: 0,

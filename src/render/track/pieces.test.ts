@@ -41,12 +41,12 @@ describe('piece placement', () => {
     })
   })
 
-  it('lays a drop as a reversed ramp from its exit edge', () => {
-    const ps = poses(lap)
-    const i = lap.segments.findIndex((s) => s.type === 'drop')
-    const drop = planPieces(lap).placements.find((p) => p.piece === 'ramp' && near(p.pose, ps[i + 1]) < 0.01)
-    expect(drop).toBeDefined()
-    expect(drop!.pose.heading).toBeCloseTo(ps[i + 1].heading + Math.PI, 6)
+  it('renders ramps and drops procedurally, on the linear profile physics drives', () => {
+    const plan = planPieces(lap)
+    lap.segments.forEach((s, i) => {
+      if (s.type === 'ramp' || s.type === 'drop') expect(plan.procedural, `segment ${i}`).toContain(i)
+    })
+    expect(plan.placements.some((p) => p.piece === 'ramp')).toBe(false)
   })
 
   it('tiles a 110 m straight into whole pieces that end on the exit pose', () => {
