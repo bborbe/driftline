@@ -1,11 +1,12 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
-import { gateLine, type Track } from '../../track/schema'
-import { buildTrack, TRACK_WIDTH, type SegmentGeometry } from './geometry'
+import { gateLine, poses, type Track } from '../../track/schema'
+import { buildApron, buildTrack, TRACK_WIDTH, type SegmentGeometry } from './geometry'
 
-const ROAD = new THREE.Color(0x3a4150)
-const CURB_A = new THREE.Color(0xe63946)
-const CURB_B = new THREE.Color(0xf1faee)
+// Matched to the Kenney road pieces so procedural and glb segments read as one road.
+const ROAD = new THREE.Color(0x9e9b96)
+const CURB_A = new THREE.Color(0xf2f2ee)
+const CURB_B = new THREE.Color(0xc9c8c3)
 
 const roadMaterial = new THREE.MeshPhysicalMaterial({
   vertexColors: true,
@@ -15,6 +16,9 @@ const roadMaterial = new THREE.MeshPhysicalMaterial({
   metalness: 0,
   side: THREE.DoubleSide,
 })
+
+/** Sloped verge around banked turns: grass-green, matched to the ground. */
+const vergeMaterial = new THREE.MeshStandardMaterial({ color: 0x5e9a48, roughness: 0.9, side: THREE.DoubleSide })
 
 const toBufferGeometry = (g: SegmentGeometry): THREE.BufferGeometry => {
   const geo = new THREE.BufferGeometry()
@@ -58,11 +62,22 @@ const gateArch = (kind: 'start-finish' | 'checkpoint'): THREE.Group => {
 export const createTrackMesh = (track: Track, segments?: number[], gates?: number[]): THREE.Group => {
   const group = new THREE.Group()
   group.name = `track:${track.name}`
+  const ps = poses(track)
   buildTrack(track).forEach((g, i) => {
     if (segments && !segments.includes(i)) return
     const mesh = new THREE.Mesh(toBufferGeometry(g), roadMaterial)
     mesh.receiveShadow = true
     group.add(mesh)
+    const apron = buildApron(ps[i], track.segments[i])
+    if (apron) {
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.BufferAttribute(apron.positions, 3))
+      geo.setIndex(new THREE.BufferAttribute(apron.indices, 1))
+      geo.computeVertexNormals()
+      const verge = new THREE.Mesh(geo, vergeMaterial)
+      verge.receiveShadow = true
+      group.add(verge)
+    }
   })
   for (const [i, gate] of track.gates.entries()) {
     if (gates && !gates.includes(i)) continue

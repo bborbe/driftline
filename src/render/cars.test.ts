@@ -26,9 +26,9 @@ describe('car registry', () => {
     expect(ids).toContain(FALLBACK_CAR)
   })
 
-  it('defaults to stadium and falls back to box for an unknown id', () => {
+  it('defaults to race and falls back to box for an unknown id', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    expect(resolveCar(undefined).id).toBe('stadium')
+    expect(resolveCar(undefined).id).toBe('race')
     expect(resolveCar('nope').id).toBe('box')
     expect(warn).toHaveBeenCalledOnce()
     warn.mockRestore()

@@ -15,7 +15,7 @@ See `VISION.md` and `AGENTS.md`.
 The player car is picked at build time from the registry in `src/render/cars.ts`:
 
 ```bash
-VITE_CAR=race make build   # stadium (default) | race | raceFuture | box
+VITE_CAR=stadium make build   # race (default) | stadium | raceFuture | box
 ```
 
 An unknown id falls back to `box`. New entries must use CC0, CC-BY or MIT assets with their licence under `assets/LICENSES/`, and must never be Nadeo-derived.
