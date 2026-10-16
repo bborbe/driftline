@@ -1,7 +1,7 @@
 import './style.css'
 import { createCarAt, dot, FixedStepper, forwardOf, materialUnder, trackSurface } from './physics'
 import { cockpitPose, COCKPIT_FOV, createChase, FAR_RIG, CLOSE_RIG, updateChase } from './camera/chase'
-import { loadView, saveView, viewForKey } from './camera/views'
+import { CAMERA_EVENT, loadView, saveView, viewForKey, type ViewMode } from './camera/views'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './render/track/lap'
@@ -110,13 +110,17 @@ window.addEventListener('keydown', (e) => {
 let viewMode = loadView(localStorage)
 const rigFor = () => (viewMode === 'far' ? FAR_RIG : CLOSE_RIG)
 let chase = createChase(sim.state.position, forwardOf(sim.state), rigFor())
+const setView = (mode: ViewMode) => {
+  viewMode = mode
+  chase = createChase(sim.state.position, forwardOf(sim.state), rigFor())
+}
 window.addEventListener('keydown', (e) => {
   const mode = viewForKey(e.code)
   if (!mode || e.repeat || e.target instanceof HTMLInputElement) return
-  viewMode = mode
   saveView(localStorage, mode)
-  chase = createChase(sim.state.position, forwardOf(sim.state), rigFor())
+  setView(mode)
 })
+window.addEventListener(CAMERA_EVENT, (e) => setView((e as CustomEvent<ViewMode>).detail))
 let last = performance.now()
 
 view.renderer.setAnimationLoop(() => {

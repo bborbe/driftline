@@ -4,6 +4,8 @@ import type { KeyValueStore } from '../race/store'
 export const VIEWS = ['close', 'far', 'cockpit'] as const
 export type ViewMode = (typeof VIEWS)[number]
 export const VIEW_KEY = 'driftline.camera'
+/** Window event the settings panel fires when the camera is picked there; detail is the ViewMode. */
+export const CAMERA_EVENT = 'driftline:camera'
 
 const KEYS: Record<string, ViewMode> = { Digit1: 'close', Digit2: 'far', Digit3: 'cockpit', Numpad1: 'close', Numpad2: 'far', Numpad3: 'cockpit' }
 
