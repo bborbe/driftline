@@ -85,6 +85,24 @@ describe('ghost', () => {
     expect(replay.advanceTo(run.inputs.length).position).toEqual(sim.state.position)
   })
 
+  it('a lap with a pause in it replays bit-identically', () => {
+    const rec = new GhostRecorder()
+    const sim = new FixedStepper(createCar())
+    const events = rec.listener(() => sim.state)
+    events.lapStart!(sim.state.tick)
+    let frameNo = 0
+    const ghost = (): GhostReplayer | null => (rec.best ? new GhostReplayer(rec.best) : null)
+    while (sim.state.tick < 800) {
+      const input = script(frameNo++)
+      // Frames 200-499 are paused: race.frame skips the advance, so the tick stands still.
+      if (frameNo < 200 || frameNo >= 500) sim.advance(0.017 + (frameNo % 3) * 0.004, input)
+      rec.frame(input, sim.state.tick)
+    }
+    events.lapFinish!(sim.state.tick, 8000, true)
+    expect(rec.best!.inputs.length).toBe(sim.state.tick)
+    expect(ghost()!.advanceTo(rec.best!.inputs.length).position).toEqual(sim.state.position)
+  })
+
   it('keeps a ghost even when the race says the lap is not a new all-time best', () => {
     const rec = new GhostRecorder()
     const events = rec.listener(() => createCar())

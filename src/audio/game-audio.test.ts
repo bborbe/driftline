@@ -38,6 +38,7 @@ class FakeContext {
   createBufferSource() { return new FakeSource() }
   createBuffer(_c: number, n: number) { return { getChannelData: () => new Float32Array(n) } }
   async resume() { this.state = 'running' }
+  async suspend() { this.state = 'suspended' }
 }
 
 const setup = () => {
@@ -53,6 +54,16 @@ describe('GameAudio begin gate', () => {
     await audio.begin()
     expect(ctx.state).toBe('running')
     expect(audio.state).toBe('running')
+  })
+  it('pause suspends a running context and resume restarts it; no-op before begin', async () => {
+    const { ctx, audio } = setup()
+    await audio.setPaused(true)
+    expect(audio.state).toBe('uninitialized')
+    await audio.begin()
+    await audio.setPaused(true)
+    expect(ctx.state).toBe('suspended')
+    await audio.setPaused(false)
+    expect(ctx.state).toBe('running')
   })
   it('ignores updates and events before begin', () => {
     const { ctx, audio } = setup()
