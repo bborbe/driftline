@@ -61,6 +61,15 @@ export interface Zone {
   to: number
 }
 
+/** A straight wall on the open ground, world x/z from `from` to `to`: blocks a shortcut across the grass. */
+export interface Barrier {
+  from: [number, number]
+  to: [number, number]
+}
+
+/** Barrier cross-section in metres: a low red-and-white plastic wall, Trackmania-style. */
+export const BARRIER = { halfWidth: 0.5, height: 1.2 } as const
+
 export interface Track {
   name: string
   start: Pose
@@ -69,6 +78,7 @@ export interface Track {
   /** Optional: not part of layoutId, so retuning medals keeps existing records. */
   medals?: Medals
   zones?: Zone[]
+  barriers?: Barrier[]
 }
 
 /** Exit pose of one segment given its entry pose. */
@@ -149,14 +159,28 @@ export function gatePillars(track: Track, gate: Gate): Pillar[] {
   }))
 }
 
+/** Every barrier as an upright box — the single source for the colliders (src/physics) and the walls (src/render). */
+export function barrierPillars(track: Track): Pillar[] {
+  return (track.barriers ?? []).map(({ from: [x0, z0], to: [x1, z1] }) => ({
+    x: (x0 + x1) / 2,
+    y: 0,
+    z: (z0 + z1) / 2,
+    heading: Math.atan2(x1 - x0, z1 - z0),
+    halfWidth: BARRIER.halfWidth,
+    halfDepth: Math.hypot(x1 - x0, z1 - z0) / 2,
+    height: BARRIER.height,
+  }))
+}
+
 /**
  * Short stable id of a track's layout (start, segments, gates; not its name). Changes whenever
  * the geometry or gates change, so per-layout records start fresh after a redesign. FNV-1a, 8 hex.
  */
 export function layoutId(track: Track): string {
-  // Zones join the key only when present, so tracks without any keep their original id.
+  // Zones and barriers join the key only when present, so tracks without any keep their original id.
   const parts: unknown[] = [track.start, track.segments, track.gates]
   if (track.zones?.length) parts.push(track.zones)
+  if (track.barriers?.length) parts.push({ barriers: track.barriers })
   const text = JSON.stringify(parts)
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
@@ -238,6 +262,17 @@ export function validate(data: unknown): string[] {
         if (!(Number.isFinite(z?.from) && Number.isFinite(z?.to) && z.from >= 0 && z.from < z.to && z.to <= 1)) {
           errs.push(`zones[${i}]: needs 0 <= from < to <= 1`)
         }
+      })
+    }
+  }
+  if (t.barriers !== undefined) {
+    const point = (p: unknown) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)
+    if (!Array.isArray(t.barriers)) {
+      errs.push('barriers must be an array')
+    } else {
+      t.barriers.forEach((b, i) => {
+        if (!point(b?.from) || !point(b?.to)) errs.push(`barriers[${i}]: needs from and to as [x, z]`)
+        else if (b.from[0] === b.to[0] && b.from[1] === b.to[1]) errs.push(`barriers[${i}]: from and to must differ`)
       })
     }
   }

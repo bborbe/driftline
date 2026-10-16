@@ -1,6 +1,6 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
-import { gatePillars, poses, type Pillar, type Track } from '../../track/schema'
+import { barrierPillars, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
 import { buildApron, buildDeck, buildRampSupport, buildTrack, lateralPoint, planDeckPillars, PROFILE, sampleSegment, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
@@ -98,6 +98,29 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
   for (const [i, gate] of track.gates.entries()) {
     if (gates && !gates.includes(i)) continue
     group.add(gateArch(gate.kind, gatePillars(track, gate)))
+  }
+  return group
+}
+
+const barrierMaterial = new THREE.MeshStandardMaterial({ color: linear(0.78, 0.1, 0.08), roughness: 0.6 })
+const barrierCapMaterial = new THREE.MeshStandardMaterial({ color: linear(0.92, 0.92, 0.9), roughness: 0.6 })
+const BARRIER_CAP = 0.25 // m of white along the top
+
+/** Barrier walls from barrierPillars() — the same boxes the physics collides with: red, white along the top. */
+export const createBarriers = (track: Track): THREE.Group => {
+  const group = new THREE.Group()
+  for (const p of barrierPillars(track)) {
+    for (const [mat, y0, h] of [
+      [barrierMaterial, 0, p.height - BARRIER_CAP],
+      [barrierCapMaterial, p.height - BARRIER_CAP, BARRIER_CAP],
+    ] as const) {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, h, 2 * p.halfDepth), mat)
+      box.position.set(p.x, p.y + y0 + h / 2, p.z)
+      box.rotation.y = p.heading
+      box.castShadow = true
+      box.receiveShadow = true
+      group.add(box)
+    }
   }
   return group
 }

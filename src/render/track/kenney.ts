@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Track } from '../../track/schema'
-import { createRampSupports, createTrackMesh, ROAD_ROUGHNESS } from './mesh'
+import { createBarriers, createRampSupports, createTrackMesh, ROAD_ROUGHNESS } from './mesh'
 import { planPieces } from './pieces'
 import { createZoneMeshes } from './zones'
 
@@ -56,6 +56,7 @@ export const createPieceTrack = async (track: Track): Promise<THREE.Group> => {
 
   const group = createTrackMesh(track, plan.procedural, plan.proceduralGates)
   group.add(createRampSupports(track))
+  group.add(createBarriers(track))
   group.add(createZoneMeshes(track))
   for (const p of plan.placements) {
     const obj = models.get(p.piece)!.clone()

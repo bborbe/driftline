@@ -18,7 +18,7 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 
 | Path | Role |
 |---|---|
-| `src/physics/` | Car simulation. Fixed 100 Hz tick (`step`, `FixedStepper`). Pure TypeScript. |
+| `src/physics/` | Car simulation. Fixed 100 Hz tick (`step`, `FixedStepper`). Pure TypeScript. Per-material handling in `MATERIALS` (`car.ts`): the open ground beside the track is `offroad` — low grip, drag and a 10 m/s cap — so cuts never pay; `src/race/cuts.test.ts` proves it for every leg and corner of the shipped laps. Where a cut still pays, add a wall under `barriers` in the track JSON (`barrierPillars()` feeds the collider and the render). |
 | `src/camera/chase.ts` | Chase camera math (position, speed-based FOV). Pure TypeScript. |
 | `src/race/` | Lap loop: no input until Begin (`race.start()`, wired to the audio Begin overlay) and the 3-2-1 countdown, ordered checkpoint gates, lap timer, respawn (R) / instant restart (Backspace, 0.8 s countdown; ghost back on the grid at once), checkpoint split deltas vs the personal best, per-track medals (`medals` in the track JSON, best medal persisted), auto-respawn when the car falls 5 m below the ground or is airborne > 3 s, best time + top-10 leaderboard (L) in localStorage, Esc pause (also on tab hide; freezes tick, timer, ghost and audio). `lap.ts`, `medals.ts` and `store.ts` are pure and tested; `index.ts` is the one `initRace()` + `race.frame()` hook for `main.ts`. Emits `lapStart` / `checkpoint` / `lapFinish` / `respawn` / `restart` to listeners (audio, ghost). |
 | `src/build-info.ts` | Bottom-right build label (short SHA · UTC build time · version). Values come from `define` in `vite.config.ts`, fed by `VITE_COMMIT_SHA` (CI) or `git rev-parse HEAD` (local) — the same value as the `<meta name="commit">` tag. |
@@ -34,6 +34,20 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 - **Handling thresholds are tested** (0→20 m/s ≤ 3 s, 20→0 within 30 m, drift slip > 15°). Retune constants in `car.ts`, never loosen a test to make it pass.
 - The renderer logs `renderer: WebGPU` or `renderer: WebGL2` on startup; keep that line, it is how runs are verified.
 - **Original assets only** — no Nadeo assets, branding, or decompiled code.
+
+### Always hold
+
+The why for each rule is in the PR it cites and in the operator's *3D Browser Game Development Guide*.
+
+- **One shape, one function:** collider and mesh come from the same function in `src/track/` (`bank.ts`, `gatePillars()`, `gateLine()`). Never draw a second formula for a shape physics already knows; render vertices match physics raycasts within 1 mm (#21, #25, #38, #45).
+- **Render interpolates:** draw `FixedStepper.render()` (blends the last two ticks by `alpha = accumulator / DT`), never the latest tick; snap when state is replaced outside `advance()` (#37).
+- **Constant road width:** never scale a corner model by radius; draw non-native radii procedurally (#23).
+- **Decals sit above the road:** road top + 3 mm, `polygonOffset(-1,-1)`, `depthWrite` off, clipped to the asphalt (#47). Double-sided casters use `shadowSide = BackSide` (#26).
+- **Assets resolve on Pages:** bundle every texture a glb references (`import.meta.glob(?url)` + `setURLModifier`); check with `vite preview` under `/driftline/`, not only `make run` (#26).
+- **Tests drive the real path:** no hand-set flags the game never produces; go through `advanceRace` / the autopilot lap (#12, #17, #22).
+- **Records are keyed by layout:** `driftline-best-<track>-<layoutId>[-lapsN]` (lap1 keeps its legacy key); a layout or lap-count change gets a new key (#30, #46).
+- **Audio is synthesized:** no audio files; every loop fades to silence on finish (#50).
+- **Assets are CC0 / CC-BY / MIT** and listed in `assets/LICENSES/` (#3).
 
 ## Workflow
 
