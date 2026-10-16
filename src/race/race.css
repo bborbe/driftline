@@ -8,12 +8,18 @@
   --debug-top-right: 68px;
 }
 .debug-off { --debug-top-left: 0px; --debug-top-right: 36px; }
-.race-status, .race-chase, .race-speedo, .race-time, .race-countdown, .race-split, .race-keys {
+.race-status, .race-chase, .race-speedo, .race-time, .race-countdown, .race-split, .race-keys, .race-effects {
   position: fixed; pointer-events: none; color: #fff; font-family: var(--hud-font); font-variant-numeric: tabular-nums;
   text-shadow: var(--hud-shadow); user-select: none;
 }
 /* A display rule would otherwise beat the hidden attribute. */
-.race-countdown[hidden], .race-chase[hidden], .race-split[hidden] { display: none; }
+.race-countdown[hidden], .race-chase[hidden], .race-split[hidden], .race-effects[hidden] { display: none; }
+/* Active effect pads: top centre, one chip per effect in its pad's colour. */
+.race-effects { top: calc(var(--debug-top-left) + 1.5vmin); left: 50%; transform: translateX(-50%); display: flex; gap: 1vmin; }
+.race-effect {
+  padding: 0.4vmin 1.6vmin; border-radius: 1vmin; font-size: clamp(13px, 2.6vmin, 34px); font-style: italic; letter-spacing: 0.04em;
+  background: var(--hud-plate); border: 0.35vmin solid var(--effect); box-shadow: 0 0 1.2vmin var(--effect);
+}
 .race-status { top: calc(var(--debug-top-right) + 1.5vmin); right: 2.5vmin; text-align: right; font-style: italic; line-height: 1.05; }
 .race-lap { font-size: clamp(22px, 5vmin, 72px); letter-spacing: 0.02em; }
 .race-cp { font-size: clamp(16px, 3.4vmin, 48px); color: #e8f2ff; }

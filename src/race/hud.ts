@@ -1,5 +1,7 @@
 // Race HUD values (speed, speedometer ticks, the time to chase) and the debug-overlay switch. Pure and tested.
 import type { Medals } from '../track/schema'
+import { EFFECT_LABEL, EFFECT_LOOK } from '../render/track/effect-pads'
+import type { ActiveEffect } from './effects'
 import { MEDAL_LABEL, nextMedal, type Medal } from './medals'
 
 /** Ticks on the speedometer arc. */
@@ -30,6 +32,21 @@ export function chaseTarget(medals: Medals | undefined, bestMedal: Medal | null,
   const next = medals ? nextMedal(bestMedal) : null
   if (medals && next) return { label: MEDAL_LABEL[next], ms: medals[next], medal: next }
   return bestMs === null ? null : { label: 'BEST', ms: bestMs, medal: null }
+}
+
+/** One HUD chip per active effect pad: its label and its pad's colour (CSS hex). */
+export interface EffectChip {
+  label: string
+  color: string
+}
+
+const css = (hex: number): string => `#${hex.toString(16).padStart(6, '0')}`
+
+/** The active-effect chips, in the order the effects report them. A broken fragile car reads BROKEN. */
+export function effectChips(active: readonly ActiveEffect[]): EffectChip[] {
+  return active.map((e) =>
+    e === 'broken' ? { label: 'BROKEN', color: css(EFFECT_LOOK.fragile.color) } : { label: EFFECT_LABEL[e], color: css(EFFECT_LOOK[e].color) },
+  )
 }
 
 /** `?debug=0` starts with the debug overlay hidden (backtick toggles it); it is shown by default (agents read it in screenshots). */

@@ -55,10 +55,19 @@ export interface Medals {
   bronze: number
 }
 
-/** Special patches of road: turbo pads (yellow = short boost, red = strong) and low-grip surfaces. */
-export type ZoneKind = 'turbo' | 'turbo-red' | 'dirt' | 'ice' | 'grass'
+/**
+ * Trackmania-style effect pads: they change the driver's input, not the handling (src/race/effects.ts).
+ * no-steer locks the wheel straight, engine-off cuts the throttle, cruise holds the entry speed,
+ * slow-mo halves sim time, fragile breaks the car on a hard landing, reset clears them all.
+ */
+export type EffectKind = 'no-steer' | 'engine-off' | 'cruise' | 'slow-mo' | 'fragile' | 'reset'
 
-export const ZONE_KINDS: readonly ZoneKind[] = ['turbo', 'turbo-red', 'dirt', 'ice', 'grass']
+export const EFFECT_KINDS: readonly EffectKind[] = ['no-steer', 'engine-off', 'cruise', 'slow-mo', 'fragile', 'reset']
+
+/** Special patches of road: turbo pads (yellow = short boost, red = strong), low-grip surfaces and effect pads. */
+export type ZoneKind = 'turbo' | 'turbo-red' | 'dirt' | 'ice' | 'grass' | EffectKind
+
+export const ZONE_KINDS: readonly ZoneKind[] = ['turbo', 'turbo-red', 'dirt', 'ice', 'grass', ...EFFECT_KINDS]
 
 /** Segment types a zone may lie on: planar strips, so the patch is a flat quad on the road. */
 export const ZONE_SEGMENTS: readonly SegmentType[] = ['straight', 'ramp', 'drop']
@@ -72,6 +81,9 @@ export interface Zone {
   /** Turbo pads only: the arrow points against the segment's direction (default: along it). */
   reverse?: boolean
 }
+
+/** True for the effect pad kinds. */
+export const isEffect = (kind: string): kind is EffectKind => (EFFECT_KINDS as readonly string[]).includes(kind)
 
 /** True for the zone kinds that boost: turbo pads. */
 export const isPad = (kind: ZoneKind): kind is 'turbo' | 'turbo-red' => kind === 'turbo' || kind === 'turbo-red'

@@ -33,6 +33,7 @@ export const TEST_TRACKS: readonly string[] = [
   'test-bank',
   'test-surfaces',
   'test-turbo',
+  'test-effects',
   'test-checkpoint',
 ]
 

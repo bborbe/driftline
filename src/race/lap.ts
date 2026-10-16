@@ -2,9 +2,10 @@
 // (manual, or automatic when the car falls out of the world).
 // Pure and tick-driven (100 Hz physics ticks), so it is deterministic and testable.
 import {
-  createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Vec3,
+  createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Surface, type Vec3,
 } from '../physics'
 import { gateLine, type Pose, type Track } from '../track/schema'
+import { Effects } from './effects'
 
 /** Steps announced before GO: 3, 2, 1. */
 export const COUNTDOWN_STEPS = 3
@@ -91,6 +92,8 @@ export class LapLoop {
   private lastCountdown = -1
   private airborneTicks = 0
   private lastTick = 0
+  /** Effect pads active this run (src/race/effects.ts); cleared on respawn, restart and the finish. */
+  readonly effects = new Effects()
 
   /** `isNewBest` judges the run's total time; `laps` is the number of laps in a run (default 1). */
   constructor(track: Track, isNewBest: (totalMs: number) => boolean, laps = 1) {
@@ -142,6 +145,17 @@ export class LapLoop {
   }
 
   /**
+   * The input fed to one physics tick from state `s`: the player's input while racing, with the
+   * effect pads applied. While racing, reads the ground under `s` first, so a pad entered this tick
+   * already gates it.
+   */
+  tickInput(raw: CarInput, s: CarState, surface: Surface): CarInput {
+    if (this.phase !== 'racing') return NO_INPUT
+    this.effects.observe(s, surface)
+    return this.effects.gate(raw, s)
+  }
+
+  /**
    * Advance with the car's state after the latest physics tick(s) and how many wheels touch a
    * surface. Returns a respawned car when it fell out of the world, else null.
    */
@@ -190,6 +204,7 @@ export class LapLoop {
       }
       this.phase = 'finished'
       this.finishTick = tick
+      this.effects.clear()
       const total = this.lapTimeMs(tick)
       const best = this.isNewBest(total)
       const times = this.lapTimes
@@ -204,6 +219,7 @@ export class LapLoop {
     const car = { ...createCarAt(pose), tick }
     this.lastPosition = car.position
     this.airborneTicks = 0
+    this.effects.clear()
     this.emit((l) => l.respawn?.(tick))
     return car
   }
@@ -217,6 +233,7 @@ export class LapLoop {
     this.lapTimes = []
     this.lastPosition = null
     this.airborneTicks = 0
+    this.effects.clear()
     this.countdownTicks = RESTART_COUNTDOWN_TICKS
     this.countdownEndTick = tick + RESTART_COUNTDOWN_TICKS
     this.lastCountdown = -1
@@ -240,7 +257,8 @@ export class LapLoop {
 }
 
 /**
- * One frame of the race against the car sim: advance the physics with the gated input, update
+ * One frame of the race against the car sim: advance the physics with the gated input (asked per
+ * tick, so an effect pad entered mid-frame gates the rest of it), update
  * lap state, apply an auto-respawn. While the finish panel is up the car is frozen where it
  * crossed the line instead of coasting off the track behind the panel. Returns the respawned
  * car, if any. This is the whole per-frame race step; race.frame() and the tests both use it.
@@ -248,7 +266,7 @@ export class LapLoop {
 // Paused: nothing advances — no tick, no accumulator, no lap/timer update — so resuming continues tick-exact.
 export function advanceRace(loop: LapLoop, sim: FixedStepper, elapsedSeconds: number, raw: CarInput, paused = false): CarState | null {
   if (paused) return null
-  if (loop.phase !== 'finished') sim.advance(elapsedSeconds, loop.input(raw))
+  if (loop.phase !== 'finished') sim.advance(elapsedSeconds, (s) => loop.tickInput(raw, s, sim.surface))
   const respawned = loop.update(sim.state, wheelContacts(sim.state, sim.surface))
   if (respawned) sim.state = respawned
   return respawned

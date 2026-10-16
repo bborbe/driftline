@@ -38,6 +38,13 @@ export const SURFACE_SOUND: Readonly<Record<Material, SurfaceSound>> = {
   road: { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
   'turbo': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
   'turbo-red': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  // Effect pads are road underfoot.
+  'no-steer': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  'engine-off': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  'cruise': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  'slow-mo': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  'fragile': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
+  'reset': { skidHz: 2400, rumbleHz: 300, rumbleMax: 0 },
   dirt: { skidHz: 900, rumbleHz: 350, rumbleMax: 0.35 },
   grass: { skidHz: 700, rumbleHz: 220, rumbleMax: 0.3 },
   offroad: { skidHz: 650, rumbleHz: 200, rumbleMax: 0.45 },

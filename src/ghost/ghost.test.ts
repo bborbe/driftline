@@ -186,3 +186,38 @@ describe('ghost on restart', () => {
     }
   })
 })
+
+describe('ghost consume (per-tick inputs fed by the stepper)', () => {
+  it('records each tick\'s own input, skips ticks before a mid-frame lapStart, and replays bit-identically', () => {
+    const rec = new GhostRecorder()
+    const sim = new FixedStepper(createCar())
+    const events = rec.listener(() => sim.state)
+    // A provider that changes the input every tick, so a per-frame recorder would get it wrong.
+    const perTick = (s: CarState): CarInput => script(s.tick)
+    let started = false
+    let finished = false
+    let startAt: CarState | null = null
+    let endAt: CarState | null = null
+    for (let frameNo = 0; !finished; frameNo++) {
+      sim.advance(0.0167, perTick)
+      if (!started && sim.state.tick >= 41) {
+        started = true
+        startAt = sim.state
+        events.lapStart!(sim.state.tick, 1)
+      } else if (started && sim.state.tick >= 41 + 6 * TICK_HZ) {
+        finished = true
+        endAt = sim.state
+        events.lapFinish!(sim.state.tick, 6000, 1)
+      }
+      rec.consume(sim.fed)
+      rec.consume(sim.fed) // a stale re-read (a frame that did not advance) adds nothing
+    }
+    const best = rec.best!
+    expect(best.start).toBe(startAt)
+    expect(best.inputs.length).toBe(endAt!.tick - startAt!.tick)
+    best.inputs.forEach((input, i) => expect(input).toEqual(script(startAt!.tick + i)))
+    const replay = new GhostReplayer(best)
+    while (!replay.done) replay.advance()
+    expect(replay.state).toEqual(endAt)
+  })
+})

@@ -17,6 +17,8 @@ export type CarInput = {
   brake: number // 0..1 — brakes when moving forward, reverses once stopped
   steer: number // -1 (left) .. 1 (right)
   handbrake: boolean
+  /** Sim-time scale for this tick (slow-motion pad: 0.5); omitted = 1. Ticks stay 100 Hz real time. */
+  timeScale?: number
 }
 
 export const NO_INPUT: CarInput = { throttle: 0, brake: 0, steer: 0, handbrake: false }
@@ -89,6 +91,13 @@ export const MATERIALS: Readonly<Record<Material, MaterialHandling>> = {
   road: { grip: 1, drag: 0 },
   'turbo': { grip: 1, drag: 0 },
   'turbo-red': { grip: 1, drag: 0 },
+  // Effect pads drive like road; their effect is applied to the input by src/race/effects.ts.
+  'no-steer': { grip: 1, drag: 0 },
+  'engine-off': { grip: 1, drag: 0 },
+  'cruise': { grip: 1, drag: 0 },
+  'slow-mo': { grip: 1, drag: 0 },
+  'fragile': { grip: 1, drag: 0 },
+  'reset': { grip: 1, drag: 0 },
   dirt: { grip: 0.6, drag: 0.04 },
   ice: { grip: 0.18, drag: 0, driveGrip: 0.55 },
   grass: { grip: 0.5, drag: 0.12 },
@@ -229,8 +238,10 @@ const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly 
 }
 
 export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): CarState => {
+  // Sim time this tick: DT, scaled by a slow-motion pad. DT * 1 === DT, so unscaled runs are bit-identical.
+  const dt = DT * (input.timeScale ?? 1)
   const steerTarget = clamp(input.steer, -1, 1) * MAX_STEER * (1 - 0.5 * clamp(length(s.velocity) / MAX_SPEED, 0, 1))
-  const steerDelta = clamp(steerTarget - s.steerAngle, -STEER_RATE * DT, STEER_RATE * DT)
+  const steerDelta = clamp(steerTarget - s.steerAngle, -STEER_RATE * dt, STEER_RATE * dt)
   const steerAngle = s.steerAngle + steerDelta
 
   const up = rotate(s.orientation, v3(0, 1, 0))
@@ -317,11 +328,11 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     const brakeTotal = (brakeInput * BRAKE_FORCE) / 4 + (!wheel.front && input.handbrake ? HANDBRAKE_FORCE / 2 : 0)
     if (brakeTotal > 0) {
       // Never reverse the wheel: cap braking to what stops it this tick.
-      const stopForce = (Math.abs(vLong) * MASS) / 4 / DT
+      const stopForce = (Math.abs(vLong) * MASS) / 4 / dt
       fLong -= Math.sign(vLong) * Math.min(brakeTotal, stopForce)
     }
     const coast = (forwardDrive <= 0 && reverseDrive <= 0 ? COAST_RESISTANCE * normalForce : 0) + handling.drag * normalForce
-    fLong -= Math.sign(vLong) * Math.min(ROLLING / 4 + coast, (Math.abs(vLong) * MASS) / 4 / DT)
+    fLong -= Math.sign(vLong) * Math.min(ROLLING / 4 + coast, (Math.abs(vLong) * MASS) / 4 / dt)
 
     if (handling.driveGrip === undefined) {
       // Friction circle.
@@ -344,7 +355,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     // friction), so it acts outside the friction circle and leaves the lateral grip intact.
     if (handling.maxSpeed !== undefined) {
       const overspeed = clamp((Math.abs(vLong) - handling.maxSpeed) / OVERSPEED_RAMP, 0, 1)
-      fLong -= Math.sign(vLong) * Math.min(OVERSPEED_DRAG * overspeed * normalForce, (Math.abs(vLong) * MASS) / 4 / DT)
+      fLong -= Math.sign(vLong) * Math.min(OVERSPEED_DRAG * overspeed * normalForce, (Math.abs(vLong) * MASS) / 4 / dt)
     }
 
     const wheelForce = add(add(scale(up, normalForce), scale(fwd, fLong)), scale(right, fLat))
@@ -373,11 +384,11 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     }
   }
 
-  const velocity = add(s.velocity, scale(force, DT / MASS))
+  const velocity = add(s.velocity, scale(force, dt / MASS))
   const angAcc = angularAccel(s.orientation, torque)
-  const angularVelocity = scale(add(s.angularVelocity, scale(angAcc, DT)), 0.999)
-  const orientation = integrateQuat(s.orientation, angularVelocity, DT)
-  const moved = collide(add(s.position, scale(velocity, DT)), velocity, fwdBody, surface.obstacles)
+  const angularVelocity = scale(add(s.angularVelocity, scale(angAcc, dt)), 0.999)
+  const orientation = integrateQuat(s.orientation, angularVelocity, dt)
+  const moved = collide(add(s.position, scale(velocity, dt)), velocity, fwdBody, surface.obstacles)
 
   return { ...moved, orientation, angularVelocity, steerAngle, tick: s.tick + 1, turbo, turboForce }
 }
@@ -393,6 +404,9 @@ export const slipAngleDeg = (s: CarState): number => {
 }
 
 // Fixed-timestep driver: consumes real elapsed time, runs whole ticks only.
+/** One tick's input as fed to step(): `tick` is the state's tick before the step. */
+export type FedInput = { tick: number; input: CarInput }
+
 export class FixedStepper {
   private accumulator = 0
   state: CarState
@@ -404,12 +418,19 @@ export class FixedStepper {
     this.surface = surface
   }
 
-  advance(elapsedSeconds: number, input: CarInput): number {
+  /** The inputs fed to step() by the last advance(), one per tick, keyed by the tick they were fed from. */
+  fed: FedInput[] = []
+
+  // `input` is one input for every tick, or a provider asked once per tick with the state about to be stepped.
+  advance(elapsedSeconds: number, input: CarInput | ((s: CarState) => CarInput)): number {
     this.accumulator += Math.min(elapsedSeconds, 0.25)
+    this.fed = []
     let ticks = 0
     while (this.accumulator >= DT) {
+      const fedInput = typeof input === 'function' ? input(this.state) : input
+      this.fed.push({ tick: this.state.tick, input: fedInput })
       this.previous = this.state
-      this.state = step(this.state, input, this.surface)
+      this.state = step(this.state, fedInput, this.surface)
       this.stepped = this.state
       this.accumulator -= DT
       ticks++
@@ -470,6 +491,21 @@ export const materialUnder = (s: CarState, surface: Surface = FLAT): Material =>
     }
   }
   return best
+}
+
+// Ground under the car: materialUnder()'s material, the mean surface normal of the touching wheels
+// (world up when airborne) and how many wheels touch. Read by the effect pads, never by step().
+export const groundUnder = (s: CarState, surface: Surface = FLAT): { material: Material; normal: Vec3; contacts: number } => {
+  const up = rotate(s.orientation, v3(0, 1, 0))
+  let sum = v3()
+  let contacts = 0
+  for (const wheel of WHEELS) {
+    const c = wheelContact(add(s.position, rotate(s.orientation, wheel.mount)), up, surface)
+    if (!c) continue
+    sum = add(sum, c.hit.normal)
+    contacts++
+  }
+  return { material: materialUnder(s, surface), normal: contacts > 0 ? normalize(sum) : v3(0, 1, 0), contacts }
 }
 
 // Number of wheels whose suspension ray reaches the surface (0 = airborne).

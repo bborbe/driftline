@@ -8,7 +8,7 @@
 // Hiding the tab pauses too; R / Backspace from the pause overlay act and resume.
 import { dot, forwardOf, type CarInput, type FixedStepper } from '../physics'
 import { layoutId, type Track } from '../track/schema'
-import { chaseTarget, kmh } from './hud'
+import { chaseTarget, effectChips, kmh } from './hud'
 import { isControlsKey } from './controls'
 import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { earnedMedal, nextMedal, SplitTracker } from './medals'
@@ -144,6 +144,7 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
         // A single-lap run's best is its only lap, which BEST already shows.
         runBest: laps > 1 ? loop.runBestMs : null,
         best: store.best(),
+        effects: effectChips(loop.effects.active()),
       })
     },
   }

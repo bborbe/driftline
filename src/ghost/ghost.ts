@@ -1,7 +1,7 @@
 // Best-run ghost: record per-tick CarInput of each lap, keep the session's fastest run in memory,
 // replay it by re-simulating through the deterministic physics step.
 // Pure TypeScript: no three.js, no clocks, no randomness.
-import { FLAT, interpolate, step, type CarInput, type CarState, type Surface } from '../physics'
+import { FLAT, interpolate, step, type CarInput, type CarState, type FedInput, type Surface } from '../physics'
 import type { RaceEvents } from '../race/lap'
 
 export type GhostRun = {
@@ -66,6 +66,24 @@ export class GhostRecorder {
     const end = this.finish ? this.finish.tick : Infinity
     if (this.start.tick + this.inputs.length < end) this.inputs.push({ ...input })
     this.commitIfComplete()
+  }
+
+  // Call once per frame after the race advanced the sim, with the inputs it fed to step() that frame
+  // (`FixedStepper.fed`): one per tick, so effect pads that gate the input mid-frame record exactly.
+  // An input counts only if it was fed from the next tick the run is missing, so ticks before a
+  // mid-frame lapStart (and a stale `fed` from a frame that did not advance) are skipped.
+  consume(fed: readonly FedInput[]): void {
+    for (const { tick, input } of fed) {
+      const p = this.pending
+      if (p) {
+        if (tick === p.start.tick + p.inputs.length && tick < p.finish.tick) p.inputs.push({ ...input })
+        this.commitPending()
+      }
+      if (!this.start) continue
+      const end = this.finish ? this.finish.tick : Infinity
+      if (tick === this.start.tick + this.inputs.length && tick < end) this.inputs.push({ ...input })
+      this.commitIfComplete()
+    }
   }
 
   // Call once per frame after the race advanced the sim to `toTick` with `input`.
