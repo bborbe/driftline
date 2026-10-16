@@ -1,5 +1,6 @@
 // Structural validation of untrusted track JSON.
 import { ZONE_KINDS, zoneSegments, type Medals, type Pose, type Segment, type Track } from './schema'
+import { validateTheme } from './theme'
 
 /** Structural validation of untrusted JSON. Returns a list of problems, empty when valid. */
 export function validate(data: unknown): string[] {
@@ -71,6 +72,7 @@ export function validate(data: unknown): string[] {
       })
     }
   }
+  if (t.theme !== undefined) errs.push(...validateTheme(t.theme))
   return errs
 }
 

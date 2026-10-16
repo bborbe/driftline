@@ -30,6 +30,40 @@ The start screen shows two groups (↑/↓ switches group, ←/→ picks a track
 
 Any other `assets/track/test*.json` joins the Test group; any other track joins the end of the campaign.
 
+### Track themes
+
+A track file may carry an optional `theme` block that changes its look without touching its layout: it is render-only, not part of the layout id (records carry over), and it works the same in spline tracks and `kit` tracks. Every field is optional; an absent field keeps the default stadium look, and a track with no `theme` renders exactly as before. Test tracks stay on the default. Format and validation: `src/track/theme.ts`; defaults: `src/render/theme.ts`.
+
+```json
+"theme": {
+  "sky": "night",
+  "skyLight": 0.6,
+  "exposure": 0.9,
+  "fog": "#141c33", "fogNear": 120, "fogFar": 700,
+  "sun": "#9fb4ff", "sunIntensity": 0.7,
+  "ground": "#3d5a6b",
+  "curb": "#00c8ff",
+  "sign": "#ff3df0",
+  "screen": "#7a1fa8",
+  "scenery": ["tree_default_dark", "rock_tallA"]
+}
+```
+
+| Field | Default | What it changes |
+|---|---|---|
+| `sky` | `day` | Background and image-based light: `day`, `sunset`, `dusk`, `night` or `overcast` (Poly Haven CC0 HDRIs in `assets/sky/`) |
+| `skyLight` | `0.45` | Strength of the light the sky casts |
+| `exposure` | `1` | Tone-mapping exposure; below 1 darkens the whole frame |
+| `fog`, `fogNear`, `fogFar` | `#b9d4e8`, 250, 1200 | Distance fog colour (match the sky's horizon) and its start / full distance in metres |
+| `sun`, `sunIntensity` | `#fff4e0`, 2.2 | Sun colour and strength (shadows follow it) |
+| `ground` | `#7fc25a` | Grass tint |
+| `curb` | red | Curb stripe accent, alternating with white |
+| `sign` | yellow | Turn-sign chevrons on the black boards; turbo signs keep their yellow / red |
+| `screen` | navy blue | Arena screen background |
+| `scenery` | six trees and rocks | Kenney Nature Kit models (`assets/nature-kit/<name>.glb`) the roadside scenery picks from; add a model's glb there to use it |
+
+Colours are `#rrggbb`. An unknown key, a bad colour or an unknown sky fails validation, so a typo never silently does nothing.
+
 ## Laps
 
 A race is 1 lap by default. Pick 1–10 laps under **Laps** in the start-screen / Esc-menu settings (saved in localStorage), or pass `?laps=N` (e.g. `?track=test2&laps=3`), which overrides the saved setting. In a multi-lap race the HUD shows `LAP 1/3`, split deltas flash at every checkpoint and lap line, and the finish panel shows the total time plus each lap time with the best lap marked. Best time, splits and the top-10 board are kept separately per lap count (1-lap records keep their original keys); medals are single-lap only. The ghost replays the session's best single lap at the start of every lap. R respawns at the current lap's last checkpoint; Backspace restarts at lap 1.
