@@ -14,11 +14,14 @@ type Finish = { tick: number; lapTimeMs: number }
 
 // The race emits lap events from inside a frame that advances several ticks with one input,
 // so the recorder is fed per frame (`frame`) and counts ticks itself. A lap with a respawn or
-// restart teleports the car and cannot be replayed, so it is dropped.
+// restart teleports the car and cannot be replayed, so it is dropped. In a multi-lap run the next lap
+// starts on the same tick the last one finished, before that frame's inputs are recorded, so the
+// finished lap waits in `pending` until its inputs are complete.
 export class GhostRecorder {
   private start: CarState | null = null
   private inputs: CarInput[] = []
   private finish: Finish | null = null
+  private pending: { start: CarState; inputs: CarInput[]; finish: Finish } | null = null
   best: GhostRun | null = null
 
   // Race listener; `car` returns the sim state at the moment the event fires.
@@ -33,6 +36,7 @@ export class GhostRecorder {
   }
 
   lapStart(car: CarState): void {
+    if (this.start && this.finish) this.pending = { start: this.start, inputs: this.inputs, finish: this.finish }
     this.start = car
     this.inputs = []
     this.finish = null
@@ -52,6 +56,12 @@ export class GhostRecorder {
 
   // Call once per physics tick with the input fed to step().
   record(input: CarInput): void {
+    if (this.pending) {
+      const p = this.pending
+      if (p.start.tick + p.inputs.length < p.finish.tick) p.inputs.push({ ...input })
+      this.commitPending()
+      return
+    }
     if (!this.start) return
     const end = this.finish ? this.finish.tick : Infinity
     if (this.start.tick + this.inputs.length < end) this.inputs.push({ ...input })
@@ -60,6 +70,11 @@ export class GhostRecorder {
 
   // Call once per frame after the race advanced the sim to `toTick` with `input`.
   frame(input: CarInput, toTick: number): void {
+    const p = this.pending
+    if (p) {
+      while (p.start.tick + p.inputs.length < Math.min(toTick, p.finish.tick)) p.inputs.push({ ...input })
+      this.commitPending()
+    }
     if (!this.start) return
     const end = Math.min(toTick, this.finish ? this.finish.tick : Infinity)
     while (this.start && this.start.tick + this.inputs.length < end) this.record(input)
@@ -68,8 +83,21 @@ export class GhostRecorder {
 
   private commitIfComplete(): void {
     if (!this.start || !this.finish || this.start.tick + this.inputs.length < this.finish.tick) return
-    if (!this.best || this.finish.lapTimeMs < this.best.lapTimeMs) this.best = { start: this.start, inputs: this.inputs, lapTimeMs: this.finish.lapTimeMs }
-    this.drop()
+    this.keep(this.start, this.inputs, this.finish)
+    this.start = null
+    this.inputs = []
+    this.finish = null
+  }
+
+  private commitPending(): void {
+    const p = this.pending
+    if (!p || p.start.tick + p.inputs.length < p.finish.tick) return
+    this.pending = null
+    this.keep(p.start, p.inputs, p.finish)
+  }
+
+  private keep(start: CarState, inputs: CarInput[], finish: Finish): void {
+    if (!this.best || finish.lapTimeMs < this.best.lapTimeMs) this.best = { start, inputs, lapTimeMs: finish.lapTimeMs }
   }
 }
 

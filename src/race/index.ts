@@ -3,7 +3,8 @@
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
 // Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, Esc = pause menu
 // (Resume / Restart / Settings / Back to menu, arrows + Enter or mouse; Esc again resumes).
-// Checkpoints and the finish flash the split delta vs the personal best; the finish panel shows medals.
+// Checkpoints, lap lines and the finish flash the split delta vs the personal best; the finish panel shows
+// medals (single-lap runs only) and, in a multi-lap run (`laps`), each lap time with the best one marked.
 // Hiding the tab pauses too; R / Backspace from the pause overlay act and resume.
 import { TICK_HZ, type CarInput, type FixedStepper } from '../physics'
 import { layoutId, type Track } from '../track/schema'
@@ -23,6 +24,8 @@ export interface RaceOptions {
   onPause?: (paused: boolean) => void
   /** Esc-menu / finish-panel navigation; without it the pause overlay only shows key hints. */
   menu?: Pick<MenuActions, 'backToMenu' | 'nextTrack' | 'settings'>
+  /** Laps per run (default 1); `?laps=N` via lapCount, or the menu's Laps setting. Records are kept per lap count. */
+  laps?: number
 }
 
 export interface Race {
@@ -36,8 +39,13 @@ export interface Race {
 }
 
 export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}): Race {
-  const store = new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track))
-  const loop = new LapLoop(track, (ms) => store.recordLap(ms))
+  const laps = opts.laps ?? 1
+  const store = new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track), laps)
+  const loop = new LapLoop(track, (ms) => store.recordLap(ms), laps)
+  // Medal targets are single-lap times.
+  const medals = laps === 1 ? track.medals : undefined
+  // Splits run over the whole run: each lap's checkpoints, then its line, numbered on from the lap before.
+  const perLap = loop.checkpointCount + 1
   let pending: 'respawn' | 'restart' | null = null
   const menu = opts.menu
   const view = new RaceView(
@@ -47,16 +55,21 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
   const splits = new SplitTracker()
   for (const l of opts.listeners ?? []) loop.on(l)
   loop.on({
-    lapStart: () => splits.begin(store.best(), store.bestSplits()),
-    checkpoint: (t, i) => view.showSplit(splits.checkpoint(i, loop.lapTimeMs(t))),
-    lapFinish: (_t, ms, isNewBest) => {
-      // store.best() is already this lap when it is a new best; the delta is against the previous one.
+    lapStart: (_t, lap) => {
+      if (lap === 1) splits.begin(store.best(), store.bestSplits())
+    },
+    checkpoint: (t, i) => view.showSplit(splits.checkpoint((loop.lap - 1) * perLap + i, loop.lapTimeMs(t))),
+    lapFinish: (t, _ms, lap) => {
+      if (lap < laps) view.showSplit(splits.checkpoint(lap * perLap, loop.lapTimeMs(t)))
+    },
+    raceFinish: (_t, ms, isNewBest, lapTimes) => {
+      // store.best() is already this run when it is a new best; the delta is against the previous one.
       view.showSplit(splits.finish(ms))
       if (isNewBest) store.recordSplits(splits.splits)
-      const medal = track.medals ? earnedMedal(track.medals, ms) : null
-      if (track.medals) store.recordMedal(medal)
-      const next = track.medals ? nextMedal(medal) : null
-      view.showFinish(ms, isNewBest, track.medals && { earned: medal, next, nextMs: next && track.medals[next], best: store.bestMedal() })
+      const medal = medals ? earnedMedal(medals, ms) : null
+      if (medals) store.recordMedal(medal)
+      const next = medals ? nextMedal(medal) : null
+      view.showFinish(ms, isNewBest, medals && { earned: medal, next, nextMs: next && medals[next], best: store.bestMedal() }, lapTimes)
     },
   })
   sim.state = loop.spawn()
@@ -113,6 +126,7 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
         countdown: loop.phase === 'countdown' ? Math.ceil(left / TICK_HZ) : null,
         time: formatLapTime(loop.lapTimeMs(tick)),
         checkpoints: `${loop.passed}/${loop.checkpointCount}`,
+        lap: laps > 1 ? `${loop.lap}/${laps}` : null,
         best: store.best(),
       })
     },

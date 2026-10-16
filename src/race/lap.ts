@@ -17,15 +17,32 @@ export const GROUND_Y = 0
 export const FALL_DEPTH = 5
 /** Auto-respawn after this many ticks with no wheel on any surface (normal jumps last < 2 s). */
 export const MAX_AIRBORNE_TICKS = 3 * TICK_HZ
+/** Upper bound for `?laps=N`. */
+export const MAX_LAPS = 10
+
+/** A whole lap count in 1..MAX_LAPS, or `fallback` for anything else. */
+export const clampLaps = (n: unknown, fallback = 1): number =>
+  typeof n === 'number' && Number.isInteger(n) && n >= 1 ? Math.min(n, MAX_LAPS) : fallback
+
+/** Lap count: `?laps=N` wins when valid (shared links), else `fallback` (the saved setting); capped at MAX_LAPS. */
+export function lapCount(search: string, fallback = 1): number {
+  const q = new URLSearchParams(search).get('laps')
+  return clampLaps(q === null || q === '' ? NaN : Number(q), fallback)
+}
 
 export type Phase = 'ready' | 'countdown' | 'racing' | 'finished'
 
 export interface RaceEvents {
   /** Start countdown: 3, 2, 1 as each second begins, then 0 on GO. */
   countdown?(tick: number, n: number): void
-  lapStart?(tick: number): void
+  /** Each lap's start: GO for lap 1, the start/finish crossing for later laps. `lap` is 1-based. */
+  lapStart?(tick: number, lap: number): void
+  /** Checkpoint `index` (1-based, per lap) passed. */
   checkpoint?(tick: number, index: number): void
-  lapFinish?(tick: number, lapTimeMs: number, isNewBest: boolean): void
+  /** A lap crossed the start/finish line; `lapTimeMs` is that lap alone. Fires for every lap, the last included. */
+  lapFinish?(tick: number, lapTimeMs: number, lap: number): void
+  /** The run is over after the last lap: total time, whether it beats the stored best, each lap's time. */
+  raceFinish?(tick: number, totalMs: number, isNewBest: boolean, lapTimes: number[]): void
   respawn?(tick: number): void
   /** Backspace restart: the car is back on the start line, the short countdown begins. */
   restart?(tick: number): void
@@ -39,7 +56,13 @@ export class LapLoop {
   phase: Phase = 'ready'
   /** Checkpoints passed this lap (0..checkpoints.length). */
   passed = 0
+  /** Current lap, 1-based (1..laps). */
+  lap = 1
+  /** Times (ms) of the laps finished so far this run. */
+  lapTimes: number[] = []
+  readonly laps: number
   private startTick = 0
+  private lapStartTick = 0
   private finishTick = 0
   private lastPosition: Vec3 | null = null
   private readonly checkpoints: GatePose[]
@@ -47,15 +70,17 @@ export class LapLoop {
   private readonly listeners: RaceEvents[] = []
 
   private readonly track: Track
-  private readonly isNewBest: (lapTimeMs: number) => boolean
+  private readonly isNewBest: (totalMs: number) => boolean
   private countdownEndTick = 0
   private lastCountdown = -1
   private airborneTicks = 0
   private lastTick = 0
 
-  constructor(track: Track, isNewBest: (lapTimeMs: number) => boolean) {
+  /** `isNewBest` judges the run's total time; `laps` is the number of laps in a run (default 1). */
+  constructor(track: Track, isNewBest: (totalMs: number) => boolean, laps = 1) {
     this.track = track
     this.isNewBest = isNewBest
+    this.laps = laps
     this.checkpoints = track.gates.filter((g) => g.kind === 'checkpoint').map((g) => ({ pose: gateLine(track, g) }))
     const sf = track.gates.find((g) => g.kind === 'start-finish')
     this.finish = { pose: sf ? gateLine(track, sf) : track.start }
@@ -87,7 +112,7 @@ export class LapLoop {
     return this.phase === 'countdown' ? Math.max(0, this.countdownEndTick - tick) : 0
   }
 
-  /** Elapsed lap time in ms at `tick` (0 before go, frozen once finished). */
+  /** Elapsed run time in ms at `tick`, all laps so far (0 before go, frozen once finished). */
   lapTimeMs(tick: number): number {
     if (this.phase === 'ready' || this.phase === 'countdown') return 0
     const end = this.phase === 'finished' ? this.finishTick : tick
@@ -112,9 +137,10 @@ export class LapLoop {
       if (tick >= this.countdownEndTick) {
         this.phase = 'racing'
         this.startTick = tick
+        this.lapStartTick = tick
         this.lastPosition = car.position
         this.airborneTicks = 0
-        this.emit((l) => l.lapStart?.(tick))
+        this.emit((l) => l.lapStart?.(tick, 1))
       }
       return null
     }
@@ -134,16 +160,28 @@ export class LapLoop {
       return null
     }
     if (crosses(this.finish.pose, prev, car.position)) {
+      const lap = this.lap
+      const lapMs = ((tick - this.lapStartTick) * 1000) / TICK_HZ
+      this.lapTimes = [...this.lapTimes, lapMs]
+      this.emit((l) => l.lapFinish?.(tick, lapMs, lap))
+      if (lap < this.laps) {
+        this.lap++
+        this.passed = 0
+        this.lapStartTick = tick
+        this.emit((l) => l.lapStart?.(tick, lap + 1))
+        return null
+      }
       this.phase = 'finished'
       this.finishTick = tick
-      const ms = this.lapTimeMs(tick)
-      const best = this.isNewBest(ms)
-      this.emit((l) => l.lapFinish?.(tick, ms, best))
+      const total = this.lapTimeMs(tick)
+      const best = this.isNewBest(total)
+      const times = this.lapTimes
+      this.emit((l) => l.raceFinish?.(tick, total, best, times))
     }
     return null
   }
 
-  /** Car state at the last passed checkpoint (start line before the first), at rest. */
+  /** Car state at the current lap's last passed checkpoint (start line before the first), at rest. */
   respawn(tick: number): CarState {
     const pose = this.passed === 0 ? this.track.start : this.checkpoints[this.passed - 1].pose
     const car = { ...createCarAt(pose), tick }
@@ -153,11 +191,13 @@ export class LapLoop {
     return car
   }
 
-  /** Back to a short countdown at the start line; `tick` is the current tick. */
+  /** Back to a short countdown at the start line, lap 1; `tick` is the current tick. */
   restart(tick: number): CarState {
     if (this.phase === 'ready') return { ...this.spawn(), tick } // still waiting for Begin
     this.phase = 'countdown'
     this.passed = 0
+    this.lap = 1
+    this.lapTimes = []
     this.lastPosition = null
     this.airborneTicks = 0
     this.countdownEndTick = tick + RESTART_COUNTDOWN_TICKS

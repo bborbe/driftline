@@ -28,6 +28,8 @@ export interface HudState {
   countdown: number | null
   time: string
   checkpoints: string
+  /** `2/3` in a multi-lap run, null for a single lap (HUD unchanged). */
+  lap: string | null
   best: number | null
 }
 
@@ -88,7 +90,8 @@ export class RaceView {
   render(s: HudState): void {
     this.countdown.textContent = s.countdown === null ? '' : String(s.countdown)
     const best = s.best === null ? '--' : formatLapTime(s.best)
-    this.hud.textContent = `${s.time}   CP ${s.checkpoints}   BEST ${best}   [R] respawn [⌫] restart [L] leaderboard`
+    const lap = s.lap === null ? '' : `LAP ${s.lap}   `
+    this.hud.textContent = `${lap}${s.time}   CP ${s.checkpoints}   BEST ${best}   [R] respawn [⌫] restart [L] leaderboard`
   }
 
   /** Flash a split delta (blue ahead, red behind); null hides it. */
@@ -107,9 +110,11 @@ export class RaceView {
     this.pauseMenu?.focus(0)
   }
 
-  showFinish(lapTimeMs: number, isNewBest: boolean, medals?: MedalResult): void {
+  /** `lapTimeMs` is the run total; `lapTimes` (multi-lap runs) are listed with the best lap marked. */
+  showFinish(lapTimeMs: number, isNewBest: boolean, medals?: MedalResult, lapTimes: number[] = []): void {
     this.panel.hidden = false
     this.panel.replaceChildren(el('h2', '', `${isNewBest ? 'NEW BEST! ' : ''}${formatLapTime(lapTimeMs)}`))
+    if (lapTimes.length > 1) this.panel.append(lapList(lapTimes))
     if (medals) this.panel.append(medalLine(medals))
     if (!this.store.qualifies(lapTimeMs)) {
       this.panel.append(this.board(), this.finishActions())
@@ -172,6 +177,13 @@ export class RaceView {
     box.append(ol)
     return box
   }
+}
+
+function lapList(lapTimes: number[]): HTMLElement {
+  const best = Math.min(...lapTimes)
+  const ol = el('ol', 'race-laps')
+  lapTimes.forEach((ms, i) => ol.append(el('li', ms === best ? 'race-mine' : '', `LAP ${i + 1}  ${formatLapTime(ms)}${ms === best ? '  BEST' : ''}`)))
+  return ol
 }
 
 function medalLine(m: MedalResult): HTMLElement {

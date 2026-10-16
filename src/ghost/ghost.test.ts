@@ -70,10 +70,10 @@ describe('ghost', () => {
       const before = sim.state.tick
       // Like race.frame: one input for the whole frame, events after the advance.
       sim.advance(0.017 + (frameNo % 3) * 0.004, input)
-      if (before < startTick && sim.state.tick >= startTick) events.lapStart!(sim.state.tick)
+      if (before < startTick && sim.state.tick >= startTick) events.lapStart!(sim.state.tick, 1)
       else if (before >= startTick && sim.state.tick >= startTick + 800) {
         finishTick = sim.state.tick
-        events.lapFinish!(finishTick, 8000, true)
+        events.lapFinish!(finishTick, 8000, 1)
       }
       rec.frame(input, sim.state.tick)
     }
@@ -89,7 +89,7 @@ describe('ghost', () => {
     const rec = new GhostRecorder()
     const sim = new FixedStepper(createCar())
     const events = rec.listener(() => sim.state)
-    events.lapStart!(sim.state.tick)
+    events.lapStart!(sim.state.tick, 1)
     let frameNo = 0
     const ghost = (): GhostReplayer | null => (rec.best ? new GhostReplayer(rec.best) : null)
     while (sim.state.tick < 800) {
@@ -98,7 +98,7 @@ describe('ghost', () => {
       if (frameNo < 200 || frameNo >= 500) sim.advance(0.017 + (frameNo % 3) * 0.004, input)
       rec.frame(input, sim.state.tick)
     }
-    events.lapFinish!(sim.state.tick, 8000, true)
+    events.lapFinish!(sim.state.tick, 8000, 1)
     expect(rec.best!.inputs.length).toBe(sim.state.tick)
     expect(ghost()!.advanceTo(rec.best!.inputs.length).position).toEqual(sim.state.position)
   })
@@ -106,22 +106,59 @@ describe('ghost', () => {
   it('keeps a ghost even when the race says the lap is not a new all-time best', () => {
     const rec = new GhostRecorder()
     const events = rec.listener(() => createCar())
-    events.lapStart!(0)
+    events.lapStart!(0, 1)
     rec.frame(steady(), 300)
-    events.lapFinish!(300, 70_000, false) // persisted record from an earlier session is faster
+    events.lapFinish!(300, 70_000, 1) // persisted record from an earlier session is faster
     rec.frame(steady(), 300)
     expect(rec.best!.lapTimeMs).toBe(70_000)
     expect(rec.best!.inputs.length).toBe(300)
   })
 
+  it('multi-lap: the next lap starts on the finish tick, mid-frame, and every lap still replays exactly', () => {
+    const rec = new GhostRecorder()
+    const sim = new FixedStepper(createCar())
+    const events = rec.listener(() => sim.state)
+    const lapTicks = [700, 600, 650] // lap 2 is the fastest
+    const kept: number[] = []
+    let lapStartTick = 0
+    let lap = 0
+    let frameNo = 0
+    events.lapStart!(sim.state.tick, 1)
+    const startStates = [sim.state]
+    while (lap < 3) {
+      const input = script(frameNo++)
+      sim.advance(0.017 + (frameNo % 3) * 0.004, input)
+      if (sim.state.tick - lapStartTick >= lapTicks[lap]) {
+        // Like LapLoop: lapFinish, then the next lapStart on the same tick, both before rec.frame.
+        events.lapFinish!(sim.state.tick, lapTicks[lap] * 10, lap + 1)
+        lapStartTick = sim.state.tick
+        lap++
+        if (lap < 3) {
+          events.lapStart!(sim.state.tick, lap + 1)
+          startStates.push(sim.state)
+        }
+      }
+      rec.frame(input, sim.state.tick)
+      if (rec.best && kept.at(-1) !== rec.best.lapTimeMs) kept.push(rec.best.lapTimeMs)
+    }
+    expect(kept).toEqual([7000, 6000]) // lap 1 kept, then the faster lap 2; lap 3 (6500) not
+    const run = rec.best!
+    expect(run.start).toEqual(startStates[1])
+    // The lap 2 replay lands exactly where the live car crossed the line into lap 3.
+    const replay = new GhostReplayer(run)
+    const lap3Start = startStates[1].tick + run.inputs.length
+    expect(lap3Start).toBeGreaterThanOrEqual(startStates[1].tick + 600)
+    expect(replay.advanceTo(run.inputs.length).tick).toBe(lap3Start)
+  })
+
   it('drops a lap that had a respawn', () => {
     const rec = new GhostRecorder()
     const events = rec.listener(() => createCar())
-    events.lapStart!(0)
+    events.lapStart!(0, 1)
     rec.frame(steady(), 100)
     events.respawn!(100)
     rec.frame(steady(), 200)
-    events.lapFinish!(200, 2000, true)
+    events.lapFinish!(200, 2000, 1)
     expect(rec.best).toBeNull()
   })
 

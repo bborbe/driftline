@@ -6,6 +6,7 @@ import { createView } from './render/view'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './render/track/lap'
 import { GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
+import { lapCount } from './race/lap'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 import { mountBuildLabel } from './build-info'
 import { debugPose, frozen, poseQuery, yawDeg } from './race/debug-pose'
@@ -30,6 +31,7 @@ mountBuildLabel()
 
 const input = new KeyboardInput()
 const audio = new GameAudio()
+const laps = lapCount(location.search, settings.laps)
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
 const ghostRecorder = new GhostRecorder()
 const ghostCar = await createGhostCar()
@@ -41,12 +43,16 @@ const race = initRace(sim, track, {
     {
       countdown: (_t, n) => audio.onCountdown(n),
       checkpoint: () => audio.onCheckpoint(),
-      lapFinish: () => audio.onFinish(),
+      // A lap line before the last lap chimes like a checkpoint.
+      lapFinish: (_t, _ms, lap) => {
+        if (lap < laps) audio.onCheckpoint()
+      },
+      raceFinish: () => audio.onFinish(),
       respawn: () => audio.onRespawn(),
     },
     ghostRecorder.listener(() => sim.state),
     {
-      // Each new lap replays the best run so far from its own start line.
+      // Each new lap (every lap of a multi-lap run too) replays the best single lap so far from its own start line.
       lapStart: (tick) => {
         lapStartTick = tick
         ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
@@ -71,6 +77,7 @@ const race = initRace(sim, track, {
     nextTrack: () => location.assign(`${location.pathname}?track=${nextLap(track.name)}`),
     settings: () => settingsPanel({ onVolume: (v) => audio.setVolume(v) }),
   },
+  laps,
 })
 // Begin is ignored while paused (Esc); unpause first.
 mountAudioControls(audio, () => race.start(), () => !race.paused, settings.volume, (volume) =>

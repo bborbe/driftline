@@ -7,8 +7,9 @@ const NAME_KEY = 'driftline-last-name'
 /** lap1 keeps the original unsuffixed keys so existing best times and boards survive. */
 const LEGACY_TRACK = 'lap1'
 // Other tracks are keyed by name and layout, so a redesigned track starts a fresh board.
-const suffix = (track: string, layout: string) =>
-  track === LEGACY_TRACK ? '' : layout ? `-${track}-${layout}` : `-${track}`
+// Multi-lap runs get their own records: a 3-lap total never competes with 1-lap times.
+const suffix = (track: string, layout: string, laps: number) =>
+  (track === LEGACY_TRACK ? '' : layout ? `-${track}-${layout}` : `-${track}`) + (laps > 1 ? `-laps${laps}` : '')
 
 export interface LeaderboardEntry {
   name: string
@@ -25,13 +26,13 @@ export class RaceStore {
   private readonly splitsKey: string
   private readonly medalKey: string
 
-  /** Best time and leaderboard are kept per track and layout (see layoutId); the last player name is shared. */
-  constructor(storage: KeyValueStore, track: string = LEGACY_TRACK, layout = '') {
+  /** Best time and leaderboard are kept per track, layout (see layoutId) and lap count; the last player name is shared. */
+  constructor(storage: KeyValueStore, track: string = LEGACY_TRACK, layout = '', laps = 1) {
     this.storage = storage
-    this.bestKey = `driftline-best${suffix(track, layout)}`
-    this.boardKey = `driftline-leaderboard${suffix(track, layout)}`
-    this.splitsKey = `driftline-splits${suffix(track, layout)}`
-    this.medalKey = `driftline-medal${suffix(track, layout)}`
+    this.bestKey = `driftline-best${suffix(track, layout, laps)}`
+    this.boardKey = `driftline-leaderboard${suffix(track, layout, laps)}`
+    this.splitsKey = `driftline-splits${suffix(track, layout, laps)}`
+    this.medalKey = `driftline-medal${suffix(track, layout, laps)}`
   }
 
   best(): number | null {
