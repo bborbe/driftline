@@ -21,6 +21,12 @@ export const TURN_SIGN_SPACING = 12
 const MAX_TURN_SIGNS = 4
 /** Roads more than this far above or below a board do not block it. */
 const LEVEL = 4
+/**
+ * Boards stand on the ground beside the road: none where the road runs higher than this (decks,
+ * ramp tops), where a board past the edge would hang over the void on stilts. Deck edges belong to
+ * the deck's own walls.
+ */
+export const GROUND_LEVEL = 1
 
 const turnSign = (seg: Segment): number => ('turn' in seg && seg.turn === 'right' ? -1 : 1)
 
@@ -36,6 +42,7 @@ export const planSigns = (track: Track): Sign[] => {
     const count = Math.min(MAX_TURN_SIGNS, Math.max(1, Math.round(segmentLength(seg) / TURN_SIGN_SPACING)))
     for (let k = 0; k < count; k++) {
       const p = sampleSegment(ps[i], seg, k / count)
+      if (p.y >= GROUND_LEVEL) continue
       // The outside of the turn is away from its centre (u = +s·r): u = -s·offset. Stand at the
       // road edge's height, so a board on a banked turn's raised side is not buried.
       const [x, , z] = lateralPoint(p, -s * SIGN_OFFSET, s)
@@ -46,6 +53,7 @@ export const planSigns = (track: Track): Sign[] => {
   for (const zone of track.zones ?? []) {
     if (zone.kind !== 'turbo' && zone.kind !== 'turbo-red') continue
     const [left, right] = zoneCorners(track, zone, 2 * SIGN_OFFSET)
+    if (left.y >= GROUND_LEVEL) continue
     for (const c of [left, right]) signs.push({ kind: zone.kind, x: c.x, y: c.y, z: c.z, heading: c.heading + Math.PI })
   }
   return signs.filter(clear)

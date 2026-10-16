@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { centreline } from '../../track/centreline'
+import type { Track } from '../../track/schema'
 import { FIXTURE_TRACK } from '../track/fixture'
-import { loadLap } from '../track/lap'
-import { planSigns, SIGN_CLEARANCE } from './signs'
+import { LAP_NAMES, loadLap } from '../track/lap'
+import { GROUND_LEVEL, planSigns, SIGN_CLEARANCE } from './signs'
 
-const tracks = { lap1: loadLap('lap1'), lap2: loadLap('lap2'), fixture: FIXTURE_TRACK }
+// Every shipped track (campaign, test and multi-level) plus the all-segment-types fixture.
+const tracks: Record<string, Track> = { ...Object.fromEntries(LAP_NAMES.map((n) => [n, loadLap(n)])), fixture: FIXTURE_TRACK }
 
 describe('planSigns', () => {
   for (const [name, track] of Object.entries(tracks)) {
@@ -18,8 +20,17 @@ describe('planSigns', () => {
     })
   }
 
-  it('lap2: chevrons both ways and a turbo board each side of both pads', () => {
-    const kinds = planSigns(tracks.lap2).map((s) => s.kind)
+  it('stands every board on ground-level road, never on a deck (tower, crossover)', () => {
+    for (const name of ['tower', 'crossover']) {
+      const signs = planSigns(tracks[name])
+      expect(signs.length, name).toBeGreaterThan(0)
+      // y is the road edge's height: a banked turn's raised outside stays well under a deck.
+      for (const s of signs) expect(s.y, name).toBeLessThan(GROUND_LEVEL + 2)
+    }
+  })
+
+  it('test2: chevrons both ways and a turbo board each side of both pads', () => {
+    const kinds = planSigns(tracks.test2).map((s) => s.kind)
     expect(kinds).toContain('left')
     expect(kinds).toContain('right')
     expect(kinds.filter((k) => k === 'turbo')).toHaveLength(2)

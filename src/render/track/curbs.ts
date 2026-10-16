@@ -63,6 +63,7 @@ export const curbDecals = (track: Track): { red: Ribbons; white: Ribbons } => {
   const ps = poses(track)
   let parity = 0
   track.segments.forEach((seg, i) => {
+    if (seg.type === 'gap') return // no road to stripe over a jump
     const n = Math.max(1, Math.round(segmentLength(seg) / STRIPE_LENGTH))
     for (let k = 0; k < n; k++) {
       const into = (parity + k) % 2 === 0 ? red : white

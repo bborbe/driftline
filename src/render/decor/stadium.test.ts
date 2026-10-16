@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { centreline } from '../../track/centreline'
+import type { Track } from '../../track/schema'
 import { CLEARANCE } from '../scenery'
 import { FIXTURE_TRACK } from '../track/fixture'
-import { loadLap } from '../track/lap'
+import { LAP_NAMES, loadLap } from '../track/lap'
 import { planStadium, STADIUM_GAP } from './stadium'
 
-const tracks = { lap1: loadLap('lap1'), lap2: loadLap('lap2'), fixture: FIXTURE_TRACK }
+// Every shipped track (campaign, test and multi-level) plus the all-segment-types fixture.
+const tracks: Record<string, Track> = { ...Object.fromEntries(LAP_NAMES.map((n) => [n, loadLap(n)])), fixture: FIXTURE_TRACK }
 
 describe('planStadium', () => {
   for (const [name, track] of Object.entries(tracks)) {
@@ -23,7 +25,7 @@ describe('planStadium', () => {
   }
 
   it('faces every stand toward the track', () => {
-    const track = tracks.lap2
+    const track = tracks.test2
     const line = centreline(track, 4)
     const cx = line.reduce((a, p) => a + p.x, 0) / line.length
     const cz = line.reduce((a, p) => a + p.z, 0) / line.length

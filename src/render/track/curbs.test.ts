@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Track } from '../../track/schema'
 import { CURB_INNER, CURB_OUTER, CURB_TOP, curbDecals, DECAL_LIFT, EDGE_LINE, STRIPE_LENGTH } from './curbs'
-import { loadLap } from './lap'
+import { LAP_NAMES, loadLap } from './lap'
 
 const straight = (...lengths: number[]): Track => ({
   name: 't',
@@ -41,7 +41,13 @@ describe('curbDecals', () => {
     }
   })
 
-  for (const name of ['lap1', 'lap2']) {
+  it('leaves a gap (a jump with no road) bare', () => {
+    const track: Track = { ...straight(10), segments: [{ type: 'straight', length: 10 }, { type: 'gap', length: 10 }, { type: 'straight', length: 10 }] }
+    const { red, white } = curbDecals(track)
+    for (const r of [red, white]) for (const [, , z] of vertices(r.positions)) expect(z <= 10 + 1e-6 || z >= 20 - 1e-6).toBe(true)
+  })
+
+  for (const name of LAP_NAMES) {
     it(`${name}: covers every segment with finite, indexed geometry`, () => {
       const { red, white } = curbDecals(loadLap(name))
       for (const r of [red, white]) {
