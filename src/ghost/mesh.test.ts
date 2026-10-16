@@ -1,4 +1,4 @@
-import * as THREE from 'three'
+import * as THREE from 'three/webgpu'
 import { describe, expect, it } from 'vitest'
 import { createCar } from '../physics'
 import { createGhostMesh, placeGhost } from './mesh'

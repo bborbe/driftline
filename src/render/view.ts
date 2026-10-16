@@ -9,6 +9,8 @@ export type View = {
   renderer: THREE.WebGPURenderer
   camera: THREE.PerspectiveCamera
   backend: 'WebGPU' | 'WebGL2'
+  /** For extra scene objects owned elsewhere (e.g. the ghost car). */
+  scene: THREE.Scene
   /** Pose the car from physics state and draw one frame. */
   frame: (state: CarState) => void
 }
@@ -91,5 +93,5 @@ export const createView = async (track: Track): Promise<View> => {
     renderer.render(scene, camera)
   }
 
-  return { renderer, camera, backend, frame }
+  return { renderer, camera, backend, scene, frame }
 }

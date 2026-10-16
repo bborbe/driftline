@@ -1,5 +1,5 @@
 // Translucent ghost car, same silhouette as the player car.
-import * as THREE from 'three'
+import * as THREE from 'three/webgpu'
 import type { CarState } from '../physics'
 
 export const GHOST_OPACITY = 0.35
