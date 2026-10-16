@@ -129,7 +129,8 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
         countdown: loop.phase === 'countdown' ? Math.ceil(left / TICK_HZ) : null,
         time: formatLapTime(loop.lapTimeMs(tick)),
         checkpoints: `${loop.passed}/${loop.checkpointCount}`,
-        lap: laps > 1 ? `${loop.lap}/${laps}` : null,
+        lap: `${loop.lap}/${laps}`,
+        runBest: loop.runBestMs,
         best: store.best(),
       })
     },

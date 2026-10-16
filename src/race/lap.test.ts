@@ -240,6 +240,20 @@ describe('LapLoop multi-lap', () => {
     expect(loop.lap).toBe(1)
     expect(loop.lapTimes).toEqual([])
   })
+
+  it('tracks the run best lap: null before the first lap, the fastest after, null again after restart', () => {
+    const { loop } = race(() => true, 3)
+    let { car } = race()
+    expect(loop.runBestMs).toBeNull()
+    car = lapOf(loop, car, 300)
+    const first = loop.lapTimes[0]
+    expect(loop.runBestMs).toBe(first)
+    car = lapOf(loop, car)
+    expect(loop.runBestMs).toBe(loop.lapTimes[1])
+    expect(loop.runBestMs).toBe(first - 3000)
+    loop.restart(car.tick + 1)
+    expect(loop.runBestMs).toBeNull()
+  })
 })
 
 describe('lapCount', () => {
