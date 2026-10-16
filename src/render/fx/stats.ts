@@ -1,19 +1,27 @@
 // Frame-time statistics for the HUD "1% low": the 1st percentile of per-frame fps over a sliding window.
 export const STATS_WINDOW_S = 60
+/** Frames ignored after start: shader compilation stalls the first ones, which is loading, not driving. */
+export const STATS_WARMUP_S = 3
 
 export class FrameStats {
   private times: number[] = [] // ms timestamps
   private fps: number[] = []
 
   private readonly windowS: number
+  private warmup: number
 
-  constructor(windowS = STATS_WINDOW_S) {
+  constructor(windowS = STATS_WINDOW_S, warmupS = STATS_WARMUP_S) {
     this.windowS = windowS
+    this.warmup = warmupS
   }
 
   /** Record one frame that ended at `nowMs` and took `dtS` seconds. */
   push(nowMs: number, dtS: number): void {
     if (dtS <= 0) return
+    if (this.warmup > 0) {
+      this.warmup -= dtS
+      return
+    }
     this.times.push(nowMs)
     this.fps.push(1 / dtS)
     let drop = 0

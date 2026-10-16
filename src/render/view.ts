@@ -82,7 +82,7 @@ export const createView = async (track: Track): Promise<View> => {
     sinceLabel += dt
     if (sinceLabel >= 0.5) {
       sinceLabel = 0
-      fpsLabel.textContent = `1% low ${stats.onePercentLow().toFixed(1)} fps · avg ${stats.average().toFixed(0)}`
+      fpsLabel.textContent = stats.count === 0 ? "1% low — (warming up)" : `1% low ${stats.onePercentLow().toFixed(1)} fps · avg ${stats.average().toFixed(0)}`
     }
   }
 
