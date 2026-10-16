@@ -35,6 +35,20 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 - The renderer logs `renderer: WebGPU` or `renderer: WebGL2` on startup; keep that line, it is how runs are verified.
 - **Original assets only** — no Nadeo assets, branding, or decompiled code.
 
+### Always hold
+
+The why for each rule is in the PR it cites and in the operator's *3D Browser Game Development Guide*.
+
+- **One shape, one function:** collider and mesh come from the same function in `src/track/` (`bank.ts`, `gatePillars()`, `gateLine()`). Never draw a second formula for a shape physics already knows; render vertices match physics raycasts within 1 mm (#21, #25, #38, #45).
+- **Render interpolates:** draw `FixedStepper.render()` (blends the last two ticks by `alpha = accumulator / DT`), never the latest tick; snap when state is replaced outside `advance()` (#37).
+- **Constant road width:** never scale a corner model by radius; draw non-native radii procedurally (#23).
+- **Decals sit above the road:** road top + 3 mm, `polygonOffset(-1,-1)`, `depthWrite` off, clipped to the asphalt (#47). Double-sided casters use `shadowSide = BackSide` (#26).
+- **Assets resolve on Pages:** bundle every texture a glb references (`import.meta.glob(?url)` + `setURLModifier`); check with `vite preview` under `/driftline/`, not only `make run` (#26).
+- **Tests drive the real path:** no hand-set flags the game never produces; go through `advanceRace` / the autopilot lap (#12, #17, #22).
+- **Records are keyed by layout:** `driftline-best-<track>-<layoutId>[-lapsN]` (lap1 keeps its legacy key); a layout or lap-count change gets a new key (#30, #46).
+- **Audio is synthesized:** no audio files; every loop fades to silence on finish (#50).
+- **Assets are CC0 / CC-BY / MIT** and listed in `assets/LICENSES/` (#3).
+
 ## Workflow
 
 Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). No releases or tags.
