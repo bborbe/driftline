@@ -3,7 +3,7 @@
 // bakes every board into one mesh over a canvas texture atlas. Visual only: physics never sees them.
 import * as THREE from 'three/webgpu'
 import { centreline } from '../../track/centreline'
-import { poses, zoneCorners, type Segment, type Track } from '../../track/schema'
+import { poses, turnSign, zoneCorners, type Track } from '../../track/schema'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
 import { lateralPoint, sampleSegment, segmentLength, TRACK_WIDTH } from '../track/geometry'
 import { merged, placement, prepared } from './instance'
@@ -27,8 +27,6 @@ const LEVEL = 4
  * the deck's own walls.
  */
 export const GROUND_LEVEL = 1
-
-const turnSign = (seg: Segment): number => ('turn' in seg && seg.turn === 'right' ? -1 : 1)
 
 export const planSigns = (track: Track): Sign[] => {
   const line = centreline(track, 1)

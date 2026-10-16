@@ -3,7 +3,7 @@
 // the road the track already draws (Kenney pieces and procedural segments share PROFILE), placed
 // with the same sampleSegment()/lateralPoint() the road mesh uses — banked turns included.
 import * as THREE from 'three/webgpu'
-import { poses, type Segment, type Track } from '../../track/schema'
+import { poses, turnSign, type Segment, type Track } from '../../track/schema'
 import { CURB_RED, CURB_WHITE } from '../look'
 import { lateralPoint, PROFILE, sampleSegment, segmentLength } from './geometry'
 
@@ -24,8 +24,6 @@ export const DECAL_LIFT = 0.003
 const ROW_STEP = 0.5
 
 export type Ribbons = { positions: Float32Array; indices: Uint32Array }
-
-const turnSign = (seg: Segment): number => ('turn' in seg && seg.turn === 'right' ? -1 : 1)
 
 class RibbonBuilder {
   private pos: number[] = []
