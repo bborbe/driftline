@@ -4,7 +4,7 @@ import {
   add, cross, dot, integrateQuat, length, normalize, quatIdentity, rotate, scale, sub, v3,
   type Quat, type Vec3,
 } from './vec'
-import { FLAT, type Surface } from './surface'
+import { FLAT, type RayHit, type Surface } from './surface'
 
 export const TICK_HZ = 100
 export const DT = 1 / TICK_HZ
@@ -41,6 +41,13 @@ const REST_LENGTH = 0.5
 const SPRING = 40000
 const DAMPER = 4500
 const WHEEL_RADIUS = 0.35
+// Wheel rays start this far above the spring mount (about the chassis top), so a mount that
+// has sunk through the surface on a hard landing still finds it and the spring pushes back.
+const RAY_LIFT = 1.0
+// Compression cap: bounds the spring force when the car is pressed deep into a surface.
+const MAX_COMPRESSION = REST_LENGTH + RAY_LIFT
+// Floor for dot(body-up, surface normal) in the compression rate (car tilted < ~72°).
+const MIN_UP_DOT = 0.3
 const GRIP = 1.6 // front friction coefficient (arcade)
 const REAR_GRIP = 2.0 // rear grips more than front: stable, understeer-leaning balance
 // Traction control: drive force on a rear wheel is capped to this share of its grip,
@@ -127,17 +134,15 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
 
   for (const wheel of WHEELS) {
     const r = rotate(s.orientation, wheel.mount)
-    const mount = add(s.position, r)
-    // Ray along body-down to the surface.
-    const down = scale(up, -1)
-    const hit = surface.raycast(mount, down, REST_LENGTH + WHEEL_RADIUS)
-    if (!hit) continue
-    const dist = hit.distance - WHEEL_RADIUS
-    if (dist > REST_LENGTH) continue
-    const compression = REST_LENGTH - dist
+    const contact = wheelContact(add(s.position, r), up, surface)
+    if (!contact) continue
+    const { hit, compression } = contact
 
     const contactVel = add(s.velocity, cross(s.angularVelocity, r))
-    const springVel = -dot(contactVel, up)
+    // Compression rate = rate the ray length shrinks against the surface. Measured along
+    // the surface normal, not body-up: on a tilted landing the forward speed has a large
+    // body-up component that would otherwise read as the spring extending and cancel it.
+    const springVel = -dot(contactVel, hit.normal) / Math.max(dot(up, hit.normal), MIN_UP_DOT)
     const normalForce = Math.max(0, SPRING * compression + DAMPER * springVel)
 
     // Tire frame projected onto the contact plane.
@@ -235,12 +240,21 @@ export class FixedStepper {
 
 // Number of wheels whose suspension ray reaches the surface (0 = airborne).
 export const wheelContacts = (s: CarState, surface: Surface = FLAT): number => {
-  const down = rotate(s.orientation, v3(0, -1, 0))
+  const up = rotate(s.orientation, v3(0, 1, 0))
   let n = 0
   for (const wheel of WHEELS) {
-    const mount = add(s.position, rotate(s.orientation, wheel.mount))
-    const hit = surface.raycast(mount, down, REST_LENGTH + WHEEL_RADIUS)
-    if (hit && hit.distance - WHEEL_RADIUS <= REST_LENGTH) n++
+    if (wheelContact(add(s.position, rotate(s.orientation, wheel.mount)), up, surface)) n++
   }
   return n
+}
+
+// Suspension ray along body-down from RAY_LIFT above the mount. Null when the wheel is
+// off the ground; otherwise the hit and the spring compression (> REST_LENGTH = penetrating).
+function wheelContact(mount: Vec3, up: Vec3, surface: Surface): { hit: RayHit; compression: number } | null {
+  const origin = add(mount, scale(up, RAY_LIFT))
+  const hit = surface.raycast(origin, scale(up, -1), RAY_LIFT + REST_LENGTH + WHEEL_RADIUS)
+  if (!hit) return null
+  const dist = hit.distance - RAY_LIFT - WHEEL_RADIUS
+  if (dist > REST_LENGTH) return null
+  return { hit, compression: Math.min(REST_LENGTH - dist, MAX_COMPRESSION) }
 }
