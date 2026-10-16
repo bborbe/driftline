@@ -6,6 +6,7 @@ import { createView } from './render/view'
 import { loadLap } from './render/track/lap'
 import { GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
+import { createGhostMesh, GhostRecorder, GhostReplayer, placeGhost } from './ghost'
 
 const track = loadLap()
 const view = await createView(track)
@@ -18,6 +19,11 @@ document.body.appendChild(hud)
 const input = new KeyboardInput()
 const audio = new GameAudio()
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
+const ghostRecorder = new GhostRecorder()
+const ghostMesh = createGhostMesh()
+view.scene.add(ghostMesh)
+let ghost: GhostReplayer | null = null
+let lapStartTick = 0
 const race = initRace(sim, track, {
   listeners: [
     {
@@ -25,6 +31,19 @@ const race = initRace(sim, track, {
       checkpoint: () => audio.onCheckpoint(),
       lapFinish: () => audio.onFinish(),
       respawn: () => audio.onRespawn(),
+    },
+    ghostRecorder.listener(() => sim.state),
+    {
+      // Each new lap replays the best run so far from its own start line.
+      lapStart: (tick) => {
+        lapStartTick = tick
+        ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
+        ghostMesh.visible = ghost !== null
+      },
+      // Dev-only split log: the lap-2 ghost check compares these against the best lap.
+      checkpoint: (tick, index) => {
+        if (import.meta.env.DEV) console.info(`split: checkpoint ${index} at tick ${tick - lapStartTick}`)
+      },
     },
   ],
 })
@@ -39,6 +58,8 @@ view.renderer.setAnimationLoop(() => {
 
   const carInput = input.read()
   race.frame(elapsed, carInput)
+  ghostRecorder.frame(race.loop.input(carInput), sim.state.tick)
+  if (ghost) placeGhost(ghostMesh, ghost.advanceTo(sim.state.tick - lapStartTick))
   const s = sim.state
   audio.update(s, carInput)
   const speed = dot(s.velocity, forwardOf(s))
