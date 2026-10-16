@@ -265,6 +265,8 @@ export function compileKit(kt: KitTrack): CompiledKit {
     for (const g of ex.gates) gates.push({ kind: g.kind, segment: base + g.segment })
     if (pl.walls) {
       if (!['both', 'left', 'right'].includes(pl.walls)) throw new Error(`kit piece ${i}: walls must be both, left or right`)
+      // A gate's pillars stand where the wall would, and `walled` already carries its own barriers.
+      if (def.family === 'gate' || def.family === 'wall') throw new Error(`kit piece ${i}: ${def.id} takes no walls`)
       let p = entry
       const onGround = ex.segments.every((seg) => {
         p = exitPose(p, seg)

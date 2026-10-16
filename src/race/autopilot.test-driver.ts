@@ -1,6 +1,7 @@
 // Pure-pursuit autopilot along a track's centreline, shared by the end-to-end lap tests
-// (full-lap.test.ts, conservative `centreline` speeds) and the grass-cut test (cuts.test.ts,
-// the faster `racingLine`).
+// (full-lap.test.ts, conservative `centreline` speeds; the style tracks S01–S05 drive the
+// surface-aware `surfaceLine`) and the grass-cut test (cuts.test.ts, the faster `racingLine`,
+// surface-aware for the style tracks).
 import { readFileSync } from 'node:fs'
 import { dot, forwardOf, MATERIALS, type CarInput, type CarState, type Material } from '../physics'
 import { resolveTrack } from '../track/kit'
@@ -52,7 +53,10 @@ const CORNER = new Set<Segment['type']>(['curve', 'hairpin', 'banked'])
 
 /** Surface grip at fraction `f` of segment `i` (1 = asphalt): dirt, ice and grass zones lower it. */
 const gripAt = (track: Track, i: number, f: number): number =>
-  Math.min(1, ...(track.zones ?? []).filter((z) => z.segment === i && f >= z.from && f <= z.to && z.kind in MATERIALS).map((z) => MATERIALS[z.kind as Material].grip))
+  Math.min(
+    1,
+    ...(track.zones ?? []).filter((z) => z.segment === i && f >= z.from && f <= z.to && z.kind in MATERIALS).map((z) => MATERIALS[z.kind as Material].grip),
+  )
 
 /** Target speed at fraction `f` of segment `i`: its type's pace, capped in corners by grip and radius. */
 const targetSpeed = (track: Track, i: number, f: number): number => {

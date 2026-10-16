@@ -211,7 +211,7 @@ describe('kit level format', () => {
     const loop = (pieces: KitTrack['kit']['pieces']): KitTrack => ({ name: 'walls', kit: { start: { cell: [0, 0], level: 0, dir: 0 }, pieces } })
     const { track } = compileKit(
       loop([
-        { piece: 'start', walls: 'both' },
+        { piece: 'start' },
         { piece: 'curve-r2', turn: 'left', surface: 'ice', walls: 'both' },
         { piece: 'bank-90', turn: 'left', walls: 'both' },
         { piece: 'straight-2', walls: 'right' },
@@ -220,8 +220,6 @@ describe('kit level format', () => {
       ]),
     )
     expect(track.barriers).toEqual([
-      { segment: 0, side: 'left', gap: 0 },
-      { segment: 0, side: 'right', gap: 0 },
       { segment: 1, side: 'left', gap: 0 },
       { segment: 1, side: 'right', gap: 0 },
       { segment: 2, side: 'left', gap: 0 }, // a left bank: its inner (left) wall only
@@ -230,6 +228,8 @@ describe('kit level format', () => {
     expect(validate(track)).toEqual([])
     expect(() => compileKit(loop([{ piece: 'slope-up', walls: 'both' }]))).toThrow(/ground only/)
     expect(() => compileKit(loop([{ piece: 'bump', walls: 'both' }]))).toThrow(/ground only/)
+    expect(() => compileKit(loop([{ piece: 'checkpoint', walls: 'both' }]))).toThrow(/takes no walls/)
+    expect(() => compileKit(loop([{ piece: 'walled', walls: 'left' }]))).toThrow(/takes no walls/)
   })
 
   describe('test-kit.json demo', () => {

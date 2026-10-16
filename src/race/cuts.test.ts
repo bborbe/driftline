@@ -124,7 +124,7 @@ describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap',
   // Math.min over no grass runs is Infinity, which passes every leg: the search as a whole must
   // reach the grass, unless walls line every corner so no run can (a walled channel, e.g. glacier).
   it('the search really reaches the grass, or walls line every corner', () => {
-    const walled = track.segments.every((seg, k) => !CORNER.has(seg.type) || (track.barriers ?? []).some((b) => 'segment' in b && b.segment === k))
+    const walled = track.segments.every((seg, k) => !CORNER.has(seg.type) || (track.barriers ?? []).some((b) => 'segment' in b && b.segment === k && 'turn' in seg && b.side === seg.turn))
     expect(grassLegs > 0 || walled, `${name}: ${grassLegs} of ${legs(track).length} legs reached the grass`).toBe(true)
   })
 })
@@ -189,11 +189,14 @@ describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap',
       inside: d,
       ...follow(road[a], insideLine(from, seg, inner - d), to, surface, 2 * (b - a)),
     }))
-    // A run counts as a cut by its off-road share (as the straight cuts above): beside a walled
-    // corner the inside line rides the wall on the road, which is a road line, not a grass cut.
-    const cuts = runs.filter((r) => r.grass >= GRASS_SHARE * Math.min(r.ticks, 2 * (b - a)))
-    const best = cuts.reduce((m, r) => (r.ticks < m.ticks ? r : m), { inside: 0, ticks: Infinity, grass: 0 })
-    expect(best.ticks, `${name} corner ${i}: ${best.inside} m inside took ${best.ticks} ticks vs road ${b - a}`).toBeGreaterThan(b - a)
+    // Beside a corner with an inner wall the inside line rides the wall on the road: there a run
+    // counts as a cut by its off-road share (as the straight cuts above), and a run that stays on
+    // the road raises the bar instead. Every other corner keeps the plain rule: no inside run wins.
+    const innerWall = (track.barriers ?? []).some((bar) => 'segment' in bar && bar.segment === i && bar.side === seg.turn)
+    const isCut = (r: Run) => !innerWall || r.grass >= GRASS_SHARE * Math.min(r.ticks, 2 * (b - a))
+    const roadBest = Math.min(b - a, ...runs.filter((r) => !isCut(r)).map((r) => r.ticks))
+    const best = runs.filter(isCut).reduce((m, r) => (r.ticks < m.ticks ? r : m), { inside: 0, ticks: Infinity, grass: 0 })
+    expect(best.ticks, `${name} corner ${i}: ${best.inside} m inside took ${best.ticks} ticks vs road ${roadBest}`).toBeGreaterThan(roadBest)
   }, CUT_TIMEOUT)
 })
 

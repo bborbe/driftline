@@ -17,7 +17,6 @@
       { "piece": "straight-1" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
-      { "piece": "straight-2" },
       { "piece": "slope-up" },
       { "piece": "slope-up" },
       { "piece": "straight-2" },
@@ -27,10 +26,9 @@
       { "piece": "checkpoint" },
       { "piece": "bank-180-wide", "turn": "left" },
       { "piece": "checkpoint" },
-      { "piece": "straight-1" },
-      { "piece": "straight-2" }
+      { "piece": "straight-1" }
     ]
   },
-  "medals": { "author": 35500, "gold": 38500, "silver": 43500, "bronze": 50500 },
+  "medals": { "author": 34500, "gold": 37500, "silver": 42000, "bronze": 49000 },
   "theme": {"sky": "day", "exposure": 1.05, "sun": "#ffffff", "sunIntensity": 2.4, "ground": "#5cc94e", "curb": "#00c2ff", "sign": "#00c2ff", "screen": "#00337a", "scenery": ["tree_default", "tree_detailed", "plant_bushLarge"]}
 }

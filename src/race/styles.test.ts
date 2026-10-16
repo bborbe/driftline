@@ -45,59 +45,48 @@ function signature(name: string): Signature {
 
 const sig = Object.fromEntries(STYLES.map((l) => [l.track, signature(l.track)]))
 
+// Each style as a predicate over a signature: its own track passes it, every other one fails it.
+const STYLE_OF: Record<string, (s: Signature) => boolean> = {
+  // S01 Tech: ≥ 6 tight turns, asphalt and some dirt (a mix, not a dirt track).
+  switchback: (s) => s.tight >= 6 && s.kit.kit.pieces.some((p) => p.surface === 'dirt') && s.dirt < 0.5,
+  // S02 Fullspeed: no tight turn and no flat curve; ≥ 2 banks, all the wide flat-out bank. That full
+  // throttle with no brake finishes it is full-lap.test.ts 'flatout at full throttle, no brake'.
+  flatout: (s) => s.tight === 0 && !s.pieces.some((p) => p.startsWith('curve')) && s.banked >= 2 && s.pieces.filter((p) => p.startsWith('bank-')).every((p) => p === 'bank-180-wide'),
+  // S03 Dirt: ≥ 50 % of the lap on dirt, dirt through the corners.
+  dustbowl: (s) => s.dirt >= 0.5 && s.kit.kit.pieces.some((p) => p.piece.startsWith('curve') && p.surface === 'dirt'),
+  // S04 Ice: ≥ 50 % of the lap on ice, a banked ice channel with every ice piece walled.
+  glacier: (s) =>
+    s.ice >= 0.5 &&
+    s.kit.kit.pieces.some((p) => p.piece.startsWith('bank-') && p.surface === 'ice') &&
+    s.kit.kit.pieces.filter((p) => p.surface === 'ice').every((p) => p.walls === 'both'),
+  // S05 LOL: one silly idea — a red turbo straight into five bumps.
+  washboard: (s) => {
+    const at = s.pieces.indexOf('turbo-red')
+    return at >= 0 && s.pieces.slice(at + 1, at + 6).join() === 'bump,bump,bump,bump,bump'
+  },
+}
+
 describe('style track signatures', () => {
-  it('S01 switchback (Tech): ≥ 6 tight turns, asphalt and dirt', () => {
-    const s = sig.switchback
-    expect(s.tight).toBeGreaterThanOrEqual(6)
-    expect(s.kit.kit.pieces.some((p) => p.surface === 'dirt')).toBe(true)
-    expect(s.dirt).toBeLessThan(0.5) // a mix, not a dirt track
-  })
-
-  it('S02 flatout (Fullspeed): no tight turn, ≥ 2 banks, all of them the wide flat-out bank', () => {
-    const s = sig.flatout
-    expect(s.tight).toBe(0)
-    expect(s.pieces.filter((p) => p === 'curve-r1' || p === 'curve-r2' || p === 'curve-r3')).toEqual([])
-    expect(s.banked).toBeGreaterThanOrEqual(2)
-    expect(s.pieces.filter((p) => p.startsWith('bank-')).every((p) => p === 'bank-180-wide')).toBe(true)
-    // Full throttle with no brake finishes it: full-lap.test.ts 'flatout at full throttle, no brake'.
-  })
-
-  it('S03 dustbowl (Dirt): ≥ 50 % of the lap on dirt, dirt through the corners', () => {
-    const s = sig.dustbowl
-    expect(s.dirt).toBeGreaterThanOrEqual(0.5)
-    expect(s.kit.kit.pieces.some((p) => p.piece.startsWith('curve') && p.surface === 'dirt')).toBe(true)
-  })
-
-  it('S04 glacier (Ice): ≥ 50 % of the lap on ice, a banked ice channel', () => {
-    const s = sig.glacier
-    expect(s.ice).toBeGreaterThanOrEqual(0.5)
-    expect(s.kit.kit.pieces.some((p) => p.piece.startsWith('bank-') && p.surface === 'ice')).toBe(true)
-    expect(s.kit.kit.pieces.filter((p) => p.surface === 'ice').every((p) => p.walls === 'both')).toBe(true)
-  })
-
-  it('S05 washboard (LOL): one silly idea — a red turbo straight into five bumps', () => {
-    const p = sig.washboard.pieces
-    const at = p.indexOf('turbo-red')
-    expect(at).toBeGreaterThanOrEqual(0)
-    expect(p.slice(at + 1, at + 6)).toEqual(['bump', 'bump', 'bump', 'bump', 'bump'])
+  it.each(STYLES.map((l) => l.track))('%s has its own style and none of the others', (name) => {
+    expect(Object.keys(STYLE_OF).sort()).toEqual(STYLES.map((l) => l.track).sort())
+    for (const [style, is] of Object.entries(STYLE_OF)) expect(is(sig[name]), `${name} as ${style}`).toBe(style === name)
   })
 })
 
 describe('style tracks are distinct', () => {
   const names = STYLES.map((l) => l.track)
   const pairs = names.flatMap((a, i) => names.slice(i + 1).map((b) => [a, b] as const))
-  // At least 25 % apart in one measure (relative to the larger value; two zeros are not apart).
-  const apart = (x: number, y: number) => Math.max(x, y) > 0 && Math.abs(x - y) / Math.max(x, y) >= 0.25
 
-  it.each(pairs)('%s and %s differ in piece mix and in at least one measure by ≥ 25 %%', (a, b) => {
+  it.each(pairs)('%s and %s differ in piece mix and clearly in at least one measure', (a, b) => {
     const [s, t] = [sig[a], sig[b]]
     expect([...s.pieces].sort()).not.toEqual([...t.pieces].sort())
+    // Absolute floors, so a sprinkle of dirt or one extra piece never counts as a different track.
     const measures = [
-      apart(s.tight, t.tight),
-      apart(s.banked, t.banked),
-      apart(s.dirt, t.dirt),
-      apart(s.ice, t.ice),
-      apart(s.length, t.length),
+      Math.abs(s.tight - t.tight) >= 2,
+      Math.abs(s.banked - t.banked) >= 2,
+      Math.abs(s.dirt - t.dirt) >= 0.15,
+      Math.abs(s.ice - t.ice) >= 0.15,
+      Math.abs(s.length - t.length) / Math.max(s.length, t.length) >= 0.25,
     ]
     expect(measures.some(Boolean), `${a} vs ${b}`).toBe(true)
   })
