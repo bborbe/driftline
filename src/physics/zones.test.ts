@@ -1,7 +1,7 @@
 // Turbo pads and low-grip surfaces: zones on a straight change what the wheels stand on.
 import { describe, expect, it } from 'vitest'
-import type { Track, ZoneKind } from '../track/schema'
-import { createCarAt, dot, forwardOf, materialUnder, NO_INPUT, step, trackSurface, v3, type CarInput, type CarState } from './index'
+import type { Track, Zone, ZoneKind } from '../track/schema'
+import { createCarAt, dot, forwardOf, materialUnder, NO_INPUT, quatMul, rotate, step, trackSurface, v3, type CarInput, type CarState } from './index'
 
 const DOWN = v3(0, -1, 0)
 const speedOf = (s: CarState) => dot(s.velocity, forwardOf(s))
@@ -51,6 +51,56 @@ describe('turbo pads', () => {
     const red = coastSpeed('turbo-red')
     expect(yellow - road).toBeGreaterThan(3)
     expect(red - yellow).toBeGreaterThan(3)
+  })
+
+  // `s` turned by `yaw` about the vertical (motion with it) and moved to (x, z).
+  const turned = (s: CarState, yaw: number, x: number, z: number): CarState => {
+    const q = { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }
+    return { ...s, orientation: quatMul(q, s.orientation), velocity: rotate(q, s.velocity), angularVelocity: rotate(q, s.angularVelocity), position: v3(x, s.position.y, z) }
+  }
+  // Longest boost seen while coasting `ticks` from `start` over a track with one pad (z 180..220).
+  // Throws unless the car's centre actually crossed the pad, so a "no boost" can never mean "never got there".
+  const maxTurbo = (pad: Zone, start: CarState, ticks = 500): number => {
+    const surface = trackSurface({ ...straight(), zones: [pad] })
+    let s = start
+    let most = 0
+    let onPad = false
+    for (let i = 0; i < ticks; i++) {
+      s = step(s, NO_INPUT, surface)
+      most = Math.max(most, s.turbo)
+      if (s.position.z >= 180 && s.position.z <= 220 && Math.abs(s.position.x) < 4) onPad = true
+    }
+    if (!onPad) throw new Error('car never reached the pad')
+    return most
+  }
+  const mid = (kind: 'turbo' | 'turbo-red', reverse?: boolean): Zone => ({ kind, segment: 0, from: 0.45, to: 0.55, ...(reverse ? { reverse } : {}) })
+
+  it.each(['turbo', 'turbo-red'] as const)('%s boosts along its arrow and never against it', (kind) => {
+    const fast = launched(15)
+    // Along the arrow (+z) from before the pad, and the wrong way (-z) from past it.
+    expect(maxTurbo(mid(kind), turned(fast, 0, 0, 150))).toBeGreaterThan(0)
+    expect(maxTurbo(mid(kind), turned(fast, Math.PI, 0, 250))).toBe(0)
+    // A reversed pad points -z: the same two runs swap.
+    expect(maxTurbo(mid(kind, true), turned(fast, 0, 0, 150))).toBe(0)
+    expect(maxTurbo(mid(kind, true), turned(fast, Math.PI, 0, 250))).toBeGreaterThan(0)
+  })
+
+  it('crossing within 60° of the arrow boosts, crossing sideways does not', () => {
+    const fast = launched(15)
+    // 40° off the arrow, from the left of the road, entering the pad at mid-road.
+    const a = (40 * Math.PI) / 180
+    expect(maxTurbo(mid('turbo'), turned(fast, a, -4.5, 175))).toBeGreaterThan(0)
+    // Straight across the road, through the pad.
+    expect(maxTurbo(mid('turbo'), turned(fast, Math.PI / 2, -12, 200))).toBe(0)
+  })
+
+  it('reversing (rolling backwards) over a pad against its arrow gives no boost', () => {
+    // Car points along the arrow but rolls backwards over the pad.
+    const fast = launched(15)
+    const back = { ...fast, position: v3(0, fast.position.y, 230) }
+    const rolling = { ...back, velocity: v3(-back.velocity.x, back.velocity.y, -back.velocity.z) }
+    // 2 s: long enough to roll across the whole pad, short of stopping on it.
+    expect(maxTurbo(mid('turbo'), rolling, 200)).toBe(0)
   })
 
   it('the boost runs for a fixed time after leaving the pad, then ends', () => {
@@ -104,6 +154,8 @@ describe('surface grip', () => {
     const t: Track = { ...straight(), zones: [{ kind: 'turbo-red', segment: 0, from: 0.05, to: 0.08 }, { kind: 'ice', segment: 0, from: 0.1, to: 0.3 }] }
     const input = (_: CarState, i: number): CarInput => ({ ...NO_INPUT, throttle: 1, steer: Math.sin(i / 40) })
     expect(run(t, 1000, input)).toEqual(run(t, 1000, input))
+    const r: Track = { ...t, zones: [{ ...t.zones![0], reverse: true }, t.zones![1]] }
+    expect(run(r, 1000, input)).toEqual(run(r, 1000, input))
   })
 })
 

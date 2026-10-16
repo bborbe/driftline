@@ -1,6 +1,6 @@
 // Drivable surfaces for the wheel raycasts. Pure and deterministic: no three.js,
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
-import { barrierPillars, CELL, gatePillars, poses, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
+import { barrierPillars, barrierPosts, CELL, gatePillars, isPad, padForward, poses, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
 import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
 import { normalize, v3, type Vec3 } from './vec'
 
@@ -14,6 +14,7 @@ export type RayHit = {
   distance: number // along the (unit) ray direction
   normal: Vec3 // unit, pointing up out of the surface
   material?: Material // omitted = 'road'
+  padForward?: Vec3 // turbo pads only: unit horizontal direction of the arrow
 }
 
 export interface Surface {
@@ -129,10 +130,13 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
   const entries = poses(track)
   const pieces = track.segments.map((seg, i) => piece(entries[i], seg, width))
   const zones = track.zones ?? []
-  const materialAt = (h: Height): Material => {
-    if (h.piece < 0) return 'offroad'
-    for (const z of zones) if (z.segment === h.piece && h.t >= z.from && h.t <= z.to) return z.kind
-    return 'road'
+  const padDirs = zones.map((z) => {
+    const [x, z2] = padForward(track, z)
+    return v3(x, 0, z2)
+  })
+  const zoneAt = (h: Height): number => {
+    if (h.piece < 0) return -1
+    return zones.findIndex((z) => z.segment === h.piece && h.t >= z.from && h.t <= z.to)
   }
 
   // Highest surface at (x, z) that is not above `maxY`.
@@ -156,6 +160,7 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
     obstacles: [
       ...track.gates.filter((g) => g.segment < track.segments.length).flatMap((g) => gatePillars(track, g)),
       ...barrierPillars(track),
+      ...barrierPosts(track),
     ],
     raycast(origin, dir, maxDistance) {
       if (dir.y >= -1e-6) return null
@@ -169,8 +174,11 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
       }
       if (!h || t > maxDistance) return null
       const normal = normalize(v3(-h.gx, 1, -h.gz))
-      const material = materialAt(h)
-      return material === 'road' ? { distance: t, normal } : { distance: t, normal, material }
+      if (h.piece < 0) return { distance: t, normal, material: 'offroad' }
+      const zi = zoneAt(h)
+      if (zi < 0) return { distance: t, normal }
+      const material = zones[zi].kind
+      return isPad(material) ? { distance: t, normal, material, padForward: padDirs[zi] } : { distance: t, normal, material }
     },
   }
 }
