@@ -219,7 +219,7 @@ export class FixedStepper {
   private accumulator = 0
   state: CarState
 
-  private readonly surface: Surface
+  readonly surface: Surface
 
   constructor(state: CarState, surface: Surface = FLAT) {
     this.state = state

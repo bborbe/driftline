@@ -5,6 +5,7 @@ import { KeyboardInput } from './input'
 import { createView } from './render/view'
 import { loadLap } from './render/track/lap'
 import { GameAudio, mountAudioControls } from './audio'
+import { initRace } from './race'
 
 const track = loadLap()
 const view = await createView(track)
@@ -16,9 +17,11 @@ document.body.appendChild(hud)
 
 const input = new KeyboardInput()
 const audio = new GameAudio()
-mountAudioControls(audio)
-Object.assign(window, { audio }) // dev console: audio.onCheckpoint() etc. until the lap loop calls them
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
+const race = initRace(sim, track, {
+  listeners: [{ checkpoint: () => audio.onCheckpoint(), lapFinish: () => audio.onFinish(), respawn: () => audio.onRespawn() }],
+})
+mountAudioControls(audio, () => race.start())
 let chase = createChase(sim.state.position, forwardOf(sim.state))
 let last = performance.now()
 
@@ -28,7 +31,7 @@ view.renderer.setAnimationLoop(() => {
   last = now
 
   const carInput = input.read()
-  sim.advance(elapsed, carInput)
+  race.frame(elapsed, carInput)
   const s = sim.state
   audio.update(s, carInput)
   const speed = dot(s.velocity, forwardOf(s))
