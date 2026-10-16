@@ -1,0 +1,59 @@
+{
+  "name": "test-surfaces",
+  "start": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "heading": 0
+  },
+  "segments": [
+    {
+      "type": "straight",
+      "length": 80
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    },
+    {
+      "type": "straight",
+      "length": 80
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    }
+  ],
+  "gates": [
+    {
+      "kind": "start-finish",
+      "segment": 0
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 2
+    }
+  ],
+  "zones": [
+    {
+      "kind": "dirt",
+      "segment": 2,
+      "from": 0.08,
+      "to": 0.3
+    },
+    {
+      "kind": "ice",
+      "segment": 2,
+      "from": 0.38,
+      "to": 0.6
+    },
+    {
+      "kind": "grass",
+      "segment": 2,
+      "from": 0.68,
+      "to": 0.9
+    }
+  ]
+}

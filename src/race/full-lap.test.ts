@@ -4,14 +4,20 @@ import { describe, expect, it } from 'vitest'
 import { FixedStepper, NO_INPUT, TICK_HZ, trackSurface } from '../physics'
 import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
 import { autopilot, centreline, loadTrack as load } from './autopilot.test-driver'
+import { TEST_TRACKS } from '../track/catalogue'
 
 // Lap-time window per track (ms) for this conservative autopilot. A human drives ~0.67x the
 // autopilot's time (operator's first lap2 run: 36.05 s vs 53.7 s), so lap2's 67-90 s window is a
 // ~45-60 s human lap; the floor also catches the track being shortened again.
 const HUMAN_PACE = 0.67
 const CASES = [
-  { track: load('lap1'), minMs: 10_000, maxMs: 90_000 },
-  { track: load('lap2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
+  { track: load('test1'), minMs: 10_000, maxMs: 90_000 },
+  { track: load('test2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
+  // Single-feature test tracks: one mechanic each, a lap in at most 20 s even at autopilot pace.
+  ...TEST_TRACKS.filter((n) => n.startsWith('test-')).map((n) => ({ track: load(n), minMs: 5_000, maxMs: 20_000 })),
+  // Multi-level campaign tracks: autopilot ~52.5 s (~35 s human, the low end of the brief's 35-55 s band).
+  { track: load('crossover'), minMs: 40_000, maxMs: 65_000 },
+  { track: load('tower'), minMs: 40_000, maxMs: 65_000 },
 ]
 
 describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
@@ -75,5 +81,33 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
     expect(times).toHaveLength(3)
     for (const ms of times) expect(ms).toBeLessThan(maxMs)
     expect(total).toBeCloseTo(times[0] + times[1] + times[2], 6)
+  })
+})
+
+// The conservative autopilot slows to jump speed before every ramp; a human floors it. At full
+// throttle the car flies ~9 m over crossover's landing checkpoint, which must still count.
+describe('crossover gap jump at full throttle', () => {
+  it('a car flat out from the long descent straight over the gap still scores every gate and finishes', () => {
+    const track = load('crossover')
+    const gapAt = track.segments.findIndex((s) => s.type === 'gap')
+    // centreline() emits 20 samples per segment: no slowdown from the descent straight to the landing.
+    const samples = centreline(track).map((s, k) => {
+      const seg = Math.floor(k / 20)
+      return seg >= gapAt - 2 && seg <= gapAt + 1 ? { ...s, speed: 60 } : s
+    })
+    const loop = new LapLoop(track, () => true)
+    const sim = new FixedStepper(loop.spawn(), trackSurface(track))
+    const drive = autopilot(samples)
+    const events: string[] = []
+    let peak = 0
+    loop.on({ checkpoint: (_t, i) => events.push(`cp${i}`), respawn: () => events.push('respawn'), lapFinish: () => events.push('finish') })
+    loop.start(sim.state.tick)
+    for (let i = 0; i < COUNTDOWN_TICKS + 90 * TICK_HZ && loop.phase !== 'finished'; i++) {
+      advanceRace(loop, sim, 1 / TICK_HZ, loop.phase === 'racing' ? drive(sim.state) : NO_INPUT)
+      peak = Math.max(peak, Math.hypot(sim.state.velocity.x, sim.state.velocity.z))
+    }
+    const cps = track.gates.filter((g) => g.kind === 'checkpoint').map((_, i) => `cp${i + 1}`)
+    expect(events).toEqual([...cps, 'finish'])
+    expect(peak).toBeGreaterThan(30) // it really was flat out, not the 18 m/s jump speed
   })
 })

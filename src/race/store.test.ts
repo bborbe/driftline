@@ -124,4 +124,17 @@ describe('RaceStore splits and medal', () => {
     expect(store.recordMedal('author')).toBe(true)
     expect(new RaceStore(mem, 'lap2', 'abc').bestMedal()).toBe('author')
   })
+  it('renamed test1/test2 keep the records stored under lap1/lap2', () => {
+    const mem = new Map<string, string>()
+    const fake = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) }
+    new RaceStore(fake, 'lap1', 'cccc0003').recordLap(30000)
+    new RaceStore(fake, 'lap2', 'aaaa0001').recordLap(50000)
+    new RaceStore(fake, 'lap2', 'aaaa0001', 3).recordLap(150000)
+    expect(new RaceStore(fake, 'test1', 'cccc0003').best()).toBe(30000)
+    expect(new RaceStore(fake, 'test2', 'aaaa0001').best()).toBe(50000)
+    expect(new RaceStore(fake, 'test2', 'aaaa0001', 3).best()).toBe(150000)
+    expect(mem.has('driftline-best')).toBe(true)
+    expect(mem.has('driftline-best-lap2-aaaa0001')).toBe(true)
+  })
+
 })

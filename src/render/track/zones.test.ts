@@ -1,11 +1,11 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { poses, type Track, type Zone } from '../../track/schema'
+import { isPad, padForward, poses, type Track, type Zone } from '../../track/schema'
 import { createCarAt, type CarState } from '../../physics'
 import { dustIntensity, DustPool } from '../fx/dust'
 import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, zoneQuad } from './zones'
 
-const lap2 = JSON.parse(readFileSync(new URL('../../../assets/track/lap2.json', import.meta.url), 'utf8')) as Track
+const lap2 = JSON.parse(readFileSync(new URL('../../../assets/track/test2.json', import.meta.url), 'utf8')) as Track
 
 // Positions are float32, so world-space checks use a 0.1 mm tolerance.
 // Lateral offset and distance along the segment of every vertex in a position buffer.
@@ -53,6 +53,50 @@ describe('lap2 zone decals', () => {
       const along = local(lap2, zone, zoneQuad(lap2, zone)).map((p) => p.along)
       expect(Math.min(...along)).toBeCloseTo(zone.from * length, 3)
       expect(Math.max(...along)).toBeCloseTo(zone.to * length, 3)
+    }
+  })
+})
+
+// Every shipped track, so a pad added to any lap is checked too.
+const trackDir = new URL('../../../assets/track/', import.meta.url)
+const shipped = readdirSync(trackDir)
+  .filter((f) => f.endsWith('.json') && f !== 'pieces.json')
+  .map((f) => [f, JSON.parse(readFileSync(new URL(f, trackDir), 'utf8')) as Track] as const)
+  .filter(([, t]) => Array.isArray(t.segments))
+
+// Each chevron is (left, right, tip): tip minus the base midpoint is where it points.
+const chevronDirs = (positions: Float32Array): [number, number][] => {
+  const out: [number, number][] = []
+  for (let i = 0; i < positions.length; i += 9) {
+    const bx = (positions[i] + positions[i + 3]) / 2
+    const bz = (positions[i + 2] + positions[i + 5]) / 2
+    const dx = positions[i + 6] - bx
+    const dz = positions[i + 8] - bz
+    const l = Math.hypot(dx, dz)
+    out.push([dx / l, dz / l])
+  }
+  return out
+}
+
+describe('turbo pad arrows', () => {
+  const pads = shipped.flatMap(([file, t]) => (t.zones ?? []).filter((z) => isPad(z.kind)).map((z) => [`${file} ${z.kind} on segment ${z.segment}`, t, z] as const))
+
+  it('shipped tracks carry pads to check', () => expect(pads.length).toBeGreaterThan(0))
+
+  it.each(pads)('%s: every chevron points where the pad boosts', (_name, track, zone) => {
+    const [fx, fz] = padForward(track, zone)
+    for (const [dx, dz] of chevronDirs(turboChevrons(track, zone))) expect(dx * fx + dz * fz).toBeCloseTo(1, 4)
+  })
+
+  it('a reversed pad points its chevrons back down the segment', () => {
+    const zone = { kind: 'turbo' as const, segment: 0, from: 0.2, to: 0.4 }
+    const track: Track = { name: 't', start: { x: 0, y: 0, z: 0, heading: 0.3 }, segments: [{ type: 'straight', length: 100 }], gates: [], zones: [zone] }
+    const fwd = chevronDirs(turboChevrons(track, zone))
+    const back = chevronDirs(turboChevrons(track, { ...zone, reverse: true }))
+    const [fx, fz] = padForward(track, { ...zone, reverse: true })
+    for (let i = 0; i < fwd.length; i++) {
+      expect(fwd[i][0] * back[i][0] + fwd[i][1] * back[i][1]).toBeCloseTo(-1, 4)
+      expect(back[i][0] * fx + back[i][1] * fz).toBeCloseTo(1, 4)
     }
   })
 })

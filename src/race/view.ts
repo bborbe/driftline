@@ -50,7 +50,7 @@ export interface Split {
 }
 
 export class RaceView {
-  private readonly keys = el('div', 'race-keys', 'R respawn · ⌫ restart · L leaderboard · F fullscreen · 1/2/3 camera · H debug')
+  private readonly keys = el('div', 'race-keys', 'R respawn · ⌫ restart · L leaderboard · F fullscreen · 1/2/3 camera · C fly · H debug')
   private readonly status = el('div', 'race-status')
   private readonly lap = el('div', 'race-lap')
   private readonly cp = el('div', 'race-cp')
@@ -114,7 +114,7 @@ export class RaceView {
       ])
       this.pause.append(this.pauseMenu.element, this.pauseSettings)
     }
-    this.pause.append(el('p', '', 'Esc resume  [R] respawn  [⌫] restart  [L] leaderboard  [F] fullscreen  [1/2/3] camera  [H] debug'))
+    this.pause.append(el('p', '', 'Esc resume  [R] respawn  [⌫] restart  [L] leaderboard  [F] fullscreen  [1/2/3] camera  [C] fly  [H] debug'))
   }
 
   /** True while the Esc menu's settings panel is open (Esc closes it before resuming). */

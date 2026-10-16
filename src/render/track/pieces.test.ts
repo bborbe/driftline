@@ -5,7 +5,7 @@ import { FIXTURE_TRACK } from './fixture'
 import { TRACK_WIDTH } from './geometry'
 import { placedRoadWidth, planPieces } from './pieces'
 
-const lap = JSON.parse(readFileSync('assets/track/lap1.json', 'utf8')) as Track
+const lap = JSON.parse(readFileSync('assets/track/test1.json', 'utf8')) as Track
 const near = (a: Pose, b: Pose) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 
 describe('piece placement', () => {
@@ -71,7 +71,7 @@ describe('piece placement', () => {
     expect(planPieces(t).procedural).toEqual([0])
   })
 
-  for (const name of ['lap1', 'lap2']) {
+  for (const name of ['test1', 'test2']) {
     it(`${name}: road width is the same on both sides of every segment joint`, () => {
       const t = JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8')) as Track
       const plan = planPieces(t)

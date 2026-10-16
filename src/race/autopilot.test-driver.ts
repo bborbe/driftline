@@ -22,6 +22,8 @@ function partial(seg: Segment, f: number): Segment {
       return { ...seg, length: seg.length * f, rise: seg.rise * f }
     case 'drop':
       return { ...seg, length: seg.length * f, fall: seg.fall * f }
+    case 'gap':
+      return { ...seg, length: seg.length * f, fall: (seg.fall ?? 0) * f }
     case 'hairpin':
       return { type: 'curve', turn: seg.turn, radius: seg.radius, angle: (180 * f) as 90 }
     case 'curve':
@@ -37,6 +39,7 @@ const TARGET_SPEED: Record<Segment['type'], number> = {
   hairpin: 11,
   curve: 13,
   banked: 14,
+  gap: 26,
 }
 
 export function centreline(track: Track): Sample[] {
@@ -100,6 +103,7 @@ const pieceLimit = (seg: Segment): number => {
       return 40
     case 'ramp':
     case 'drop':
+    case 'gap':
       return JUMP_SPEED
     default:
       return Math.sqrt(LATERAL * seg.radius)

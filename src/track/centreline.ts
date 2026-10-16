@@ -1,38 +1,8 @@
 // Evenly spaced poses along a track's centreline, for debug screenshots (scripts/shots.mjs).
 // Pure TypeScript like schema.ts.
-import { exitPose, poses, type Pose, type Segment, type Track } from './schema'
+import { partialPose, poses, segmentLength, type Pose, type Track } from './schema'
 
-/** Centreline length of one segment in metres (arcs by radius × angle, ramps/drops by run). */
-export function segmentLength(seg: Segment): number {
-  switch (seg.type) {
-    case 'straight':
-    case 'ramp':
-    case 'drop':
-      return seg.length
-    case 'curve':
-    case 'banked':
-      return (seg.radius * seg.angle * Math.PI) / 180
-    case 'hairpin':
-      return seg.radius * Math.PI
-  }
-}
-
-/** Pose `f` (0..1) of the way through a segment. */
-export function partialPose(entry: Pose, seg: Segment, f: number): Pose {
-  switch (seg.type) {
-    case 'straight':
-      return exitPose(entry, { ...seg, length: seg.length * f })
-    case 'ramp':
-      return exitPose(entry, { ...seg, length: seg.length * f, rise: seg.rise * f })
-    case 'drop':
-      return exitPose(entry, { ...seg, length: seg.length * f, fall: seg.fall * f })
-    case 'curve':
-    case 'banked':
-      return exitPose(entry, { ...seg, angle: seg.angle * f } as Segment)
-    case 'hairpin':
-      return exitPose(entry, { type: 'curve', turn: seg.turn, radius: seg.radius, angle: 180 * f } as Segment)
-  }
-}
+export { partialPose, segmentLength } from './schema'
 
 /** One pose every `step` metres from the start pose to (excluding) the final exit. */
 export function centreline(track: Track, step: number): Pose[] {

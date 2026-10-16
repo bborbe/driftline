@@ -68,7 +68,8 @@
     ],
     "banked": [
       "banked"
-    ]
+    ],
+    "gap": []
   },
   "gates": {
     "start-finish": "start",

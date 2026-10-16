@@ -1,15 +1,19 @@
 // Best lap time, its checkpoint splits, best medal and top-10 leaderboard in localStorage (same pattern as bborbe/snake).
+import { recordName } from '../track/catalogue'
 import { isBetterMedal, MEDAL_ORDER, type Medal } from './medals'
 
 export const MAX_LEADERBOARD_ENTRIES = 10
 
 const NAME_KEY = 'driftline-last-name'
-/** lap1 keeps the original unsuffixed keys so existing best times and boards survive. */
+/** lap1 (now test1) keeps the original unsuffixed keys so existing best times and boards survive. */
 const LEGACY_TRACK = 'lap1'
 // Other tracks are keyed by name and layout, so a redesigned track starts a fresh board.
+// A renamed track keeps the name its records were first stored under (test2 → lap2).
 // Multi-lap runs get their own records: a 3-lap total never competes with 1-lap times.
-const suffix = (track: string, layout: string, laps: number) =>
-  (track === LEGACY_TRACK ? '' : layout ? `-${track}-${layout}` : `-${track}`) + (laps > 1 ? `-laps${laps}` : '')
+const suffix = (name: string, layout: string, laps: number) => {
+  const track = recordName(name)
+  return (track === LEGACY_TRACK ? '' : layout ? `-${track}-${layout}` : `-${track}`) + (laps > 1 ? `-laps${laps}` : '')
+}
 
 export interface LeaderboardEntry {
   name: string

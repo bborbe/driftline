@@ -58,9 +58,13 @@ export const zoneQuad = (track: Track, zone: Zone, width = ZONE_WIDTH): Float32A
   return new Float32Array([...lift(l0, ZONE_LIFT), ...lift(r0, ZONE_LIFT), ...lift(l1, ZONE_LIFT), ...lift(r0, ZONE_LIFT), ...lift(r1, ZONE_LIFT), ...lift(l1, ZONE_LIFT)])
 }
 
-/** Forward-pointing chevrons on a turbo pad, as triangle positions slightly above its quad. */
+/**
+ * Chevrons on a turbo pad pointing along its arrow (padForward: the direction physics boosts), as
+ * triangle positions slightly above its quad. A reversed pad swaps the ends so the tips point back.
+ */
 export const turboChevrons = (track: Track, zone: Zone, count = 3, width = ZONE_WIDTH): Float32Array => {
-  const [l0, r0, l1, r1] = zoneCorners(track, zone, width * 0.7)
+  const [c0, c1, c2, c3] = zoneCorners(track, zone, width * 0.7)
+  const [l0, r0, l1, r1] = zone.reverse ? [c3, c2, c1, c0] : [c0, c1, c2, c3]
   const out: number[] = []
   const dy = ZONE_LIFT + 0.002
   for (let i = 0; i < count; i++) {

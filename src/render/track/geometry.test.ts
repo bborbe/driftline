@@ -4,7 +4,7 @@ import { poses, SEGMENT_TYPES, validate } from '../../track/schema'
 import { FIXTURE_TRACK } from './fixture'
 import { trackSurface } from '../../physics'
 import type { Segment, Track } from '../../track/schema'
-import { buildApron, buildRampSupport, buildTrack, CENTRE_COLUMN, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import { buildApron, buildDeck, buildRampSupport, buildTrack, CENTRE_COLUMN, DECK_MIN_HEIGHT, DECK_PILLAR_CLEAR, planDeckPillars, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
@@ -120,7 +120,7 @@ describe('render track geometry', () => {
 })
 
 describe('ramp supports', () => {
-  const lap = JSON.parse(readFileSync('assets/track/lap2.json', 'utf8')) as Track
+  const lap = JSON.parse(readFileSync('assets/track/test2.json', 'utf8')) as Track
   const entries = poses(lap)
 
   it('walls only under ramps and drops, feet on the ground, tops at the road edge height', () => {
@@ -146,6 +146,46 @@ describe('ramp profile', () => {
     for (const seg of [{ type: 'ramp', length: 30, rise: 7.8 }, { type: 'drop', length: 30, fall: 7.8 }] as Segment[]) {
       const dy = seg.type === 'ramp' ? 7.8 : -7.8
       for (const t of [0, 0.1, 0.5, 0.9, 1]) expect(sampleSegment(entry, seg, t).y).toBeCloseTo(dy * t, 6)
+    }
+  })
+})
+
+describe('multi-level decks', () => {
+  const load = (name: string) => JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8')) as Track
+  const road = (track: Track) => {
+    const ps = poses(track)
+    return track.segments.flatMap((seg, i) =>
+      seg.type === 'gap' ? [] : Array.from({ length: 41 }, (_, k) => ({ ...sampleSegment(ps[i], seg, k / 40), seg: i })),
+    )
+  }
+
+  it.each(['crossover', 'tower'])('%s: every elevated flat piece gets a deck, gaps and ground pieces none', (name) => {
+    const track = load(name)
+    const ps = poses(track)
+    track.segments.forEach((seg, i) => {
+      const flat = seg.type !== 'ramp' && seg.type !== 'drop' && seg.type !== 'gap'
+      expect(buildDeck(ps[i], seg) !== null, `seg ${i} ${seg.type} at y ${ps[i].y}`).toBe(flat && ps[i].y >= DECK_MIN_HEIGHT)
+    })
+  })
+
+  it.each(['crossover', 'tower'])('%s: deck pillars stand on open ground, never on the road underneath', (name) => {
+    const track = load(name)
+    const pillars = planDeckPillars(track)
+    expect(pillars.length).toBeGreaterThan(5)
+    for (const p of pillars) {
+      for (const q of road(track)) {
+        if (q.y < p.top - 1) expect(Math.hypot(q.x - p.x, q.z - p.z)).toBeGreaterThanOrEqual(DECK_PILLAR_CLEAR)
+      }
+    }
+  })
+
+  it.each(['test1', 'test2', 'crossover', 'tower'])('%s: no ramp or drop wall stands on another part of the lap', (name) => {
+    const track = load(name)
+    const pts = road(track)
+    for (const a of pts.filter((p) => ['ramp', 'drop'].includes(track.segments[p.seg].type))) {
+      for (const b of pts) {
+        if (Math.abs(a.seg - b.seg) > 1 && b.y < a.y - 1) expect(Math.hypot(a.x - b.x, a.z - b.z), `seg ${a.seg} over ${b.seg}`).toBeGreaterThanOrEqual(TRACK_WIDTH)
+      }
     }
   })
 })

@@ -59,6 +59,14 @@ describe('validate', () => {
     expect(validate(ok)).toEqual([])
   })
 
+  it('accepts a gap, and rejects a gate standing on one', () => {
+    const gapped: Track = { ...ok, segments: [...ok.segments, { type: 'gap', length: 12, fall: 2 }] }
+    expect(validate(gapped)).toEqual([])
+    expect(validate({ ...gapped, gates: [...gapped.gates, { kind: 'checkpoint', segment: 2 }] })).toEqual([
+      'gates[1]: a gate cannot stand on a gap (no road)',
+    ])
+  })
+
   it('rejects an unknown segment type', () => {
     expect(validate({ ...ok, segments: [{ type: 'loop' }] })).toContain('segments[0]: unknown segment type loop')
   })
@@ -116,5 +124,23 @@ describe('zones', () => {
   it('zoneCorners spans the zone along the segment, left (+x at heading 0) first', () => {
     const [l0, r0, l1, r1] = zoneCorners(base, { kind: 'dirt', segment: 0, from: 0.2, to: 0.5 }, 8)
     expect([l0.x, l0.z, r0.x, r0.z, l1.z, r1.x]).toEqual([4, 20, -4, 20, 50, -4])
+  })
+})
+
+describe('barriers', () => {
+  const base: Track = {
+    name: 'b',
+    start: { x: 0, y: 0, z: 0, heading: 0 },
+    segments: [{ type: 'straight', length: 100 }, { type: 'curve', turn: 'left', radius: 20, angle: 90 }],
+    gates: [{ kind: 'start-finish', segment: 0 }],
+  }
+
+  it('validates straight and road-following barriers', () => {
+    expect(validate({ ...base, barriers: [{ from: [10, 0], to: [10, 20] }, { segment: 1, side: 'left', gap: 2, from: 0.2 }] })).toEqual([])
+    expect(validate({ ...base, barriers: [{ from: [10, 0], to: [10, 0] }] })).toEqual(['barriers[0]: from and to must differ'])
+    expect(validate({ ...base, barriers: [{ segment: 5, side: 'left' }] })).toEqual(['barriers[0]: segment out of range'])
+    expect(validate({ ...base, barriers: [{ segment: 0, side: 'up' }] })).toEqual(['barriers[0]: side must be left or right'])
+    expect(validate({ ...base, barriers: [{ segment: 0, side: 'left', gap: -1 }] })).toEqual(['barriers[0]: gap must be >= 0'])
+    expect(validate({ ...base, barriers: [{ segment: 0, side: 'left', from: 0.6, to: 0.4 }] })).toEqual(['barriers[0]: needs 0 <= from < to <= 1'])
   })
 })
