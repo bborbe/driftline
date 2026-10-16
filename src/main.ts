@@ -7,6 +7,7 @@ import { loadLap } from './render/track/lap'
 import { GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
+import { mountBuildLabel } from './build-info'
 
 const track = loadLap()
 const view = await createView(track)
@@ -15,6 +16,7 @@ const { camera, backend } = view
 const hud = document.createElement('div')
 hud.id = 'hud'
 document.body.appendChild(hud)
+mountBuildLabel()
 
 const input = new KeyboardInput()
 const audio = new GameAudio()
