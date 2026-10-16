@@ -4,6 +4,8 @@ import { engineFreq, masterGain, ONE_SHOTS, rumbleGain, skidGain, SURFACE_SOUND,
 
 // Smoothing time constant for continuous parameters, so per-frame updates never click.
 const SMOOTH = 0.05
+// Finish fade time constant: ~0.5 s (three constants) to silence.
+const FADE = 0.15
 
 const noiseBuffer = (ctx: BaseAudioContext): AudioBuffer => {
   const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
@@ -25,6 +27,8 @@ export class GameAudio {
   private rumbleFilter: BiquadFilterNode | null = null
   private turbo: GainNode | null = null
   private muted = false
+  // Set by onFinish: the run is over, so engine and noise layers stay silent until a restart.
+  private finished = false
   private volume = 0.7
 
   private readonly createContext: () => AudioContext
@@ -73,6 +77,10 @@ export class GameAudio {
     const ctx = this.ctx
     if (!ctx || !this.engineLow || !this.engineHigh || !this.engineGain || !this.wind || !this.skid) return
     const t = ctx.currentTime
+    if (this.finished) {
+      for (const g of [this.engineGain, this.wind, this.skid, this.rumble, this.turbo]) g?.gain.setTargetAtTime(0, t, FADE)
+      return
+    }
     const forward = dot(state.velocity, forwardOf(state))
     const ground = length({ x: state.velocity.x, y: 0, z: state.velocity.z })
     const f = engineFreq(forward, input.throttle)
@@ -93,7 +101,13 @@ export class GameAudio {
   }
 
   onFinish(): void {
+    this.finished = true
     this.play('finish')
+  }
+
+  // Backspace restart: a new run, so the engine comes back.
+  onRestart(): void {
+    this.finished = false
   }
 
   onRespawn(): void {
