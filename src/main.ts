@@ -4,6 +4,7 @@ import { createChase, updateChase } from './camera/chase'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
 import { FIXTURE_TRACK } from './render/track/fixture'
+import { GameAudio, mountAudioControls } from './audio'
 
 const view = await createView(FIXTURE_TRACK)
 const { camera, backend } = view
@@ -13,6 +14,9 @@ hud.id = 'hud'
 document.body.appendChild(hud)
 
 const input = new KeyboardInput()
+const audio = new GameAudio()
+mountAudioControls(audio)
+Object.assign(window, { audio }) // dev console: audio.onCheckpoint() etc. until the lap loop calls them
 const sim = new FixedStepper(createCar())
 let chase = createChase(sim.state.position, forwardOf(sim.state))
 let last = performance.now()
@@ -22,8 +26,10 @@ view.renderer.setAnimationLoop(() => {
   const elapsed = (now - last) / 1000
   last = now
 
-  sim.advance(elapsed, input.read())
+  const carInput = input.read()
+  sim.advance(elapsed, carInput)
   const s = sim.state
+  audio.update(s, carInput)
   const speed = dot(s.velocity, forwardOf(s))
 
   chase = updateChase(chase, s.position, forwardOf(s), Math.abs(speed), elapsed)

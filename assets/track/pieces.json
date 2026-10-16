@@ -1,0 +1,77 @@
+{
+  "cell": 10,
+  "pieces": {
+    "straight": {
+      "source": "racing-kit/roadStraightLong.glb",
+      "surface": {
+        "kind": "strip",
+        "length": 20,
+        "rise": 0
+      }
+    },
+    "start": {
+      "source": "racing-kit/roadStart.glb",
+      "surface": {
+        "kind": "strip",
+        "length": 20,
+        "rise": 0
+      },
+      "footprint": "straight"
+    },
+    "corner": {
+      "source": "racing-kit/roadCornerLarge.glb",
+      "surface": {
+        "kind": "arc",
+        "radius": 15,
+        "angle": 90,
+        "bank": 0
+      }
+    },
+    "ramp": {
+      "source": "racing-kit/roadRampLong.glb",
+      "surface": {
+        "kind": "strip",
+        "length": 20,
+        "rise": 5.2
+      }
+    },
+    "checkpoint": {
+      "source": "racing-kit/overhead.glb",
+      "prop": true
+    },
+    "banked": {
+      "generated": true,
+      "surface": {
+        "kind": "arc",
+        "radius": 15,
+        "angle": 90,
+        "bank": 0.26
+      }
+    }
+  },
+  "segments": {
+    "straight": [
+      "straight"
+    ],
+    "ramp": [
+      "ramp"
+    ],
+    "drop": [
+      "ramp"
+    ],
+    "curve": [
+      "corner"
+    ],
+    "hairpin": [
+      "corner",
+      "corner"
+    ],
+    "banked": [
+      "banked"
+    ]
+  },
+  "gates": {
+    "start-finish": "start",
+    "checkpoint": "checkpoint"
+  }
+}
