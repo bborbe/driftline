@@ -77,7 +77,21 @@ describe('LapLoop', () => {
     for (let t = 7; t <= COUNTDOWN_TICKS + 50; t += 7) loop.update({ ...loop.spawn(), tick: t }) // ~14 fps
     loop.restart(COUNTDOWN_TICKS + 60)
     for (let t = COUNTDOWN_TICKS + 61; t <= 2 * COUNTDOWN_TICKS + 100; t++) loop.update({ ...loop.spawn(), tick: t })
-    expect(ns).toEqual([3, 2, 1, 0, 1, 0]) // restart: short countdown
+    expect(ns).toEqual([3, 2, 1, 0, 3, 2, 1, 0]) // restart: the same 3-2-1-GO, compressed
+  })
+
+  it('announces 3, 2, 1, GO on restart within the short countdown, evenly spaced', () => {
+    const loop = new LapLoop(FLAT_OVAL, () => true)
+    const calls: [number, number][] = []
+    loop.start(0)
+    for (let t = 1; t <= COUNTDOWN_TICKS + 10; t++) loop.update({ ...loop.spawn(), tick: t })
+    loop.on({ countdown: (t, n) => calls.push([n, t]) })
+    const r = COUNTDOWN_TICKS + 20
+    loop.restart(r)
+    for (let t = r + 1; t <= r + RESTART_COUNTDOWN_TICKS + 10; t++) loop.update({ ...loop.spawn(), tick: t })
+    expect(calls.map(([n]) => n)).toEqual([3, 2, 1, 0])
+    const third = RESTART_COUNTDOWN_TICKS / 3
+    expect(calls.map(([, t]) => t - r)).toEqual([0, Math.floor(third) + 1, Math.floor(2 * third) + 1, RESTART_COUNTDOWN_TICKS])
   })
 
   it('passes input only while racing', () => {

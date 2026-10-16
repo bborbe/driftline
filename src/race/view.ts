@@ -1,7 +1,8 @@
 // DOM overlay: race HUD (timer bottom centre, speedometer bottom right, medal target top left, lap / checkpoint
-// top right, split pop-up), start lights + 3-2-1-GO! countdown, finish panel with name entry, leaderboard, Esc menu. Key hints sit bottom left with the debug overlay.
+// top right, split pop-up), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in the Esc menu), finish panel with name entry, leaderboard, Esc menu. One small "H — controls" hint sits bottom left.
 import './race.css'
 import { menuList, type MenuList } from '../menu/list'
+import { controlsPanel } from './controls'
 import { litTicks, SPEEDO_TICKS, type Target } from './hud'
 import { formatDelta, MEDAL_LABEL, type Medal } from './medals'
 import { formatLapTime, type RaceStore } from './store'
@@ -50,7 +51,9 @@ export interface Split {
 }
 
 export class RaceView {
-  private readonly keys = el('div', 'race-keys', 'R respawn · ⌫ restart · L leaderboard · F fullscreen · 1/2/3 camera · C fly · H debug')
+  private readonly keys = el('div', 'race-keys', 'H — controls')
+  private readonly help = el('div', 'race-help')
+  private readonly pauseControls = el('div', '')
   private readonly status = el('div', 'race-status')
   private readonly lap = el('div', 'race-lap')
   private readonly cp = el('div', 'race-cp')
@@ -110,22 +113,50 @@ export class RaceView {
         { label: 'Resume', action: () => actions.resume() },
         { label: 'Restart', action: () => actions.restart() },
         { label: 'Settings', action: () => this.toggleSettings() },
+        { label: 'Controls', action: () => this.togglePauseControls() },
         { label: 'Back to menu', action: () => actions.backToMenu() },
       ])
-      this.pause.append(this.pauseMenu.element, this.pauseSettings)
+      this.pause.append(this.pauseMenu.element, this.pauseSettings, this.pauseControls)
     }
-    this.pause.append(el('p', '', 'Esc resume  [R] respawn  [⌫] restart  [L] leaderboard  [F] fullscreen  [1/2/3] camera  [C] fly  [H] debug'))
+    this.pauseControls.hidden = true
+    this.pause.append(el('p', '', 'Esc resume  ·  H controls'))
+    this.help.hidden = true
+    this.help.append(el('h2', '', 'CONTROLS'), controlsPanel(), el('p', '', 'H or Esc to close'))
+    document.body.append(this.help)
   }
 
   /** True while the Esc menu's settings panel is open (Esc closes it before resuming). */
   get settingsOpen(): boolean {
-    return !this.pauseSettings.hidden
+    return !this.pauseSettings.hidden || !this.pauseControls.hidden
   }
 
   toggleSettings(): void {
     if (!this.actions) return
     if (this.pauseSettings.hidden) this.pauseSettings.replaceChildren(this.actions.settings())
     this.pauseSettings.hidden = !this.pauseSettings.hidden
+    this.pauseControls.hidden = true
+  }
+
+  /** Closes the Esc menu's Settings / Controls page, back to the menu list. */
+  closeSubpanel(): void {
+    this.pauseSettings.hidden = true
+    this.pauseControls.hidden = true
+  }
+
+  /** The Esc menu's Controls page (the same list H shows in-race). */
+  private togglePauseControls(): void {
+    if (this.pauseControls.hidden) this.pauseControls.replaceChildren(controlsPanel())
+    this.pauseControls.hidden = !this.pauseControls.hidden
+    this.pauseSettings.hidden = true
+  }
+
+  /** True while the in-race controls panel (H) is up; Esc closes it before pausing. */
+  get controlsOpen(): boolean {
+    return !this.help.hidden
+  }
+
+  toggleControls(): void {
+    this.help.hidden = !this.help.hidden
   }
 
   /** Arrows / Enter for whichever menu is open; returns true when the key was used. */
@@ -185,6 +216,7 @@ export class RaceView {
   showPause(paused: boolean): void {
     this.pause.hidden = !paused
     this.pauseSettings.hidden = true
+    this.pauseControls.hidden = true
     this.pauseMenu?.focus(0)
   }
 

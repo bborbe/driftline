@@ -32,5 +32,5 @@ export function chaseTarget(medals: Medals | undefined, bestMedal: Medal | null,
   return bestMs === null ? null : { label: 'BEST', ms: bestMs, medal: null }
 }
 
-/** `?debug=0` starts with the debug overlay hidden; it is shown by default (agents read it in screenshots). */
+/** `?debug=0` starts with the debug overlay hidden (backtick toggles it); it is shown by default (agents read it in screenshots). */
 export const debugVisible = (search: string): boolean => new URLSearchParams(search).get('debug') !== '0'

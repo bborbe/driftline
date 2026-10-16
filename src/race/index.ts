@@ -1,7 +1,7 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
-// Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, F = fullscreen, Esc = pause menu (not when it only leaves fullscreen)
+// Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, F = fullscreen, H = controls help, Esc = pause menu (not when it only leaves fullscreen)
 // (Resume / Restart / Settings / Back to menu, arrows + Enter or mouse; Esc again resumes).
 // Checkpoints, lap lines and the finish flash the split delta vs the personal best; the finish panel shows
 // medals (single-lap runs only) and, in a multi-lap run (`laps`), each lap time with the best one marked.
@@ -9,6 +9,7 @@
 import { dot, forwardOf, type CarInput, type FixedStepper } from '../physics'
 import { layoutId, type Track } from '../track/schema'
 import { chaseTarget, kmh } from './hud'
+import { isControlsKey } from './controls'
 import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { earnedMedal, nextMedal, SplitTracker } from './medals'
 import { formatLapTime, RaceStore } from './store'
@@ -93,7 +94,8 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     if (e.code === 'KeyF' && !e.repeat) toggleFullscreen()
     if (e.code === 'Escape') {
       if (escapeLeavesFullscreen(!!document.fullscreenElement, performance.now())) return
-      if (paused && view.settingsOpen) view.toggleSettings()
+      if (view.controlsOpen) view.toggleControls()
+      else if (paused && view.settingsOpen) view.closeSubpanel()
       else setPaused(!paused)
       return
     }
@@ -104,6 +106,8 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     if (e.code === 'KeyR') pending = 'respawn'
     if (e.code === 'Backspace') pending = 'restart'
     if (e.code === 'KeyL') view.toggleLeaderboard()
+    const tag = (e.target as HTMLElement | null)?.tagName
+    if (isControlsKey(e.code) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'SELECT') view.toggleControls()
   })
 
   document.addEventListener('visibilitychange', () => {
