@@ -1,6 +1,6 @@
 // Drivable surfaces for the wheel raycasts. Pure and deterministic: no three.js,
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
-import { barrierPillars, CELL, gatePillars, poses, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
+import { barrierPillars, barrierPosts, CELL, gatePillars, poses, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
 import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
 import { normalize, v3, type Vec3 } from './vec'
 
@@ -156,6 +156,7 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
     obstacles: [
       ...track.gates.filter((g) => g.segment < track.segments.length).flatMap((g) => gatePillars(track, g)),
       ...barrierPillars(track),
+      ...barrierPosts(track),
     ],
     raycast(origin, dir, maxDistance) {
       if (dir.y >= -1e-6) return null

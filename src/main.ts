@@ -2,6 +2,27 @@ import './style.css'
 import { createCarAt, dot, FixedStepper, forwardOf, materialUnder, trackSurface } from './physics'
 import { cockpitPose, COCKPIT_FOV, createChase, FAR_RIG, CLOSE_RIG, updateChase } from './camera/chase'
 import { CAMERA_EVENT, loadView, saveView, viewForKey, type ViewMode } from './camera/views'
+import {
+  createFly,
+  flyInputFrom,
+  flyLooking,
+  flyQuery,
+  flyRequested,
+  flyToggleKey,
+  FLY_FOV,
+  look,
+  lookDir,
+  ORBIT_RATE,
+  orbitAngleNear,
+  orbitFor,
+  orbitPose,
+  orbitRequested,
+  orbitToggleKey,
+  pitchParam,
+  updateFly,
+  wrapDeg,
+  type FlyCam,
+} from './camera/fly'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './render/track/lap'
@@ -11,6 +32,7 @@ import { lapCount } from './race/lap'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 import { mountBuildLabel } from './build-info'
 import { debugPose, frozen, poseQuery, yawDeg } from './race/debug-pose'
+import { add, v3 } from './physics/vec'
 import { centreline } from './track/centreline'
 import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
@@ -89,8 +111,10 @@ audio.setVolume(settings.volume)
 // The card pick is the start gesture: skip the Begin overlay and go straight into the countdown.
 if (fromMenu) document.getElementById('begin')?.click()
 // Debug spawn for screenshots (README § Debug screenshots): ?x&y&z&yaw places the car, freeze=1 holds it.
+// With &cam=fly the same params (plus &pitch) place the free-fly camera instead, and the car stays on the grid.
 const pose = debugPose(location.search)
-if (pose) sim.state = createCarAt(pose)
+const flyAtStart = flyRequested(location.search)
+if (pose && !flyAtStart) sim.state = createCarAt(pose)
 const freeze = frozen(location.search)
 if (freeze) document.getElementById('begin')?.remove()
 // P copies the current pose as a debug-spawn URL, so a visual bug can be reproduced at the exact spot.
@@ -101,7 +125,8 @@ let toastTimer = 0
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyP' || e.repeat) return
   const s = sim.state
-  const url = `${location.origin}${location.pathname}${poseQuery(lapName(location.search), s.position, yawDeg(forwardOf(s)))}`
+  const query = fly ? flyQuery(lapName(location.search), fly) : poseQuery(lapName(location.search), s.position, yawDeg(forwardOf(s)))
+  const url = `${location.origin}${location.pathname}${query}`
   const show = (msg: string) => {
     toast.textContent = msg
     toast.classList.add('show')
@@ -109,7 +134,7 @@ window.addEventListener('keydown', (e) => {
     toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1500)
   }
   navigator.clipboard.writeText(url).then(
-    () => show('copied spawn URL'),
+    () => show(fly ? 'copied fly view URL' : 'copied spawn URL'),
     () => show(url),
   )
 })
@@ -127,8 +152,65 @@ window.addEventListener('keydown', (e) => {
   if (!mode || e.repeat || e.target instanceof HTMLInputElement) return
   saveView(localStorage, mode)
   setView(mode)
+  leaveFly()
 })
 window.addEventListener(CAMERA_EVENT, (e) => setView((e as CustomEvent<ViewMode>).detail))
+// Free-fly camera (C, or ?cam=fly): the race, ghost and audio hold still while flying; C again (or 1/2/3)
+// returns to the chase/in-car view and the race carries on from the same tick. O orbits the whole track.
+let fly: FlyCam | null = null
+let orbitAngle: number | null = null
+const orbit = orbitFor(track)
+const enterFly = (cam: FlyCam) => {
+  fly = cam
+  void audio.setPaused(true)
+}
+function leaveFly() {
+  if (!fly) return
+  fly = null
+  orbitAngle = null
+  void audio.setPaused(race.paused)
+  chase = createChase(sim.state.position, forwardOf(sim.state), rigFor())
+}
+const flyFromCamera = (): FlyCam => {
+  const dir = camera.getWorldDirection(camera.position.clone())
+  const eye = v3(camera.position.x, camera.position.y, camera.position.z)
+  return flyLooking(eye, add(eye, v3(dir.x, dir.y, dir.z)))
+}
+const toggleOrbit = () => {
+  if (orbitAngle !== null) {
+    orbitAngle = null
+    return
+  }
+  if (!fly) enterFly(flyFromCamera())
+  orbitAngle = orbitAngleNear(orbit, fly!.position)
+}
+if (flyAtStart) {
+  const car = sim.state.position
+  enterFly(
+    pose
+      ? createFly(v3(pose.x, pose.y, pose.z), pose.heading, pitchParam(location.search))
+      : flyLooking(chase.position, v3(car.x, car.y + 0.8, car.z)),
+  )
+  if (orbitRequested(location.search)) toggleOrbit()
+}
+window.addEventListener('keydown', (e) => {
+  if (e.repeat || e.target instanceof HTMLInputElement) return
+  if (flyToggleKey(e.code)) {
+    if (fly) leaveFly()
+    else enterFly(flyFromCamera())
+  } else if (orbitToggleKey(e.code)) toggleOrbit()
+})
+// Mouse drag looks around while flying (and ends an orbit where it is).
+let dragging = false
+view.renderer.domElement.addEventListener('mousedown', (e) => {
+  if (fly && e.button === 0) dragging = true
+})
+window.addEventListener('mouseup', () => (dragging = false))
+window.addEventListener('mousemove', (e) => {
+  if (!dragging || !fly) return
+  orbitAngle = null
+  fly = look(fly, e.movementX, e.movementY)
+})
 let last = performance.now()
 
 view.renderer.setAnimationLoop(() => {
@@ -137,19 +219,33 @@ view.renderer.setAnimationLoop(() => {
   last = now
 
   const carInput = input.read()
-  if (!freeze) race.frame(elapsed, carInput)
-  ghostRecorder.frame(race.loop.input(carInput), sim.state.tick)
-  if (ghost) {
+  if (!freeze && !fly) race.frame(elapsed, carInput)
+  if (!fly) ghostRecorder.frame(race.loop.input(carInput), sim.state.tick)
+  if (ghost && !fly) {
     ghost.advanceTo(sim.state.tick - lapStartTick)
     ghostCar.update(ghost.render(sim.alpha), race.paused ? 0 : elapsed)
   }
   const s = sim.render()
   const material = materialUnder(s, sim.surface)
-  audio.update(s, carInput, material)
+  if (!fly) audio.update(s, carInput, material)
   const speed = dot(s.velocity, forwardOf(s))
 
-  view.car.visible = viewMode !== 'cockpit'
-  if (viewMode === 'cockpit') {
+  view.car.visible = fly !== null || viewMode !== 'cockpit'
+  if (fly) {
+    const flyInput = flyInputFrom(input.held())
+    if (orbitAngle !== null && (flyInput.forward || flyInput.right || flyInput.up)) orbitAngle = null
+    if (orbitAngle !== null) {
+      orbitAngle += ORBIT_RATE * elapsed
+      fly = orbitPose(orbit, orbitAngle)
+    } else fly = updateFly(fly, flyInput, Math.min(elapsed, 0.1))
+    const p = fly.position
+    const d = lookDir(fly.yaw, fly.pitch)
+    camera.position.set(p.x, p.y, p.z)
+    camera.up.set(0, 1, 0)
+    camera.fov = FLY_FOV
+    camera.updateProjectionMatrix()
+    camera.lookAt(p.x + d.x, p.y + d.y, p.z + d.z)
+  } else if (viewMode === 'cockpit') {
     const c = cockpitPose(s.position, s.orientation)
     camera.position.set(c.eye.x, c.eye.y, c.eye.z)
     camera.up.set(c.up.x, c.up.y, c.up.z)
@@ -165,6 +261,8 @@ view.renderer.setAnimationLoop(() => {
     camera.lookAt(s.position.x, s.position.y + 0.8, s.position.z)
   }
 
-  hud.textContent = `${backend}  ${track.name}  ${race.loop.phase === 'finished' ? 0 : (Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`
+  hud.textContent = fly
+    ? `${backend}  ${track.name}  FLY${orbitAngle !== null ? ' ORBIT' : ''}  x ${fly.position.x.toFixed(1)}  y ${fly.position.y.toFixed(1)}  z ${fly.position.z.toFixed(1)}  yaw ${wrapDeg((fly.yaw * 180) / Math.PI).toFixed(0)}  pitch ${((fly.pitch * 180) / Math.PI).toFixed(0)}  ·  WASD move  drag look  E/Q up/down  Shift fast  O orbit  C exit`
+    : `${backend}  ${track.name}  ${race.loop.phase === 'finished' ? 0 : (Math.abs(speed) * 3.6).toFixed(0)} km/h  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`
   view.frame(s, elapsed, material)
 })

@@ -61,14 +61,21 @@ export interface Zone {
   to: number
 }
 
-/** A straight wall on the open ground, world x/z from `from` to `to`: blocks a shortcut across the grass. */
-export interface Barrier {
-  from: [number, number]
-  to: [number, number]
-}
+/**
+ * A wall on the open ground that blocks a shortcut across the grass. Either it follows a road
+ * piece's `side` edge `gap` metres off the curb (default BARRIER.gap) over the fraction `from`..`to`
+ * of the piece (default all of it), or it runs straight between two world [x, z] points.
+ */
+export type Barrier =
+  | { from: [number, number]; to: [number, number] }
+  | { segment: number; side: Turn; gap?: number; from?: number; to?: number }
 
-/** Barrier cross-section in metres: a low red-and-white plastic wall, Trackmania-style. */
-export const BARRIER = { halfWidth: 0.5, height: 1.2 } as const
+/**
+ * Barrier shape in metres: a low red wall with a white top, in straight lengths of at most `step`,
+ * a square white post at every end and joint. `gap` (curb to wall face) is below the car's width,
+ * so a wall that ends at the road edge closes the way through.
+ */
+export const BARRIER = { halfWidth: 0.5, height: 1.2, gap: 1.5, step: 5, post: 0.55, postHeight: 1.35 } as const
 
 export interface Track {
   name: string
@@ -159,17 +166,88 @@ export function gatePillars(track: Track, gate: Gate): Pillar[] {
   }))
 }
 
-/** Every barrier as an upright box — the single source for the colliders (src/physics) and the walls (src/render). */
+/** Centreline length of one segment in metres (arcs by radius × angle, ramps/drops by run). */
+export function segmentLength(seg: Segment): number {
+  switch (seg.type) {
+    case 'straight':
+    case 'ramp':
+    case 'drop':
+    case 'gap':
+      return seg.length
+    case 'curve':
+    case 'banked':
+      return (seg.radius * seg.angle * Math.PI) / 180
+    case 'hairpin':
+      return seg.radius * Math.PI
+  }
+}
+
+/** Pose `f` (0..1) of the way through a segment. */
+export function partialPose(entry: Pose, seg: Segment, f: number): Pose {
+  switch (seg.type) {
+    case 'straight':
+      return exitPose(entry, { ...seg, length: seg.length * f })
+    case 'ramp':
+      return exitPose(entry, { ...seg, length: seg.length * f, rise: seg.rise * f })
+    case 'drop':
+      return exitPose(entry, { ...seg, length: seg.length * f, fall: seg.fall * f })
+    case 'gap':
+      return exitPose(entry, { ...seg, length: seg.length * f, fall: (seg.fall ?? 0) * f })
+    case 'curve':
+    case 'banked':
+      return exitPose(entry, { ...seg, angle: seg.angle * f } as Segment)
+    case 'hairpin':
+      return exitPose(entry, { type: 'curve', turn: seg.turn, radius: seg.radius, angle: 180 * f } as Segment)
+  }
+}
+
+// Each barrier as the [x, z] points of its wall line: a road-following one is sampled every
+// BARRIER.step metres or less along its piece, offset from the centreline to the wall's middle.
+function barrierLines(track: Track): [number, number][][] {
+  const entries = poses(track)
+  return (track.barriers ?? []).map((b) => {
+    if (!('segment' in b)) return [b.from, b.to]
+    const seg = track.segments[b.segment]
+    const from = b.from ?? 0
+    const to = b.to ?? 1
+    const length = segmentLength(seg)
+    const n = Math.max(1, Math.ceil((length * (to - from)) / BARRIER.step))
+    const offset = (b.side === 'left' ? 1 : -1) * (CELL / 2 + (b.gap ?? BARRIER.gap) + BARRIER.halfWidth)
+    return Array.from({ length: n + 1 }, (_, k) => {
+      const p = partialPose(entries[b.segment], seg, from + ((to - from) * k) / n)
+      // Heading 0 faces +z with +x on the left.
+      return [p.x + Math.cos(p.heading) * offset, p.z - Math.sin(p.heading) * offset] as [number, number]
+    })
+  })
+}
+
+/** Every barrier wall length as an upright box — the single source for the colliders (src/physics) and the walls (src/render). */
 export function barrierPillars(track: Track): Pillar[] {
-  return (track.barriers ?? []).map(({ from: [x0, z0], to: [x1, z1] }) => ({
-    x: (x0 + x1) / 2,
-    y: 0,
-    z: (z0 + z1) / 2,
-    heading: Math.atan2(x1 - x0, z1 - z0),
-    halfWidth: BARRIER.halfWidth,
-    halfDepth: Math.hypot(x1 - x0, z1 - z0) / 2,
-    height: BARRIER.height,
-  }))
+  return barrierLines(track).flatMap((line) =>
+    line.slice(1).map(([x1, z1], k) => {
+      const [x0, z0] = line[k]
+      return {
+        x: (x0 + x1) / 2,
+        y: 0,
+        z: (z0 + z1) / 2,
+        heading: Math.atan2(x1 - x0, z1 - z0),
+        halfWidth: BARRIER.halfWidth,
+        halfDepth: Math.hypot(x1 - x0, z1 - z0) / 2,
+        height: BARRIER.height,
+      }
+    }),
+  )
+}
+
+/** A post at every barrier end and joint, as an upright box — colliders and render alike. */
+export function barrierPosts(track: Track): Pillar[] {
+  return barrierLines(track).flatMap((line) =>
+    line.map(([x, z], k) => {
+      const [ax, az] = line[Math.max(0, k - 1)]
+      const [bx, bz] = line[Math.min(line.length - 1, k + 1)]
+      return { x, y: 0, z, heading: Math.atan2(bx - ax, bz - az), halfWidth: BARRIER.post, halfDepth: BARRIER.post, height: BARRIER.postHeight }
+    }),
+  )
 }
 
 /**
@@ -271,8 +349,15 @@ export function validate(data: unknown): string[] {
     if (!Array.isArray(t.barriers)) {
       errs.push('barriers must be an array')
     } else {
+      const n = Array.isArray(t.segments) ? t.segments.length : 0
+      const fraction = (v: unknown) => v === undefined || (Number.isFinite(v) && (v as number) >= 0 && (v as number) <= 1)
       t.barriers.forEach((b, i) => {
-        if (!point(b?.from) || !point(b?.to)) errs.push(`barriers[${i}]: needs from and to as [x, z]`)
+        if (b && 'segment' in b) {
+          if (!Number.isInteger(b.segment) || b.segment < 0 || b.segment >= n) errs.push(`barriers[${i}]: segment out of range`)
+          if (b.side !== 'left' && b.side !== 'right') errs.push(`barriers[${i}]: side must be left or right`)
+          if (b.gap !== undefined && !(Number.isFinite(b.gap) && b.gap >= 0)) errs.push(`barriers[${i}]: gap must be >= 0`)
+          if (!fraction(b.from) || !fraction(b.to) || (b.from ?? 0) >= (b.to ?? 1)) errs.push(`barriers[${i}]: needs 0 <= from < to <= 1`)
+        } else if (!point(b?.from) || !point(b?.to)) errs.push(`barriers[${i}]: needs from and to as [x, z]`)
         else if (b.from[0] === b.to[0] && b.from[1] === b.to[1]) errs.push(`barriers[${i}]: from and to must differ`)
       })
     }
