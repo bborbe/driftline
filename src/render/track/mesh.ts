@@ -1,7 +1,7 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
-import { gateLine, poses, type Track } from '../../track/schema'
-import { buildApron, buildTrack, PROFILE, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
+import { gatePillars, poses, type Pillar, type Track } from '../../track/schema'
+import { buildApron, buildTrack, PROFILE, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road.
@@ -42,18 +42,22 @@ const toBufferGeometry = (g: SegmentGeometry): THREE.BufferGeometry => {
   return geo
 }
 
-const gateArch = (kind: 'start-finish' | 'checkpoint'): THREE.Group => {
+// Pillars from gatePillars() — the same boxes the physics collides with — plus a beam across.
+const gateArch = (kind: 'start-finish' | 'checkpoint', pillars: Pillar[]): THREE.Group => {
   const color = kind === 'start-finish' ? 0xffffff : 0x4cc9f0
   const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6 })
   const arch = new THREE.Group()
-  const span = TRACK_WIDTH + 2
-  for (const side of [-1, 1]) {
-    const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 7, 0.8), mat)
-    pillar.position.set((side * span) / 2, 3.5, 0)
+  for (const p of pillars) {
+    const pillar = new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, p.height, 2 * p.halfDepth), mat)
+    pillar.position.set(p.x, p.y + p.height / 2, p.z)
+    pillar.rotation.y = p.heading
     arch.add(pillar)
   }
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(span + 0.8, 1.2, 0.8), mat)
-  beam.position.y = 7
+  const [a, b] = pillars
+  const span = Math.hypot(b.x - a.x, b.z - a.z) + 2 * a.halfWidth
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 1.2, 2 * a.halfDepth), mat)
+  beam.position.set((a.x + b.x) / 2, a.y + a.height, (a.z + b.z) / 2)
+  beam.rotation.y = a.heading
   arch.add(beam)
   arch.traverse((o) => (o.castShadow = true))
   return arch
@@ -91,11 +95,7 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
   })
   for (const [i, gate] of track.gates.entries()) {
     if (gates && !gates.includes(i)) continue
-    const p = gateLine(track, gate)
-    const arch = gateArch(gate.kind)
-    arch.position.set(p.x, p.y, p.z)
-    arch.rotation.y = p.heading
-    group.add(arch)
+    group.add(gateArch(gate.kind, gatePillars(track, gate)))
   }
   return group
 }
