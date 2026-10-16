@@ -1,7 +1,7 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
-// Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, Esc = pause menu
+// Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, F = fullscreen, Esc = pause menu (not when it only leaves fullscreen)
 // (Resume / Restart / Settings / Back to menu, arrows + Enter or mouse; Esc again resumes).
 // Checkpoints, lap lines and the finish flash the split delta vs the personal best; the finish panel shows
 // medals (single-lap runs only) and, in a multi-lap run (`laps`), each lap time with the best one marked.
@@ -11,6 +11,7 @@ import { layoutId, type Track } from '../track/schema'
 import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { earnedMedal, nextMedal, SplitTracker } from './medals'
 import { formatLapTime, RaceStore } from './store'
+import { escapeLeavesFullscreen, toggleFullscreen } from '../fullscreen'
 import { RaceView } from './view'
 import type { MenuActions } from './view'
 
@@ -83,7 +84,9 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
   }
   window.addEventListener('keydown', (e) => {
     if (view.typing) return
+    if (e.code === 'KeyF' && !e.repeat) toggleFullscreen()
     if (e.code === 'Escape') {
+      if (escapeLeavesFullscreen(!!document.fullscreenElement, performance.now())) return
       if (paused && view.settingsOpen) view.toggleSettings()
       else setPaused(!paused)
       return

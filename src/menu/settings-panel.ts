@@ -1,4 +1,5 @@
 // The settings panel, shared by the start screen and the in-race Esc menu. Writes through to localStorage.
+import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camera/views'
 import { FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
 import { loadSettings, saveSettings, type Settings } from './settings'
@@ -7,6 +8,8 @@ export interface SettingsHooks {
   /** Live volume change, e.g. GameAudio.setVolume. */
   onVolume?: (v: number) => void
 }
+
+const VIEW_LABELS: Record<ViewMode, string> = { close: 'Close chase', far: 'Far chase', cockpit: 'In-car' }
 
 export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   const s: Settings = loadSettings(localStorage)
@@ -30,8 +33,14 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     })
     box.append(label(`Effect: ${f}`), cb)
   }
-  // Slot for the camera-view task; wired when it lands.
-  box.append(label('Camera'), Object.assign(label('chase'), { className: 'menu-slot' }))
+  const cam = document.createElement('select')
+  for (const v of VIEWS) cam.append(Object.assign(document.createElement('option'), { value: v, textContent: VIEW_LABELS[v] }))
+  cam.value = loadView(localStorage)
+  cam.addEventListener('change', () => {
+    saveView(localStorage, cam.value as ViewMode)
+    window.dispatchEvent(new CustomEvent(CAMERA_EVENT, { detail: cam.value }))
+  })
+  box.append(label('Camera (1/2/3)'), cam)
   const laps = document.createElement('select')
   for (let n = 1; n <= MAX_LAPS; n++) laps.append(new Option(String(n), String(n), false, n === s.laps))
   laps.addEventListener('change', () => {

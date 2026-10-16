@@ -1,5 +1,5 @@
-// `?fx=bloom,speedlines,skid` toggles; every effect is off unless named.
-export const FX = ['bloom', 'speedlines', 'skid'] as const
+// `?fx=bloom,speedlines,skid,smoke` toggles; every effect is off unless named.
+export const FX = ['bloom', 'speedlines', 'skid', 'smoke'] as const
 export type Fx = (typeof FX)[number]
 
 export const parseFx = (search: string): Set<Fx> =>

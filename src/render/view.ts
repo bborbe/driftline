@@ -8,8 +8,10 @@ import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
 import { parseFx } from './fx/flags'
 import { createSkidMarks } from './fx/skid'
+import { createSmoke } from './fx/smoke'
 import { createSpeedLines } from './fx/speedlines'
 import { FrameStats } from './fx/stats'
+import { watchFullscreen } from '../fullscreen'
 import { createScene } from './scene'
 import { topCamFor, topCamRequested } from './topcam'
 import { createPieceTrack } from './track/kenney'
@@ -18,6 +20,8 @@ export type View = {
   renderer: THREE.WebGPURenderer
   camera: THREE.PerspectiveCamera
   backend: 'WebGPU' | 'WebGL2'
+  /** The player car mesh; main.ts hides it for the in-car view. */
+  car: THREE.Object3D
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
   /** Pose the car from physics state and draw one frame; dt in seconds. */
@@ -40,13 +44,15 @@ export const createView = async (track: Track, fxQuery: string = location.search
   scene.add(trackMesh, car.object)
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 3000)
-  window.addEventListener('resize', () => {
+  const resize = () => {
     camera.aspect = window.innerWidth / window.innerHeight
     camera.updateProjectionMatrix()
     renderer.setSize(window.innerWidth, window.innerHeight)
-  })
+  }
+  window.addEventListener('resize', resize)
+  watchFullscreen(resize)
 
-  // Effects behind ?fx=bloom,speedlines,skid; all read car state only.
+  // Effects behind ?fx=bloom,speedlines,skid,smoke; all read car state only.
   const fx = parseFx(fxQuery)
   let draw = () => renderer.render(scene, camera)
   if (fx.has('bloom')) {
@@ -62,6 +68,8 @@ export const createView = async (track: Track, fxQuery: string = location.search
   }
   const skid = fx.has('skid') ? createSkidMarks() : null
   if (skid) scene.add(skid.object)
+  const smoke = fx.has('smoke') ? createSmoke() : null
+  if (smoke) scene.add(smoke.object)
 
   // HUD "1% low": 1st percentile of per-frame fps over the last 60 s, refreshed twice a second.
   const stats = new FrameStats()
@@ -88,6 +96,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
       camera.up.set(0, 0, -1)
       camera.lookAt(t.x, 0, t.z)
     }
+    smoke?.update(s, dt, camera) // after the camera override, so puffs face the final camera
     draw()
     stats.push(performance.now(), dt)
     sinceLabel += dt
@@ -97,5 +106,5 @@ export const createView = async (track: Track, fxQuery: string = location.search
     }
   }
 
-  return { renderer, camera, backend, scene, frame }
+  return { renderer, camera, backend, car: car.object, scene, frame }
 }
