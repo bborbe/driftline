@@ -3,11 +3,12 @@ import { poses, SEGMENT_TYPES, validate } from '../../track/schema'
 import { FIXTURE_TRACK } from './fixture'
 import { trackSurface } from '../../physics'
 import type { Segment } from '../../track/schema'
-import { buildApron, buildTrack, rowCenter, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import { buildApron, buildTrack, CENTRE_COLUMN, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
 const segs = FIXTURE_TRACK.segments
+const ROAD_HEIGHT = PROFILE[CENTRE_COLUMN][1]
 const indexOf = (type: string) => segs.findIndex((s) => s.type === type)
 
 const maxY = (g: SegmentGeometry) => {
@@ -46,7 +47,7 @@ describe('render track geometry', () => {
     geoms.forEach((g, i) => {
       const [x, y, z] = rowCenter(g, g.rows - 1)
       const next = ps[i + 1]
-      expect(Math.hypot(x - next.x, y - SURFACE_LIFT - next.y, z - next.z), segs[i].type).toBeLessThan(0.01)
+      expect(Math.hypot(x - next.x, y - SURFACE_LIFT - ROAD_HEIGHT - next.y, z - next.z), segs[i].type).toBeLessThan(0.01)
     })
   })
 
@@ -66,11 +67,12 @@ describe('render track geometry', () => {
     const surf = trackSurface({ ...FIXTURE_TRACK, segments: [seg], start: ps[b] }, { groundY: null })
     const g = geoms[b]
     for (let row = 0; row < g.rows; row++) {
-      for (let c = 0; c < g.perRow - 2; c++) {
+      for (let c = 0; c < g.perRow; c++) {
         const i = (row * g.perRow + c) * 3
         const [x, y, z] = [g.positions[i], g.positions[i + 1], g.positions[i + 2]]
         const hit = surf.raycast({ x, y: y + 5, z }, { x: 0, y: -1, z: 0 }, 20)
-        if (hit) expect(y - SURFACE_LIFT - (y + 5 - hit.distance), `row ${row} col ${c}`).toBeCloseTo(0, 3)
+        // Physics drives the road plane; the drawn profile sits PROFILE[c][1] above it.
+        if (hit) expect(y - SURFACE_LIFT - PROFILE[c][1] - (y + 5 - hit.distance), `row ${row} col ${c}`).toBeCloseTo(0, 3)
       }
     }
   })
@@ -93,5 +95,25 @@ describe('render track geometry', () => {
     expect(y(mid, 2)).toBeGreaterThan(ps[b].y + 0.5) // outer edge raised
     expect(y(mid, 3)).toBeCloseTo(ps[b].y, 6) // skirt foot on the road plane
     expect(buildApron(ps[0], segs[0])).toBeNull()
+  })
+
+  it('procedural cross-section matches the Kenney straight: road, curbs, grass shoulders', () => {
+    const bands = PROFILE.map(([, , b]) => b)
+    expect(bands[0]).toBe('grass')
+    expect(bands[bands.length - 1]).toBe('grass')
+    const road = PROFILE.filter(([, , b]) => b === 'road').map(([u]) => u)
+    expect(Math.max(...road) - Math.min(...road)).toBeCloseTo(6.9, 6) // Kenney road band, ±3.45 m
+    expect(Math.max(...PROFILE.map(([u]) => u))).toBe(TRACK_WIDTH / 2)
+  })
+
+  it('banked apron is zero-width at both joints, so it never pokes past the neighbouring segments', () => {
+    const b = indexOf('banked')
+    const apron = buildApron(ps[b], segs[b])!
+    const at = (row: number, k: number) => apron.positions.slice((row * apron.perRow + k) * 3, (row * apron.perRow + k) * 3 + 3)
+    for (const row of [0, apron.rows - 1]) {
+      const [ix, , iz] = at(row, 0)
+      const [rx, , rz] = at(row, 1)
+      expect(Math.hypot(rx - ix, rz - iz), `row ${row}`).toBeLessThan(1e-6)
+    }
   })
 })

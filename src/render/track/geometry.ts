@@ -5,12 +5,8 @@ import { poses, type Pose, type Segment, type Track } from '../../track/schema'
 
 /** Road width in metres. */
 export const TRACK_WIDTH = 10 // matches the Kenney road pieces
-/** Curb height on both road edges, in metres. */
-export const CURB_HEIGHT = 0.3
 /** Road surface sits this far above the ground plane to avoid z-fighting. */
 export const SURFACE_LIFT = 0.02
-/** Lateral subdivisions of the road surface. */
-const COLUMNS = 6
 
 /** A point on a segment's centerline: world position, heading and road roll (radians). */
 export type Sample = { x: number; y: number; z: number; heading: number; roll: number }
@@ -95,21 +91,44 @@ export const lateralPoint = (p: Sample, u: number, s: number): [number, number, 
 /** Rows to sample: about one every 1.5 m, never fewer than 13. */
 const rowCount = (seg: Segment): number => Math.max(12, Math.ceil(segmentLength(seg) / 1.5)) + 1
 
+/** Surface bands of the road cross-section; mesh.ts colours each band to match the Kenney pieces. */
+export type Band = 'grass' | 'curb' | 'road'
+
+/**
+ * Cross-section, left edge to right edge: (lateral offset m, height m, band). It copies the
+ * Kenney straight (assets/pieces/straight.glb): 6.9 m of road at y 0.1, grey curbs out to
+ * ±4.18 m raised to 0.2, grass shoulders out to ±5 m at y 0 — so procedural segments and
+ * glb pieces meet with the same road, curbs and edges. Repeated offsets make crisp steps.
+ */
+export const PROFILE: readonly [number, number, Band][] = [
+  [5, 0, 'grass'],
+  [4.18, 0, 'grass'],
+  [4.18, 0.2, 'curb'],
+  [3.45, 0.2, 'curb'],
+  [3.45, 0.1, 'road'],
+  [1.725, 0.1, 'road'],
+  [0, 0.1, 'road'],
+  [-1.725, 0.1, 'road'],
+  [-3.45, 0.1, 'road'],
+  [-3.45, 0.2, 'curb'],
+  [-4.18, 0.2, 'curb'],
+  [-4.18, 0, 'grass'],
+  [-5, 0, 'grass'],
+]
+/** Index of the centreline column in PROFILE. */
+export const CENTRE_COLUMN = PROFILE.findIndex(([u]) => u === 0)
+
 export const buildSegment = (entry: Pose, seg: Segment): SegmentGeometry => {
   const rows = rowCount(seg)
   const s = turnSign(seg)
-  const half = TRACK_WIDTH / 2
-  const perRow = COLUMNS + 3 // COLUMNS + 1 surface vertices, then left and right curb tops
+  const perRow = PROFILE.length
   const positions = new Float32Array(rows * perRow * 3)
   for (let r = 0; r < rows; r++) {
     const p = sampleSegment(entry, seg, r / (rows - 1))
-    for (let c = 0; c <= COLUMNS; c++) {
-      positions.set(lateralPoint(p, half - (TRACK_WIDTH * c) / COLUMNS, s), (r * perRow + c) * 3)
-    }
-    const left = lateralPoint(p, half, s)
-    const right = lateralPoint(p, -half, s)
-    positions.set([left[0], left[1] + CURB_HEIGHT, left[2]], (r * perRow + COLUMNS + 1) * 3)
-    positions.set([right[0], right[1] + CURB_HEIGHT, right[2]], (r * perRow + COLUMNS + 2) * 3)
+    PROFILE.forEach(([u, h], c) => {
+      const [x, y, z] = lateralPoint(p, u, s)
+      positions.set([x, y + h, z], (r * perRow + c) * 3)
+    })
   }
 
   const idx: number[] = []
@@ -117,9 +136,7 @@ export const buildSegment = (entry: Pose, seg: Segment): SegmentGeometry => {
   for (let r = 0; r < rows - 1; r++) {
     const a = r * perRow
     const b = (r + 1) * perRow
-    for (let c = 0; c < COLUMNS; c++) quad(a + c, a + c + 1, b + c, b + c + 1)
-    quad(a + COLUMNS + 1, a, b + COLUMNS + 1, b) // left curb face
-    quad(a + COLUMNS, a + COLUMNS + 2, b + COLUMNS, b + COLUMNS + 2) // right curb face
+    for (let c = 0; c < perRow - 1; c++) quad(a + c, a + c + 1, b + c, b + c + 1)
   }
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }
@@ -130,20 +147,20 @@ export const buildTrack = (track: Track): SegmentGeometry[] => {
   return track.segments.map((seg, i) => buildSegment(ps[i], seg))
 }
 
-/** Centerline point of a geometry row (middle surface vertex). */
+/** Centerline point of a geometry row (the road surface, PROFILE height included). */
 export const rowCenter = (g: SegmentGeometry, row: number): [number, number, number] => {
-  const i = (row * g.perRow + COLUMNS / 2) * 3
+  const i = (row * g.perRow + CENTRE_COLUMN) * 3
   return [g.positions[i], g.positions[i + 1], g.positions[i + 2]]
 }
 
-/** Width of the verge drawn inward from a banked turn's inner edge, in metres. */
-export const APRON_WIDTH = 4
+/** Apron run per metre of dip: a 1:2 slope from the dipped inner edge back up to the road plane. */
+export const APRON_RUN = 2
 
 /**
  * Visual-only verge for a banked segment: an apron from the (dipped) inner road edge up to
- * the road plane APRON_WIDTH further in, and a skirt from the (raised) outer edge down to
- * the road plane, so the bank reads as a sculpted bowl instead of road vanishing into grass.
- * Physics never sees it. Returns null for non-banked segments.
+ * the road plane, as wide as APRON_RUN × the dip (so zero at both flat joints and never
+ * poking past the neighbouring segments), and a skirt from the (raised) outer edge down to
+ * the road plane. Physics never sees it. Returns null for non-banked segments.
  */
 export const buildApron = (entry: Pose, seg: Segment): SegmentGeometry | null => {
   if (seg.type !== 'banked') return null
@@ -155,7 +172,8 @@ export const buildApron = (entry: Pose, seg: Segment): SegmentGeometry | null =>
   for (let r = 0; r < rows; r++) {
     const p = sampleSegment(entry, seg, r / (rows - 1))
     const inner = lateralPoint(p, s * half, s) // the inner side is toward the turn centre
-    const rim = lateralPoint({ ...p, roll: 0 }, s * (half + APRON_WIDTH), s)
+    const dip = Math.max(0, p.y + SURFACE_LIFT - inner[1])
+    const rim = lateralPoint({ ...p, roll: 0 }, s * (half + APRON_RUN * dip), s)
     const outer = lateralPoint(p, -s * half, s)
     positions.set(inner, r * perRow * 3)
     positions.set(rim, (r * perRow + 1) * 3)
