@@ -1,4 +1,4 @@
-// Built-in flat oval used until the lap1 track (assets) lands.
+// Flat oval test fixture for the lap-loop tests.
 import type { Track } from '../track/schema'
 
 export const FLAT_OVAL: Track = {

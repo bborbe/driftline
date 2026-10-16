@@ -1,12 +1,11 @@
 // Lap loop: countdown, ordered checkpoint gates, lap timer, finish, respawn.
 // Pure and tick-driven (100 Hz physics ticks), so it is deterministic and testable.
-import { createCar, TICK_HZ, v3, type CarState, type Vec3 } from '../physics'
+import { createCarAt, TICK_HZ, TRACK_WIDTH, type CarState, type Vec3 } from '../physics'
 import { poses, type Pose, type Track } from '../track/schema'
 
 export const COUNTDOWN_TICKS = 3 * TICK_HZ
 /** Half the gate width in metres: a crossing counts within this lateral distance of the gate centre. */
-export const GATE_HALF_WIDTH = 8
-const SPAWN_HEIGHT = 0.7
+export const GATE_HALF_WIDTH = TRACK_WIDTH / 2 + 1
 
 export type Phase = 'countdown' | 'racing' | 'finished'
 
@@ -55,7 +54,7 @@ export class LapLoop {
 
   /** Car state at the start line, at rest. */
   spawn(): CarState {
-    return carAt(this.track.start)
+    return createCarAt(this.track.start)
   }
 
   /** Ticks remaining in the countdown (0 once racing). */
@@ -110,7 +109,7 @@ export class LapLoop {
   /** Car state at the last passed checkpoint (start line before the first), at rest. */
   respawn(tick: number): CarState {
     const pose = this.passed === 0 ? this.track.start : this.checkpoints[this.passed - 1].pose
-    const car = { ...carAt(pose), tick }
+    const car = { ...createCarAt(pose), tick }
     this.lastPosition = car.position
     this.emit((l) => l.respawn?.(tick))
     return car
@@ -127,15 +126,6 @@ export class LapLoop {
 
   private emit(fn: (l: RaceEvents) => void): void {
     for (const l of this.listeners) fn(l)
-  }
-}
-
-/** Car at rest on a pose, facing its heading. */
-export function carAt(pose: Pose): CarState {
-  const half = pose.heading / 2
-  return {
-    ...createCar(v3(pose.x, pose.y + SPAWN_HEIGHT, pose.z)),
-    orientation: { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) },
   }
 }
 

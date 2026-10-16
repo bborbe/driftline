@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { TICK_HZ, v3, type CarState } from '../physics'
 import { poses } from '../track/schema'
 import { COUNTDOWN_TICKS, LapLoop, crosses } from './lap'
-import { FLAT_OVAL } from './tracks'
+import { FLAT_OVAL } from './fixture.test-track'
 
 const gatePoses = () => {
   const p = poses(FLAT_OVAL)
