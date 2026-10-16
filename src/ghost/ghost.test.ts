@@ -13,7 +13,7 @@ const steady = (): CarInput => ({ throttle: 1, brake: 0, steer: 0, handbrake: fa
 
 // Drives a live lap tick by tick through the recorder, returning the live position log.
 const driveLap = (
-  rec: GhostRecorder, start: CarState, ticks: number, lapTimeMs: number, isNewBest: boolean,
+  rec: GhostRecorder, start: CarState, ticks: number, lapTimeMs: number,
   input: (t: number) => CarInput = script,
 ): Vec3[] => {
   let car = start
@@ -25,7 +25,7 @@ const driveLap = (
     car = step(car, i)
     log.push(car.position)
   }
-  rec.lapFinish(car.tick, lapTimeMs, isNewBest)
+  rec.lapFinish(car.tick, lapTimeMs)
   return log
 }
 
@@ -41,18 +41,18 @@ const travelled = (log: Vec3[]) => log.slice(1).reduce((d, p, i) => d + Math.hyp
 describe('ghost', () => {
   it('replays the live run bit-identically at every tick', () => {
     const rec = new GhostRecorder()
-    const live = driveLap(rec, createCar(), 10 * TICK_HZ, 10_000, true)
+    const live = driveLap(rec, createCar(), 10 * TICK_HZ, 10_000)
     const replayed = replayAll(rec)
     expect(replayed.length).toBe(live.length)
     expect(replayed).toEqual(live)
     expect(travelled(live)).toBeGreaterThan(50) // sanity: the lap actually moved the car
   })
 
-  it('keeps the best lap, not the latest', () => {
+  it('keeps the session\'s fastest lap, not the latest', () => {
     const rec = new GhostRecorder()
-    driveLap(rec, createCar(), 6000, 60_000, true, steady)
-    driveLap(rec, createCar(), 5500, 55_000, true)
-    driveLap(rec, createCar(), 5800, 58_000, false, steady)
+    driveLap(rec, createCar(), 6000, 60_000, steady)
+    driveLap(rec, createCar(), 5500, 55_000)
+    driveLap(rec, createCar(), 5800, 58_000, steady)
     expect(rec.best!.lapTimeMs).toBe(55_000)
     expect(rec.best!.inputs.length).toBe(5500)
     expect(rec.best!.inputs[0]).toEqual(script(0))
@@ -85,6 +85,17 @@ describe('ghost', () => {
     expect(replay.advanceTo(run.inputs.length).position).toEqual(sim.state.position)
   })
 
+  it('keeps a ghost even when the race says the lap is not a new all-time best', () => {
+    const rec = new GhostRecorder()
+    const events = rec.listener(() => createCar())
+    events.lapStart!(0)
+    rec.frame(steady(), 300)
+    events.lapFinish!(300, 70_000, false) // persisted record from an earlier session is faster
+    rec.frame(steady(), 300)
+    expect(rec.best!.lapTimeMs).toBe(70_000)
+    expect(rec.best!.inputs.length).toBe(300)
+  })
+
   it('drops a lap that had a respawn', () => {
     const rec = new GhostRecorder()
     const events = rec.listener(() => createCar())
@@ -99,7 +110,7 @@ describe('ghost', () => {
   it('ignores inputs outside a lap', () => {
     const rec = new GhostRecorder()
     rec.record(script(0))
-    rec.lapFinish(1, 1000, true)
+    rec.lapFinish(1, 1000)
     expect(rec.best).toBeNull()
   })
 })

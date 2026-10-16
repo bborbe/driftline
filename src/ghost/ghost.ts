@@ -1,4 +1,4 @@
-// Best-run ghost: record per-tick CarInput of each lap, keep the best run in memory,
+// Best-run ghost: record per-tick CarInput of each lap, keep the session's fastest run in memory,
 // replay it by re-simulating through the deterministic physics step.
 // Pure TypeScript: no three.js, no clocks, no randomness.
 import { FLAT, step, type CarInput, type CarState, type Surface } from '../physics'
@@ -10,7 +10,7 @@ export type GhostRun = {
   lapTimeMs: number
 }
 
-type Finish = { tick: number; lapTimeMs: number; isNewBest: boolean }
+type Finish = { tick: number; lapTimeMs: number }
 
 // The race emits lap events from inside a frame that advances several ticks with one input,
 // so the recorder is fed per frame (`frame`) and counts ticks itself. A lap with a respawn or
@@ -25,7 +25,9 @@ export class GhostRecorder {
   listener(car: () => CarState): RaceEvents {
     return {
       lapStart: () => this.lapStart(car()),
-      lapFinish: (tick, ms, isNewBest) => this.lapFinish(tick, ms, isNewBest),
+      // The race's isNewBest compares against the persisted all-time best, so a session
+      // slower than an old record would never get a ghost; keep the session's fastest instead.
+      lapFinish: (tick, ms) => this.lapFinish(tick, ms),
       respawn: () => this.drop(),
     }
   }
@@ -36,9 +38,9 @@ export class GhostRecorder {
     this.finish = null
   }
 
-  lapFinish(tick: number, lapTimeMs: number, isNewBest: boolean): void {
+  lapFinish(tick: number, lapTimeMs: number): void {
     if (!this.start) return
-    this.finish = { tick, lapTimeMs, isNewBest }
+    this.finish = { tick, lapTimeMs }
     this.commitIfComplete()
   }
 
@@ -66,7 +68,7 @@ export class GhostRecorder {
 
   private commitIfComplete(): void {
     if (!this.start || !this.finish || this.start.tick + this.inputs.length < this.finish.tick) return
-    if (this.finish.isNewBest) this.best = { start: this.start, inputs: this.inputs, lapTimeMs: this.finish.lapTimeMs }
+    if (!this.best || this.finish.lapTimeMs < this.best.lapTimeMs) this.best = { start: this.start, inputs: this.inputs, lapTimeMs: this.finish.lapTimeMs }
     this.drop()
   }
 }
