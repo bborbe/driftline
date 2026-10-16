@@ -3,16 +3,24 @@ import { createCarAt, dot, FixedStepper, forwardOf, trackSurface } from './physi
 import { createChase, updateChase } from './camera/chase'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
-import { lapName, loadLap } from './render/track/lap'
+import { LAP_NAMES, lapName, loadLap, nextLap } from './render/track/lap'
 import { GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 import { mountBuildLabel } from './build-info'
 import { debugPose, frozen, poseQuery, yawDeg } from './race/debug-pose'
 import { centreline } from './track/centreline'
+import { chooseTrack } from './menu/start'
+import { skipMenu } from './menu/skip'
+import { effectiveFxQuery, loadSettings, saveSettings } from './menu/settings'
+import { settingsPanel } from './menu/settings-panel'
 
-const track = loadLap()
-const view = await createView(track)
+// A bare URL opens the start screen; ?track= and debug-spawn links go straight in (shared links, `make shots`).
+const fromMenu = !skipMenu(location.search)
+const trackName = fromMenu ? await chooseTrack(LAP_NAMES) : lapName(location.search)
+const settings = loadSettings(localStorage)
+const track = loadLap(trackName)
+const view = await createView(track, effectiveFxQuery(location.search, settings))
 const { camera, backend } = view
 
 const hud = document.createElement('div')
@@ -58,9 +66,19 @@ const race = initRace(sim, track, {
     },
   ],
   onPause: (paused) => void audio.setPaused(paused),
+  menu: {
+    backToMenu: () => location.assign(location.pathname),
+    nextTrack: () => location.assign(`${location.pathname}?track=${nextLap(track.name)}`),
+    settings: () => settingsPanel({ onVolume: (v) => audio.setVolume(v) }),
+  },
 })
 // Begin is ignored while paused (Esc); unpause first.
-mountAudioControls(audio, () => race.start(), () => !race.paused)
+mountAudioControls(audio, () => race.start(), () => !race.paused, settings.volume, (volume) =>
+  saveSettings(localStorage, { ...loadSettings(localStorage), volume }),
+)
+audio.setVolume(settings.volume)
+// The card pick is the start gesture: skip the Begin overlay and go straight into the countdown.
+if (fromMenu) document.getElementById('begin')?.click()
 // Debug spawn for screenshots (README § Debug screenshots): ?x&y&z&yaw places the car, freeze=1 holds it.
 const pose = debugPose(location.search)
 if (pose) sim.state = createCarAt(pose)

@@ -1,7 +1,8 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
-// Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, Esc = pause.
+// Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, Esc = pause menu
+// (Resume / Restart / Settings / Back to menu, arrows + Enter or mouse; Esc again resumes).
 // Checkpoints and the finish flash the split delta vs the personal best; the finish panel shows medals.
 // Hiding the tab pauses too; R / Backspace from the pause overlay act and resume.
 import { TICK_HZ, type CarInput, type FixedStepper } from '../physics'
@@ -10,6 +11,7 @@ import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { earnedMedal, nextMedal, SplitTracker } from './medals'
 import { formatLapTime, RaceStore } from './store'
 import { RaceView } from './view'
+import type { MenuActions } from './view'
 
 export type { RaceEvents } from './lap'
 
@@ -19,6 +21,8 @@ export interface RaceOptions {
   storage?: Storage
   /** Called whenever pause toggles, e.g. to suspend audio. */
   onPause?: (paused: boolean) => void
+  /** Esc-menu / finish-panel navigation; without it the pause overlay only shows key hints. */
+  menu?: Pick<MenuActions, 'backToMenu' | 'nextTrack' | 'settings'>
 }
 
 export interface Race {
@@ -34,7 +38,12 @@ export interface Race {
 export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}): Race {
   const store = new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track))
   const loop = new LapLoop(track, (ms) => store.recordLap(ms))
-  const view = new RaceView(store)
+  let pending: 'respawn' | 'restart' | null = null
+  const menu = opts.menu
+  const view = new RaceView(
+    store,
+    menu ? { ...menu, resume: () => setPaused(false), restart: () => (pending = 'restart') } : null,
+  )
   const splits = new SplitTracker()
   for (const l of opts.listeners ?? []) loop.on(l)
   loop.on({
@@ -52,7 +61,6 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
   })
   sim.state = loop.spawn()
 
-  let pending: 'respawn' | 'restart' | null = null
   let paused = false
   const setPaused = (p: boolean) => {
     if (p === paused) return
@@ -62,7 +70,15 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
   }
   window.addEventListener('keydown', (e) => {
     if (view.typing) return
-    if (e.code === 'Escape') setPaused(!paused)
+    if (e.code === 'Escape') {
+      if (paused && view.settingsOpen) view.toggleSettings()
+      else setPaused(!paused)
+      return
+    }
+    if ((e.target as HTMLElement | null)?.tagName !== 'INPUT' && view.menuKey(e.code, paused)) {
+      e.preventDefault()
+      return
+    }
     if (e.code === 'KeyR') pending = 'respawn'
     if (e.code === 'Backspace') pending = 'restart'
     if (e.code === 'KeyL') view.toggleLeaderboard()
