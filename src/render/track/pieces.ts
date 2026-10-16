@@ -9,6 +9,12 @@ const STRAIGHT_LENGTH = 20
 const RAMP_RISE = 5.2
 const CORNER_RADIUS = 15 // the corner piece turns RIGHT at this radius
 
+/** Road width of every normalized piece at scale 1, in metres (TRACK_WIDTH in geometry.ts matches). */
+export const PIECE_ROAD_WIDTH = 10
+
+/** Road width a placement actually draws: only an x scale changes it. */
+export const placedRoadWidth = (p: Placement): number => PIECE_ROAD_WIDTH * Math.abs(p.scale[0])
+
 export type Placement = {
   piece: string // file stem under assets/pieces/
   pose: Pose
@@ -64,8 +70,11 @@ const planSegment = (entry: Pose, seg: Segment, startLine: boolean): Placement[]
       if (seg.type === 'banked') return null
       const angle = seg.type === 'hairpin' ? 180 : seg.angle
       if (angle % 90 !== 0) return null
+      // Scaling the corner piece would scale its road width with it (a 30 m radius would
+      // give a 20 m road), so only its native radius uses the piece; other radii are procedural.
+      if (Math.abs(seg.radius - CORNER_RADIUS) > 1e-6) return null
       const piece = 'corner'
-      const k = seg.radius / CORNER_RADIUS
+      const k = 1
       const out: Placement[] = []
       let p = entry
       for (let i = 0; i < angle / 90; i++) {
