@@ -1,9 +1,10 @@
-// Raycast-wheel car on a flat ground plane (y = 0), stepped at a fixed 100 Hz.
+// Raycast-wheel car on a drivable Surface (default: flat y = 0 plane), stepped at a fixed 100 Hz.
 // Pure and deterministic: no three.js, no clocks, no randomness.
 import {
   add, cross, dot, integrateQuat, length, normalize, quatIdentity, rotate, scale, sub, v3,
   type Quat, type Vec3,
 } from './vec'
+import { FLAT, type Surface } from './surface'
 
 export const TICK_HZ = 100
 export const DT = 1 / TICK_HZ
@@ -85,7 +86,7 @@ const angularAccel = (q: Quat, torque: Vec3): Vec3 => {
   return rotate(q, v3(local.x / INERTIA.x, local.y / INERTIA.y, local.z / INERTIA.z))
 }
 
-export const step = (s: CarState, input: CarInput): CarState => {
+export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): CarState => {
   const steerTarget = clamp(input.steer, -1, 1) * MAX_STEER * (1 - 0.5 * clamp(length(s.velocity) / MAX_SPEED, 0, 1))
   const steerDelta = clamp(steerTarget - s.steerAngle, -STEER_RATE * DT, STEER_RATE * DT)
   const steerAngle = s.steerAngle + steerDelta
@@ -111,10 +112,11 @@ export const step = (s: CarState, input: CarInput): CarState => {
   for (const wheel of WHEELS) {
     const r = rotate(s.orientation, wheel.mount)
     const mount = add(s.position, r)
-    // Ray along body-down to the ground plane y = 0.
+    // Ray along body-down to the surface.
     const down = scale(up, -1)
-    if (down.y >= -1e-6) continue
-    const dist = -mount.y / down.y - WHEEL_RADIUS
+    const hit = surface.raycast(mount, down, REST_LENGTH + WHEEL_RADIUS)
+    if (!hit) continue
+    const dist = hit.distance - WHEEL_RADIUS
     if (dist > REST_LENGTH) continue
     const compression = REST_LENGTH - dist
 
@@ -122,13 +124,14 @@ export const step = (s: CarState, input: CarInput): CarState => {
     const springVel = -dot(contactVel, up)
     const normalForce = Math.max(0, SPRING * compression + DAMPER * springVel)
 
-    // Tire frame projected onto the ground plane.
+    // Tire frame projected onto the contact plane.
     const wheelYaw = wheel.front ? steerAngle : 0
     // Positive steer = right = toward -x.
     const fwdLocal = v3(-Math.sin(wheelYaw), 0, Math.cos(wheelYaw))
     let fwd = rotate(s.orientation, fwdLocal)
-    fwd = normalize(v3(fwd.x, 0, fwd.z))
-    const right = v3(-fwd.z, 0, fwd.x) // fwd × up
+    const n = hit.normal
+    fwd = normalize(sub(fwd, scale(n, dot(fwd, n))))
+    const right = cross(fwd, n)
 
     const vLong = dot(contactVel, fwd)
     const vLat = dot(contactVel, right)
@@ -205,4 +208,16 @@ export class FixedStepper {
     }
     return ticks
   }
+}
+
+// Number of wheels whose suspension ray reaches the surface (0 = airborne).
+export const wheelContacts = (s: CarState, surface: Surface = FLAT): number => {
+  const down = rotate(s.orientation, v3(0, -1, 0))
+  let n = 0
+  for (const wheel of WHEELS) {
+    const mount = add(s.position, rotate(s.orientation, wheel.mount))
+    const hit = surface.raycast(mount, down, REST_LENGTH + WHEEL_RADIUS)
+    if (hit && hit.distance - WHEEL_RADIUS <= REST_LENGTH) n++
+  }
+  return n
 }
