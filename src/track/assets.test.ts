@@ -91,10 +91,9 @@ describe('lap2.json variety', () => {
     expect(count('banked')).toBeGreaterThanOrEqual(1)
   })
 
-  it('has 4-5 checkpoints', () => {
-    const n = lap2.gates.filter((g) => g.kind === 'checkpoint').length
-    expect(n).toBeGreaterThanOrEqual(4)
-    expect(n).toBeLessThanOrEqual(5)
+  it('has at least 5 checkpoints and two sweeper complexes', () => {
+    expect(lap2.gates.filter((g) => g.kind === 'checkpoint').length).toBeGreaterThanOrEqual(5)
+    expect(lap2.segments.filter((s) => s.type === 'curve' && s.radius >= 30 && s.angle === 45).length).toBeGreaterThanOrEqual(4)
   })
 })
 

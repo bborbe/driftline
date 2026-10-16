@@ -9,10 +9,13 @@ import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
 const load = (name: string) =>
   JSON.parse(readFileSync(new URL(`../../assets/track/${name}.json`, import.meta.url), 'utf8')) as Track
 
-// Lap-time window per track (ms): lap1 is the short opener, lap2 the longer ~45-60 s lap.
+// Lap-time window per track (ms) for this conservative autopilot. A human drives ~0.67x the
+// autopilot's time (operator's first lap2 run: 36.05 s vs 53.7 s), so lap2's 67-90 s window is a
+// ~45-60 s human lap; the floor also catches the track being shortened again.
+const HUMAN_PACE = 0.67
 const CASES = [
   { track: load('lap1'), minMs: 10_000, maxMs: 90_000 },
-  { track: load('lap2'), minMs: 45_000, maxMs: 60_000 },
+  { track: load('lap2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
 ]
 
 interface Sample {
