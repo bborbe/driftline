@@ -1,4 +1,4 @@
-// Dust: brown puffs kicked up behind the rear wheels on dirt (and a little on grass), rising with
+// Dust: brown puffs kicked up behind the rear wheels on dirt and off-track ground (a little on grass), rising with
 // speed. Always on — it is surface feedback, not an optional effect. Shares the puff shape with smoke.
 import * as THREE from 'three/webgpu'
 import { forwardOf, type CarState, type Material } from '../../physics'
@@ -20,6 +20,7 @@ export const DUST_PER_MATERIAL: Readonly<Record<Material, number>> = {
   'turbo-red': 0,
   dirt: 1,
   grass: 0.35,
+  offroad: 0.6,
   ice: 0,
 }
 

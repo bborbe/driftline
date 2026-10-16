@@ -1,11 +1,14 @@
 // Drivable surfaces for the wheel raycasts. Pure and deterministic: no three.js,
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
-import { CELL, gatePillars, poses, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
+import { barrierPillars, CELL, gatePillars, poses, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
 import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
 import { normalize, v3, type Vec3 } from './vec'
 
-/** What a wheel stands on: plain road, or a zone kind (turbo pad, dirt, ice, grass). */
-export type Material = 'road' | ZoneKind
+/**
+ * What a wheel stands on: plain road, a zone kind (turbo pad, dirt, ice, grass), or 'offroad' —
+ * the open ground beside the track, which no piece covers.
+ */
+export type Material = 'road' | ZoneKind | 'offroad'
 
 export type RayHit = {
   distance: number // along the (unit) ray direction
@@ -16,7 +19,7 @@ export type RayHit = {
 export interface Surface {
   // Ray from `origin` along unit `dir`; null when nothing is hit within `maxDistance`.
   raycast(origin: Vec3, dir: Vec3, maxDistance: number): RayHit | null
-  // Solid upright boxes the car body collides with (gate pillars); none when omitted.
+  // Solid upright boxes the car body collides with (gate pillars, barriers); none when omitted.
   obstacles?: readonly Pillar[]
 }
 
@@ -125,6 +128,7 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
   const pieces = track.segments.map((seg, i) => piece(entries[i], seg, width))
   const zones = track.zones ?? []
   const materialAt = (h: Height): Material => {
+    if (h.piece < 0) return 'offroad'
     for (const z of zones) if (z.segment === h.piece && h.t >= z.from && h.t <= z.to) return z.kind
     return 'road'
   }
@@ -132,16 +136,25 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
   // Highest surface at (x, z) that is not above `maxY`.
   const heightAt = (x: number, z: number, maxY: number): Height | null => {
     let best: Height | null = groundY !== null && groundY <= maxY ? { y: groundY, gx: 0, gz: 0, t: 0, piece: -1 } : null
-    pieces.forEach((p, i) => {
-      const h = p(x, z)
+    let sunk: Height | null = null
+    for (let i = 0; i < pieces.length; i++) {
+      const h = pieces[i](x, z)
+      if (!h) continue
       // A piece level with the ground plane wins over it, so its zones apply.
-      if (h && h.y <= maxY && (!best || h.y > best.y || (best.piece < 0 && h.y === best.y))) best = { ...h, piece: i }
-    })
+      if (h.y <= maxY && (!best || h.y > best.y || (best.piece < 0 && h.y === best.y))) best = { ...h, piece: i }
+      if (groundY !== null && h.y < groundY && !sunk) sunk = { ...h, piece: i }
+    }
+    // The inner half of a banked turn dips below the ground plane, which then carries the wheel:
+    // that is still the road (its material), not the open ground beside it.
+    if (best && best.piece < 0 && sunk) return { ...best, t: sunk.t, piece: sunk.piece }
     return best
   }
 
   return {
-    obstacles: track.gates.filter((g) => g.segment < track.segments.length).flatMap((g) => gatePillars(track, g)),
+    obstacles: [
+      ...track.gates.filter((g) => g.segment < track.segments.length).flatMap((g) => gatePillars(track, g)),
+      ...barrierPillars(track),
+    ],
     raycast(origin, dir, maxDistance) {
       if (dir.y >= -1e-6) return null
       const maxY = origin.y + ABOVE
