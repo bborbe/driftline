@@ -11,12 +11,16 @@ interface PieceSpec {
 }
 
 const spec = JSON.parse(readFileSync('assets/track/pieces.json', 'utf8')) as PieceSpec
-const lap = JSON.parse(readFileSync('assets/track/lap1.json', 'utf8')) as Track
+const load = (name: string) => JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8')) as Track
+const lap = load('lap1')
+const laps = [lap, load('lap2')]
 
 function used(): Set<string> {
   const names = new Set<string>()
-  for (const seg of lap.segments) for (const p of spec.segments[seg.type]) names.add(p)
-  for (const g of lap.gates) names.add(spec.gates[g.kind])
+  for (const l of laps) {
+    for (const seg of l.segments) for (const p of spec.segments[seg.type]) names.add(p)
+    for (const g of l.gates) names.add(spec.gates[g.kind])
+  }
   return names
 }
 
@@ -43,7 +47,7 @@ function triangles(g: Gltf): number {
   return n
 }
 
-describe('lap1.json', () => {
+describe.each(laps)('$name.json', (lap) => {
   it('validates against the schema', () => {
     expect(validate(lap)).toEqual([])
   })
@@ -68,6 +72,30 @@ describe('lap1.json', () => {
   })
 })
 
+describe('lap2.json variety', () => {
+  const lap2 = laps[1]
+  const count = (type: string) => lap2.segments.filter((s) => s.type === type).length
+
+  it('has two jumps (ramp + drop crests), one longer than lap1', () => {
+    const jumps = lap2.segments.filter((s, i) => s.type === 'ramp' && lap2.segments[i + 1]?.type === 'drop')
+    expect(jumps).toHaveLength(2)
+    expect(Math.max(...jumps.map((s) => (s.type === 'ramp' ? s.length : 0)))).toBeGreaterThan(20)
+  })
+
+  it('has a chicane, a fast sweeper, a hairpin and a banked turn', () => {
+    expect(lap2.segments.filter((s) => s.type === 'curve' && s.angle === 45).length).toBeGreaterThanOrEqual(4)
+    expect(lap2.segments.some((s) => s.type === 'curve' && s.radius >= 25)).toBe(true)
+    expect(count('hairpin')).toBeGreaterThanOrEqual(1)
+    expect(count('banked')).toBeGreaterThanOrEqual(1)
+  })
+
+  it('has 4-5 checkpoints', () => {
+    const n = lap2.gates.filter((g) => g.kind === 'checkpoint').length
+    expect(n).toBeGreaterThanOrEqual(4)
+    expect(n).toBeLessThanOrEqual(5)
+  })
+})
+
 describe('track pieces', () => {
   const names = [...used()]
 
@@ -83,7 +111,7 @@ describe('track pieces', () => {
 
   const solid = names.filter((n) => !spec.pieces[n].prop)
 
-  it('has exactly one collision mesh per solid piece used by lap1', () => {
+  it('has exactly one collision mesh per solid piece used by the laps', () => {
     const files = readdirSync('assets/collision').map((f) => f.replace(/\.glb$/, ''))
     expect(files.filter((f) => solid.includes(f)).sort()).toEqual([...solid].sort())
   })

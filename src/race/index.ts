@@ -25,7 +25,7 @@ export interface Race {
 }
 
 export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}): Race {
-  const store = new RaceStore(opts.storage ?? localStorage)
+  const store = new RaceStore(opts.storage ?? localStorage, track.name)
   const loop = new LapLoop(track, (ms) => store.recordLap(ms))
   const view = new RaceView(store)
   for (const l of opts.listeners ?? []) loop.on(l)
