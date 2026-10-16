@@ -21,8 +21,8 @@ export const mountAudioControls = (
 ): void => {
   const overlay = document.createElement('button')
   overlay.id = 'begin'
-  overlay.innerHTML = 'Begin<br><small style="font-size:12px">Enter / Space to start</small>'
-  overlay.style.cssText = 'position:fixed;inset:0;margin:auto;width:200px;height:72px;font-size:28px;cursor:pointer;z-index:10'
+  // Styled by #begin in style.css: a game-style start prompt, not a browser button.
+  overlay.innerHTML = '<span>READY?</span><small>Enter / Space to start</small>'
   // One-shot: the overlay leaves the DOM on Begin, so a running countdown or race can never re-trigger it.
   let begun = false
   const begin = () => {
