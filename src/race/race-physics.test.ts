@@ -5,7 +5,7 @@ import { createCarAt, FixedStepper, NO_INPUT, TICK_HZ, trackSurface, type CarInp
 import type { Track } from '../track/schema'
 import { advanceRace, COUNTDOWN_TICKS, FALL_DEPTH, GROUND_Y, LapLoop } from './lap'
 
-const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/lap1.json', import.meta.url), 'utf8')) as Track
+const lap1 = JSON.parse(readFileSync(new URL('../../assets/track/test1.json', import.meta.url), 'utf8')) as Track
 const THROTTLE: CarInput = { ...NO_INPUT, throttle: 1 }
 
 // One physics tick through the loop, exactly as race.frame() does it.

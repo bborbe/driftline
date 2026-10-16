@@ -1,0 +1,43 @@
+{
+  "name": "test-bank",
+  "start": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "heading": 0
+  },
+  "segments": [
+    {
+      "type": "straight",
+      "length": 60
+    },
+    {
+      "type": "banked",
+      "turn": "right",
+      "radius": 15,
+      "angle": 180,
+      "bank": 0.26
+    },
+    {
+      "type": "straight",
+      "length": 60
+    },
+    {
+      "type": "banked",
+      "turn": "right",
+      "radius": 15,
+      "angle": 180,
+      "bank": 0.26
+    }
+  ],
+  "gates": [
+    {
+      "kind": "start-finish",
+      "segment": 0
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 2
+    }
+  ]
+}

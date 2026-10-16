@@ -12,11 +12,26 @@ See `VISION.md` and `AGENTS.md`.
 
 ## Tracks
 
-Every `assets/track/*.json` except `pieces.json` is a track in the menu (`?track=<file name>`). `lap1` and `lap2` are the flat test laps. `crossover` and `tower` are multi-level: the road climbs onto elevated decks on pillars and passes over itself (crossover: a figure-eight bridge over the start straight, then a gap jump — a `gap` segment is open air; tower: a 60 m climb into a steep 34° banked 180 at 12 m, a bridge over the start straight and a 12 m drop into a banked turn). A checkpoint or finish line only counts when the car passes under its arch, so a road above or below a gate never triggers it.
+The start screen shows two groups (↑/↓ switches group, ←/→ picks a track); **Next track** on the finish panel stays inside the group.
+
+- **Campaign** — numbered levels (`A01`, `A02`, …) in difficulty tiers (white → green → blue → red → black), each with author/gold/silver/bronze medals. Order and tiers live in `src/track/catalogue.ts`; a level is listed once its `assets/track/<name>.json` ships.
+  - `A01 crossover` and `A02 tower` are multi-level: the road climbs onto concrete decks on pillars and passes over itself. crossover is a figure-eight with an 8 m bridge over the start straight, then a 14 m gap jump (a `gap` segment is open air). tower has a 60 m climb into a steep 34° banked 180 at 12 m, a bridge over the start straight and a 12 m drop into a banked turn. A checkpoint counts from 2 m below its road to 20 m above, so a road under a deck gate never triggers it, while a full-throttle jump over the arch still does.
+- **Test** — tracks for checking one thing fast. `test1` and `test2` are the original lap1/lap2 (`?track=lap1` / `?track=lap2` still open them, and their best times, boards and medals carry over). The single-feature tracks are short ovals that an autopilot laps in ≤ 20 s with no respawn:
+
+| Track | Checks |
+|---|---|
+| `test-flat` | grip, acceleration, top speed, hairpins |
+| `test-ramp` | ramp jump and landing |
+| `test-bank` | banked 180° turns |
+| `test-surfaces` | asphalt → dirt → ice → grass strips |
+| `test-turbo` | yellow and red turbo pads |
+| `test-checkpoint` | four checkpoints in a row: split deltas, respawn at the last one |
+
+Any other `assets/track/test*.json` joins the Test group; any other track joins the end of the campaign.
 
 ## Laps
 
-A race is 1 lap by default. Pick 1–10 laps under **Laps** in the start-screen / Esc-menu settings (saved in localStorage), or pass `?laps=N` (e.g. `?track=lap2&laps=3`), which overrides the saved setting. In a multi-lap race the HUD shows `LAP 1/3`, split deltas flash at every checkpoint and lap line, and the finish panel shows the total time plus each lap time with the best lap marked. Best time, splits and the top-10 board are kept separately per lap count (1-lap records keep their original keys); medals are single-lap only. The ghost replays the session's best single lap at the start of every lap. R respawns at the current lap's last checkpoint; Backspace restarts at lap 1.
+A race is 1 lap by default. Pick 1–10 laps under **Laps** in the start-screen / Esc-menu settings (saved in localStorage), or pass `?laps=N` (e.g. `?track=test2&laps=3`), which overrides the saved setting. In a multi-lap race the HUD shows `LAP 1/3`, split deltas flash at every checkpoint and lap line, and the finish panel shows the total time plus each lap time with the best lap marked. Best time, splits and the top-10 board are kept separately per lap count (1-lap records keep their original keys); medals are single-lap only. The ghost replays the session's best single lap at the start of every lap. R respawns at the current lap's last checkpoint; Backspace restarts at lap 1.
 
 ## Cars
 
@@ -30,10 +45,10 @@ An unknown id falls back to `box`. New entries must use CC0, CC-BY or MIT assets
 
 ## Debug screenshots
 
-- `?track=lap2&x=-108&y=0.8&z=-59&yaw=90` spawns the car at that pose (yaw in degrees, 0 = +z, CCW positive). Without all four params the car spawns at the start line as usual. The HUD shows the current `yaw` in the same convention; press `P` to copy the current pose as a full `?track&x&y&z&yaw&freeze=1` URL (a toast confirms).
+- `?track=test2&x=-108&y=0.8&z=-59&yaw=90` spawns the car at that pose (yaw in degrees, 0 = +z, CCW positive). Without all four params the car spawns at the start line as usual. The HUD shows the current `yaw` in the same convention; press `P` to copy the current pose as a full `?track&x&y&z&yaw&freeze=1` URL (a toast confirms).
 - `&freeze=1` holds physics and the countdown and hides the Begin overlay, so the frame is stable. Add `&renderer=webgl2` in headless browsers (headless WebGPU renders blank).
-- `&cam=top` swaps the chase camera for one straight above the track, framing the whole lap (fog off), e.g. `?track=lap2&cam=top&freeze=1&renderer=webgl2`.
-- `make shots` (`npm run shots [-- lap1 lap2]`, env `STEP=20`, `OUT=shots`) starts a Vite dev server, walks each lap's centreline every `STEP` metres and writes `shots/<lap>/NNN.png` (gitignored). First run: `npx playwright install chromium-headless-shell`.
+- `&cam=top` swaps the chase camera for one straight above the track, framing the whole lap (fog off), e.g. `?track=test2&cam=top&freeze=1&renderer=webgl2`.
+- `make shots` (`npm run shots [-- test1 test-ramp]`, env `STEP=20`, `OUT=shots`; default: every Test-group track) starts a Vite dev server, walks each lap's centreline every `STEP` metres and writes `shots/<lap>/NNN.png` (gitignored). First run: `npx playwright install chromium-headless-shell`.
 
 ## Deploy
 

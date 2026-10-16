@@ -147,7 +147,7 @@ describe('banked turn', () => {
   })
 
   it('drives lap1\'s banked turn (segment 5) at race speed: ≤ 1.5 m off line, 4 wheels down, no step', () => {
-    const lap = JSON.parse(readFileSync('assets/track/lap1.json', 'utf8')) as Track
+    const lap = JSON.parse(readFileSync('assets/track/test1.json', 'utf8')) as Track
     const surface = trackSurface(lap)
     const seg = lap.segments[5] as Extract<Track['segments'][number], { type: 'banked' }>
     const entry = poses(lap)[5] // (-30, -30), heading π; right turn, centre (-15, -30)

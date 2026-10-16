@@ -15,8 +15,8 @@ interface PieceSpec {
 
 const spec = JSON.parse(readFileSync('assets/track/pieces.json', 'utf8')) as PieceSpec
 const load = (name: string) => JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8')) as Track
-const lap = load('lap1')
-const laps = [lap, load('lap2'), load('crossover'), load('tower')]
+const lap = load('test1')
+const laps = [lap, load('test2'), load('crossover'), load('tower')]
 const flatLaps = laps.slice(0, 2)
 const multiLevel = laps.slice(2)
 
@@ -77,7 +77,7 @@ describe.each(laps)('$name.json', (lap) => {
   })
 })
 
-describe('lap2.json variety', () => {
+describe('test2.json variety', () => {
   const lap2 = laps[1]
   const count = (type: string) => lap2.segments.filter((s) => s.type === type).length
 

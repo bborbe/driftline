@@ -120,7 +120,7 @@ describe('render track geometry', () => {
 })
 
 describe('ramp supports', () => {
-  const lap = JSON.parse(readFileSync('assets/track/lap2.json', 'utf8')) as Track
+  const lap = JSON.parse(readFileSync('assets/track/test2.json', 'utf8')) as Track
   const entries = poses(lap)
 
   it('walls only under ramps and drops, feet on the ground, tops at the road edge height', () => {
@@ -179,7 +179,7 @@ describe('multi-level decks', () => {
     }
   })
 
-  it.each(['lap1', 'lap2', 'crossover', 'tower'])('%s: no ramp or drop wall stands on another part of the lap', (name) => {
+  it.each(['test1', 'test2', 'crossover', 'tower'])('%s: no ramp or drop wall stands on another part of the lap', (name) => {
     const track = load(name)
     const pts = road(track)
     for (const a of pts.filter((p) => ['ramp', 'drop'].includes(track.segments[p.seg].type))) {

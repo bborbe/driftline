@@ -1,0 +1,39 @@
+{
+  "name": "test-flat",
+  "start": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "heading": 0
+  },
+  "segments": [
+    {
+      "type": "straight",
+      "length": 80
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    },
+    {
+      "type": "straight",
+      "length": 80
+    },
+    {
+      "type": "hairpin",
+      "turn": "right",
+      "radius": 15
+    }
+  ],
+  "gates": [
+    {
+      "kind": "start-finish",
+      "segment": 0
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 2
+    }
+  ]
+}

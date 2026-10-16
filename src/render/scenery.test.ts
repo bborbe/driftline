@@ -4,7 +4,7 @@ import { loadLap } from './track/lap'
 import { FIXTURE_TRACK } from './track/fixture'
 import { CLEARANCE, planScenery } from './scenery'
 
-const tracks = { lap1: loadLap('lap1'), lap2: loadLap('lap2'), crossover: loadLap('crossover'), tower: loadLap('tower'), fixture: FIXTURE_TRACK }
+const tracks = { test1: loadLap('test1'), test2: loadLap('test2'), crossover: loadLap('crossover'), tower: loadLap('tower'), fixture: FIXTURE_TRACK }
 
 describe('planScenery', () => {
   for (const [name, track] of Object.entries(tracks)) {
@@ -20,6 +20,6 @@ describe('planScenery', () => {
   }
 
   it('is deterministic: same track, same scenery', () => {
-    expect(planScenery(tracks.lap1)).toEqual(planScenery(tracks.lap1))
+    expect(planScenery(tracks.test1)).toEqual(planScenery(tracks.test1))
   })
 })
