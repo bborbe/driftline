@@ -11,6 +11,7 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 | `make run` | `npm run dev` | Start the Vite dev server (open the printed URL; `?renderer=webgl2` forces the WebGL2 fallback) |
 | `make test` | `npm test` | Run all unit tests (vitest) — must be green before every commit |
 | `make build` | `npm run build` | Typecheck (`tsc`) and production build |
+| `make shots` | `npm run shots` | Debug PNGs along each lap's centreline into `shots/` (README § Debug screenshots; `?x&y&z&yaw&freeze=1` spawn params) |
 | `VITE_CAR=<id> make build` | `npm run build` | Build with a specific car from `src/render/cars.ts` (`race` default, `stadium`, `raceFuture`, `box`; unknown ids fall back to `box`). Works with `make run` too |
 
 ## Layout

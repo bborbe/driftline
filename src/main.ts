@@ -8,6 +8,8 @@ import { GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 import { mountBuildLabel } from './build-info'
+import { debugPose, frozen } from './race/debug-pose'
+import { centreline } from './track/centreline'
 
 const track = loadLap()
 const view = await createView(track)
@@ -50,6 +52,12 @@ const race = initRace(sim, track, {
   ],
 })
 mountAudioControls(audio, () => race.start())
+// Debug spawn for screenshots (README § Debug screenshots): ?x&y&z&yaw places the car, freeze=1 holds it.
+const pose = debugPose(location.search)
+if (pose) sim.state = createCarAt(pose)
+const freeze = frozen(location.search)
+if (freeze) document.getElementById('begin')?.remove()
+;(window as unknown as { driftline: object }).driftline = { centreline: (step: number) => centreline(track, step), ready: true }
 let chase = createChase(sim.state.position, forwardOf(sim.state))
 let last = performance.now()
 
@@ -59,7 +67,7 @@ view.renderer.setAnimationLoop(() => {
   last = now
 
   const carInput = input.read()
-  race.frame(elapsed, carInput)
+  if (!freeze) race.frame(elapsed, carInput)
   ghostRecorder.frame(race.loop.input(carInput), sim.state.tick)
   if (ghost) ghostCar.update(ghost.advanceTo(sim.state.tick - lapStartTick), elapsed)
   const s = sim.state
