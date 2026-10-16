@@ -95,7 +95,7 @@ function legs(track: Track): { name: string; from: Pose; to: Pose }[] {
   return out
 }
 
-describe.each(['test1', 'test2', 'crossover', 'tower'])('%s grass cuts', (name) => {
+describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap'])('%s grass cuts', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -159,7 +159,7 @@ function follow(start: CarState, samples: Sample[], target: Pose, surface: Surfa
   return { ticks: Infinity, grass }
 }
 
-describe.each(['test1', 'test2', 'crossover', 'tower'])('%s skilled grass lines', (name) => {
+describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap'])('%s skilled grass lines', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -262,7 +262,7 @@ function dropRun(start: CarState, approach: Point, target: Pose, surface: Surfac
   return { ticks: Infinity, grass }
 }
 
-describe.each(['crossover', 'tower'])('%s deck drop-offs', (name) => {
+describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap'])('%s deck drop-offs', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)

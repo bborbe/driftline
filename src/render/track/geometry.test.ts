@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { poses, SEGMENT_TYPES, validate } from '../../track/schema'
 import { FIXTURE_TRACK } from '../../track/fixture'
+import { resolveTrack } from '../../track/kit'
 import { trackSurface } from '../../physics'
 import type { Segment, Track } from '../../track/schema'
 import { buildApron, buildDeck, buildRampSupport, buildTrack, CENTRE_COLUMN, DECK_MIN_HEIGHT, DECK_PILLAR_CLEAR, planDeckPillars, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
@@ -151,7 +152,8 @@ describe('ramp profile', () => {
 })
 
 describe('multi-level decks', () => {
-  const load = (name: string) => JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8')) as Track
+  // Kit tracks compile to a plain Track; spline tracks pass through.
+  const load = (name: string) => resolveTrack(JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8'))) as Track
   const road = (track: Track) => {
     const ps = poses(track)
     return track.segments.flatMap((seg, i) =>
@@ -159,7 +161,7 @@ describe('multi-level decks', () => {
     )
   }
 
-  it.each(['crossover', 'tower'])('%s: every elevated flat piece gets a deck, gaps and ground pieces none', (name) => {
+  it.each(['crossover', 'tower', 'plunge', 'knot', 'leap'])('%s: every elevated flat piece gets a deck, gaps and ground pieces none', (name) => {
     const track = load(name)
     const ps = poses(track)
     track.segments.forEach((seg, i) => {
@@ -168,7 +170,7 @@ describe('multi-level decks', () => {
     })
   })
 
-  it.each(['crossover', 'tower'])('%s: deck pillars stand on open ground, never on the road underneath', (name) => {
+  it.each(['crossover', 'tower', 'plunge', 'knot', 'leap'])('%s: deck pillars stand on open ground, never on the road underneath', (name) => {
     const track = load(name)
     const pillars = planDeckPillars(track)
     expect(pillars.length).toBeGreaterThan(5)
@@ -179,7 +181,7 @@ describe('multi-level decks', () => {
     }
   })
 
-  it.each(['test1', 'test2', 'crossover', 'tower'])('%s: no ramp or drop wall stands on another part of the lap', (name) => {
+  it.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap'])('%s: no ramp or drop wall stands on another part of the lap', (name) => {
     const track = load(name)
     const pts = road(track)
     for (const a of pts.filter((p) => ['ramp', 'drop'].includes(track.segments[p.seg].type))) {

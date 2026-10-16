@@ -22,6 +22,11 @@ const CASES = [
   // Every kit piece type once: the catalogue track behind docs/track-kit.md.
   { track: load('test-kit-all'), minMs: 15_000, maxMs: 60_000 },
   { track: load('tower'), minMs: 40_000, maxMs: 65_000 },
+  // Kit campaign levels A03-A05: autopilot ~56 / ~63 / ~73 s, a ~38 / ~42 / ~49 s human lap; medals at
+  // crossover's and tower's ratios (author = 0.6 × autopilot, gold +8 %, silver +22 %, bronze +42 %).
+  { track: load('plunge'), minMs: 45_000, maxMs: 70_000 },
+  { track: load('knot'), minMs: 50_000, maxMs: 75_000 },
+  { track: load('leap'), minMs: 55_000, maxMs: 85_000 },
 ]
 
 describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
@@ -89,10 +94,11 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
 })
 
 // The conservative autopilot slows to jump speed before every ramp; a human floors it. At full
-// throttle the car flies ~60 m down crossover's landing slope; every gate must still count.
-describe('crossover gap jump at full throttle', () => {
-  it('a car flat out from the long descent straight over the gap still scores every gate and finishes', () => {
-    const track = load('crossover')
+// throttle the car flies ~60 m down crossover's landing slope; every gate must still count. leap and
+// test-kit-all jump the kit's gap-jump piece, crossover's jump on the grid.
+describe.each(['crossover', 'leap', 'test-kit-all'])('%s gap jump at full throttle', (name) => {
+  it('a car flat out from the run-up over the gap still scores every gate and finishes', () => {
+    const track = load(name)
     const gapAt = track.segments.findIndex((s) => s.type === 'gap')
     // centreline() emits 20 samples per segment: no slowdown from the descent straight to the landing.
     const samples = centreline(track).map((s, k) => {
