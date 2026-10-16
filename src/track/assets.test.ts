@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { readGlb, type Gltf } from '../assets/glb'
 import { LapLoop } from '../race/lap'
-import { planPieces } from '../render/track/pieces'
+import { planPieces } from '../render/track/kenney-plan'
 import { centreline, partialPose, segmentLength } from './centreline'
 import { gateLine, poses, START_ARCH_FRACTION, TILE_LENGTH, validate, type Pose, type Track } from './schema'
 

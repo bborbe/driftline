@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Track } from '../../track/schema'
 import { CURB_INNER, CURB_OUTER, CURB_TOP, curbDecals, DECAL_LIFT, EDGE_LINE, STRIPE_LENGTH } from './curbs'
-import { LAP_NAMES, loadLap } from './lap'
+import { LAP_NAMES, loadLap } from '../../track/registry'
 
 const straight = (...lengths: number[]): Track => ({
   name: 't',

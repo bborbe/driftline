@@ -25,7 +25,7 @@ import {
 } from './camera/fly'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
-import { LAP_NAMES, lapName, loadLap, nextLap } from './render/track/lap'
+import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
 import { GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
 import { lapCount } from './race/lap'
