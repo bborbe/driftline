@@ -46,7 +46,7 @@
     },
     {
       "type": "straight",
-      "length": 140
+      "length": 100
     },
     {
       "type": "ramp",
@@ -55,13 +55,13 @@
     },
     {
       "type": "gap",
-      "length": 14,
-      "fall": 4
+      "length": 10,
+      "fall": 1.8
     },
     {
       "type": "drop",
-      "length": 30,
-      "fall": 5
+      "length": 74,
+      "fall": 7.2
     },
     {
       "type": "banked",
@@ -146,6 +146,18 @@
     "bronze": 44500
   },
   "barriers": [
+    {
+      "segment": 11,
+      "side": "left"
+    },
+    {
+      "segment": 12,
+      "side": "left"
+    },
+    {
+      "segment": 13,
+      "side": "left"
+    },
     {
       "from": [
         6.36,

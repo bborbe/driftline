@@ -35,11 +35,11 @@
     },
     {
       "type": "straight",
-      "length": 120
+      "length": 90
     },
     {
       "type": "drop",
-      "length": 50,
+      "length": 80,
       "fall": 12
     },
     {
