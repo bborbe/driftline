@@ -60,6 +60,30 @@ export function exitPose(entry: Pose, seg: Segment): Pose {
   }
 }
 
+/** Native length of a straight road tile (assets/track/pieces.json); straights are split into tiles of about this length. */
+export const TILE_LENGTH = 20
+
+/** Length of each tile a straight of `length` is split into (whole tiles, stretched to fit). */
+export const tileLength = (length: number): number => length / Math.max(1, Math.round(length / TILE_LENGTH))
+
+/**
+ * The start/finish arch stands this fraction of the way along its start tile: the Kenney
+ * roadStart banner sits mid-tile (pinned by src/track/assets.test.ts against the model).
+ */
+export const START_ARCH_FRACTION = 0.5
+
+/**
+ * Where a gate's line actually is — the single source for the lap trigger (src/race) and
+ * the arch (src/render). Checkpoints sit on their segment's entry edge; a start/finish gate
+ * on a straight sits under the start tile's arch.
+ */
+export function gateLine(track: Track, gate: Gate): Pose {
+  const entry = poses(track)[gate.segment]
+  const seg = track.segments[gate.segment]
+  if (gate.kind !== 'start-finish' || seg.type !== 'straight') return entry
+  return exitPose(entry, { type: 'straight', length: tileLength(seg.length) * START_ARCH_FRACTION })
+}
+
 /** Entry pose of every segment followed by the final exit pose (length segments + 1). */
 export function poses(track: Track): Pose[] {
   const out = [track.start]

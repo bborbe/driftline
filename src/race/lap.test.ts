@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { NO_INPUT, TICK_HZ, v3, type CarState } from '../physics'
-import { poses } from '../track/schema'
+import { gateLine } from '../track/schema'
 import { COUNTDOWN_TICKS, LapLoop, crosses } from './lap'
 import { FLAT_OVAL } from './fixture.test-track'
 
 const gatePoses = () => {
-  const p = poses(FLAT_OVAL)
-  return FLAT_OVAL.gates.map((g) => ({ kind: g.kind, pose: p[g.segment] }))
+  return FLAT_OVAL.gates.map((g) => ({ kind: g.kind, pose: gateLine(FLAT_OVAL, g) }))
 }
 
 // Drives the car "through" a gate: one tick 1 m before it, the next 1 m past it.
