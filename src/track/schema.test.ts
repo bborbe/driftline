@@ -59,6 +59,14 @@ describe('validate', () => {
     expect(validate(ok)).toEqual([])
   })
 
+  it('accepts a gap, and rejects a gate standing on one', () => {
+    const gapped: Track = { ...ok, segments: [...ok.segments, { type: 'gap', length: 12, fall: 2 }] }
+    expect(validate(gapped)).toEqual([])
+    expect(validate({ ...gapped, gates: [...gapped.gates, { kind: 'checkpoint', segment: 2 }] })).toEqual([
+      'gates[1]: a gate cannot stand on a gap (no road)',
+    ])
+  })
+
   it('rejects an unknown segment type', () => {
     expect(validate({ ...ok, segments: [{ type: 'loop' }] })).toContain('segments[0]: unknown segment type loop')
   })

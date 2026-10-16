@@ -4,7 +4,7 @@ import { poses, SEGMENT_TYPES, validate } from '../../track/schema'
 import { FIXTURE_TRACK } from './fixture'
 import { trackSurface } from '../../physics'
 import type { Segment, Track } from '../../track/schema'
-import { buildApron, buildDeck, buildRampSupport, buildTrack, CENTRE_COLUMN, DECK_MIN_HEIGHT, planDeckPillars, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import { buildApron, buildDeck, buildRampSupport, buildTrack, CENTRE_COLUMN, DECK_MIN_HEIGHT, DECK_PILLAR_CLEAR, planDeckPillars, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
@@ -174,7 +174,7 @@ describe('multi-level decks', () => {
     expect(pillars.length).toBeGreaterThan(5)
     for (const p of pillars) {
       for (const q of road(track)) {
-        if (q.y < p.top - 1) expect(Math.hypot(q.x - p.x, q.z - p.z)).toBeGreaterThanOrEqual(TRACK_WIDTH / 2)
+        if (q.y < p.top - 1) expect(Math.hypot(q.x - p.x, q.z - p.z)).toBeGreaterThanOrEqual(DECK_PILLAR_CLEAR)
       }
     }
   })

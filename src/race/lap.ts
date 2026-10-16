@@ -4,7 +4,7 @@
 import {
   createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Vec3,
 } from '../physics'
-import { GATE_PILLAR, gateLine, type Pose, type Track } from '../track/schema'
+import { gateLine, type Pose, type Track } from '../track/schema'
 
 export const COUNTDOWN_TICKS = 3 * TICK_HZ
 /** Restart (Backspace) skips the full 3-2-1: control is back in under a second. */
@@ -12,11 +12,13 @@ export const RESTART_COUNTDOWN_TICKS = Math.round(0.8 * TICK_HZ)
 /** Half the gate width in metres: a crossing counts within this lateral distance of the gate centre. */
 export const GATE_HALF_WIDTH = TRACK_WIDTH / 2 + 1
 /**
- * A crossing counts only between this far below the gate's road and the top of its arch, so on a
- * multi-level track a road passing over or under a gate never triggers it.
+ * A crossing counts only from GATE_BELOW under the gate's road to GATE_ABOVE over it, so a road
+ * passing under a gate on a deck never triggers it. The upper bound is generous: a full-throttle
+ * car clears crossover's landing checkpoint ~9 m up and must still score it. Roads above a gate
+ * are kept out by layout instead (src/track/assets.test.ts: no other road within 10 m of a gate).
  */
 export const GATE_BELOW = 2
-export const GATE_ABOVE = GATE_PILLAR.height
+export const GATE_ABOVE = 20
 /** Ground plane height of the track surface (trackSurface's default groundY). */
 export const GROUND_Y = 0
 /** Auto-respawn when the car drops this far below the ground plane. */

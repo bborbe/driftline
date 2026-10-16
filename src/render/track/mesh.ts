@@ -176,6 +176,7 @@ export const createRampSupports = (track: Track): THREE.Group => {
     }
   })
   // Elevated flat road: a concrete box under the deck, on square pillars that leave underpasses open.
+  // Visual only, like the ramp pillars: physics never sees the deck or its pillars.
   track.segments.forEach((seg, i) => {
     const g = buildDeck(ps[i], seg)
     if (!g) return
