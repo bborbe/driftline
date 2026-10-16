@@ -70,6 +70,17 @@ describe('RaceStore per track', () => {
   })
 })
 
+describe('RaceStore per layout', () => {
+  it('a redesigned lap2 starts a fresh board; lap1 ignores the layout and keeps its keys', () => {
+    const mem = memory()
+    new RaceStore(mem, 'lap2', 'aaaa0001').recordLap(36050)
+    expect(new RaceStore(mem, 'lap2', 'aaaa0001').best()).toBe(36050)
+    expect(new RaceStore(mem, 'lap2', 'bbbb0002').best()).toBeNull()
+    new RaceStore(mem, 'lap1', 'cccc0003').recordLap(20000)
+    expect(mem.data.get('driftline-best')).toBe('20000')
+  })
+})
+
 describe('formatLapTime', () => {
   it('formats m:ss.mmm', () => expect(formatLapTime(83456)).toBe('1:23.456'))
 })

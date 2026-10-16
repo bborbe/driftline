@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { exitPose, poses, validate, type Pose, type Track } from './schema'
+import { exitPose, layoutId, poses, validate, type Pose, type Track } from './schema'
 
 const origin: Pose = { x: 0, y: 0, z: 0, heading: 0 }
 
@@ -80,5 +80,14 @@ describe('validate', () => {
     expect(end.x).toBeCloseTo(0)
     expect(end.z).toBeCloseTo(0)
     expect(end.heading).toBeCloseTo(2 * Math.PI)
+  })
+})
+
+describe('layoutId', () => {
+  it('is stable, ignores the name, and changes with the geometry', () => {
+    const a: Track = { name: 'a', start: { x: 0, y: 0, z: 0, heading: 0 }, segments: [{ type: 'straight', length: 40 }], gates: [] }
+    expect(layoutId(a)).toMatch(/^[0-9a-f]{8}$/)
+    expect(layoutId({ ...a, name: 'b' })).toBe(layoutId(a))
+    expect(layoutId({ ...a, segments: [{ type: 'straight', length: 41 }] })).not.toBe(layoutId(a))
   })
 })

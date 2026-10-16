@@ -3,7 +3,7 @@
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
 // Keys: R = respawn at last checkpoint, Backspace = restart, L = toggle leaderboard.
 import { TICK_HZ, type CarInput, type FixedStepper } from '../physics'
-import type { Track } from '../track/schema'
+import { layoutId, type Track } from '../track/schema'
 import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { formatLapTime, RaceStore } from './store'
 import { RaceView } from './view'
@@ -25,7 +25,7 @@ export interface Race {
 }
 
 export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}): Race {
-  const store = new RaceStore(opts.storage ?? localStorage, track.name)
+  const store = new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track))
   const loop = new LapLoop(track, (ms) => store.recordLap(ms))
   const view = new RaceView(store)
   for (const l of opts.listeners ?? []) loop.on(l)
