@@ -26,9 +26,11 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 | `src/build-info.ts` | Bottom-right build label (short SHA · UTC build time · version). Values come from `define` in `vite.config.ts`, fed by `VITE_COMMIT_SHA` (CI) or `git rev-parse HEAD` (local) — the same value as the `<meta name="commit">` tag. |
 | `src/input.ts` | Keyboard → `CarInput` (WASD / arrows, Space = handbrake) |
 | `src/camera/fly.ts` | Free-fly camera (C, `?cam=fly`, `&pitch`, `&orbit=1`): pose integration, ground clamp, mouse look, track orbit, the P fly-view URL. Pure TypeScript; `main.ts` freezes race, ghost and audio while it is active |
+| `src/camera/controller.ts` | Camera wiring: view keys 1/2/3, fly (C) and orbit (O) mode state, mouse look, and placing the three.js camera each frame from `chase.ts` / `fly.ts` / `views.ts` |
 | `src/camera/views.ts` | Camera view keys 1 / 2 / 3 (close chase, far chase, in-car), persisted in localStorage |
 | `src/fullscreen.ts` | F toggles fullscreen; an Esc that only leaves fullscreen does not pause |
-| `src/main.ts` | three.js shell: renderer (WebGPU, WebGL2 fallback), scene, debug overlay, frame loop. The debug overlay (pose, fps, build label) stays in the corners, small, and never repeats race-HUD values; backtick toggles it, `?debug=0` starts it hidden. `H` is controls help: a new key binding goes into `CONTROLS` in `src/race/controls.ts` (one list for the H panel and Esc → Controls; its test names every bound key). Keep it on by default: agents read it in screenshots. |
+| `src/debug/overlay.ts` | Debug overlay: pose readout, build label, backtick toggle, P copies the debug-spawn URL (toast) |
+| `src/main.ts` | three.js shell: boot (renderer, scene, race, ghost, audio), the one shell keydown dispatch, frame loop. Camera wiring lives in `src/camera/controller.ts`, the debug overlay in `src/debug/overlay.ts`; a new shell feature gets its own module, not a block here. The debug overlay (pose, fps, build label) stays in the corners, small, and never repeats race-HUD values; backtick toggles it, `?debug=0` starts it hidden. `H` is controls help: a new key binding goes into `CONTROLS` in `src/race/controls.ts` (one list for the H panel and Esc → Controls; its test names every bound key). Keep it on by default: agents read it in screenshots. |
 
 ## Rules
 
