@@ -11,6 +11,7 @@ import { createSkidMarks } from './fx/skid'
 import { createSpeedLines } from './fx/speedlines'
 import { FrameStats } from './fx/stats'
 import { createScene } from './scene'
+import { topCamFor, topCamRequested } from './topcam'
 import { createPieceTrack } from './track/kenney'
 
 export type View = {
@@ -72,11 +73,21 @@ export const createView = async (track: Track): Promise<View> => {
   document.body.appendChild(fpsLabel)
   let sinceLabel = 0
 
+  const topCam = topCamRequested(location.search)
+  if (topCam) scene.fog = null // the camera sits hundreds of metres up, inside the fog range
+
   const frame = (s: CarState, dt: number) => {
     car.update(s, dt)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     speedLines?.update(dot(s.velocity, forwardOf(s)), dt)
     skid?.update(s)
+    if (topCam) {
+      // Debug override of the chase camera main.ts set this frame.
+      const t = topCamFor(track, camera.fov, camera.aspect)
+      camera.position.set(t.x, t.y, t.z)
+      camera.up.set(0, 0, -1)
+      camera.lookAt(t.x, 0, t.z)
+    }
     draw()
     stats.push(performance.now(), dt)
     sinceLabel += dt
