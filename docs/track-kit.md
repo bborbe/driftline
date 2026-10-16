@@ -28,7 +28,7 @@ Trackmania-style drivable pieces that snap on a grid (`src/track/kit.ts`). A tra
 }
 ```
 
-The lap must close back onto its start connector; `compileKit()` throws naming the piece otherwise. `test-kit` is the demo, `test-kit-all` uses every piece once.
+The lap must close back onto its start connector; `compileKit()` throws naming the piece otherwise. `test-kit` is the demo, `test-kit-all` uses every piece once. The campaign levels A03 `plunge`, A04 `knot` and A05 `leap` are kit tracks too.
 
 ![test-kit-all from above](track-kit-overview.png)
 
@@ -50,7 +50,8 @@ Screenshots: live site, `?track=test-kit-all&cam=fly&freeze=1&renderer=webgl2` p
 | `slope-down` | slope | (2, 0, −1, 0) | `drop` 20 m, −4 m | road, dirt, ice, grass | One level down; here in dirt. | [`x=26&y=13&z=152&yaw=147.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=26&y=13&z=152&yaw=147.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![slope-down](track-kit/slope-down.png) |
 | `bump` | slope | (2, 0, 0, 0) | `ramp` 10 m +1 m, `drop` 10 m −1 m | road, dirt, ice, grass | Unloads the suspension at speed. | [`x=14&y=12&z=48&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=14&y=12&z=48&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![bump](track-kit/bump.png) |
 | `bank-90` | bank | (2, ±2, 0, ±1) | `banked` 90°, r 20 m, 0.26 rad | road | Bank eases in and out inside the piece, so both connectors are flat. | [`x=12.1&y=15&z=140.1&yaw=57.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=12.1&y=15&z=140.1&yaw=57.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![bank-90](track-kit/bank-90.png) |
-| `bank-180` | bank | (0, ±4, 0, ±2) | `banked` 180°, r 20 m, 0.26 rad | road | Closes the lap back onto the start straight. | [`x=6&y=11&z=2&yaw=147.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=6&y=11&z=2&yaw=147.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![bank-180](track-kit/bank-180.png) |
+| `bank-180` | bank | (0, ±4, 0, ±2) | `banked` 180°, r 20 m, 0.26 rad | road | Closes the lap back onto the start straight. | [`x=6&y=11&z=-78&yaw=147.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=6&y=11&z=-78&yaw=147.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![bank-180](track-kit/bank-180.png) |
+| `gap-jump` | slope | (6, 0, −2, 0) | `ramp` 10 m +1 m, `gap` 14 m −4 m, `drop` 36 m −5 m | road | crossover's jump on the grid: kicker, open air, landing slope under the flight arc; flat out it still lands on the slope. Two levels down. | [`x=85&y=12&z=-15&yaw=-90&pitch=-12`](https://bborbe.github.io/driftline/?track=test-kit-all&x=85&y=12&z=-15&yaw=-90&pitch=-12&cam=fly&freeze=1&renderer=webgl2) | ![gap-jump](track-kit/gap-jump.png) |
 | `turbo` | effect | (1, 0, 0, 0) | `straight` 10 m + `turbo` zone 0.25–0.75 | road | Yellow pad; direction from `padForward()`. | [`x=14&y=11&z=3&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=14&y=11&z=3&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![turbo](track-kit/turbo.png) |
 | `turbo-red` | effect | (1, 0, 0, 0) | `straight` 10 m + `turbo-red` zone 0.25–0.75 | road | Red pad: stronger boost. | [`x=14&y=11&z=13&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=14&y=11&z=13&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![turbo-red](track-kit/turbo-red.png) |
 | `checkpoint` | gate | (1, 0, 0, 0) | `straight` 10 m + `checkpoint` gate | road | Solid arch pillars; counts only under the arch. | [`x=14&y=11&z=23&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=14&y=11&z=23&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![checkpoint](track-kit/checkpoint.png) |
@@ -59,6 +60,5 @@ Screenshots: live site, `?track=test-kit-all&cam=fly&freeze=1&renderer=webgl2` p
 
 ## Not in the kit yet
 
-- Jump (ramp + `gap` + landing): the `gap` segment is on master; the piece needs an `air` connector kind.
 - Loops, wallrides, pipes, banks over 0.6 rad: need gravity along the surface normal and multi-valued height.
 - Walls on elevated road and ceilings: barriers stand on y = 0, and road has no body collision.

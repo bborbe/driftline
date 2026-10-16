@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { trackSurface } from '../physics'
 import { buildDeck, DECK_MIN_HEIGHT, lateralPoint, planDeckPillars, PROFILE, sampleSegment } from '../render/track/geometry'
 import { compileKit, connectorPose, isKitTrack, KIT_PIECES, LEVEL, onGrid, outConnector, resolveTrack, type KitTrack, type PieceDef } from './kit'
-import { CELL, exitPose, poses, turnSign, validate, type Pose, type Turn } from './schema'
+import { CELL, exitPose, partialPose, poses, turnSign, validate, type Pose, type Turn } from './schema'
 
 const EPS = 1e-6
 const turnsOf = (def: PieceDef): Turn[] => (def.turns ? ['left', 'right'] : ['left'])
@@ -97,6 +97,13 @@ describe('track piece kit', () => {
         const surface = trackSurface({ name: def.id, start: entry, segments, gates: [] }, { groundY: null })
         let p = entry
         for (const seg of segments) {
+          if (seg.type === 'gap') {
+            // The jump's air: no road between the kicker and the landing.
+            const mid = partialPose(p, seg, 0.5)
+            expect(surface.raycast({ x: mid.x, y: mid.y + 2, z: mid.z }, { x: 0, y: -1, z: 0 }, 10), `${def.id} gap`).toBeNull()
+            p = exitPose(p, seg)
+            continue
+          }
           for (const t of [0, 0.25, 0.5, 0.75, 1]) {
             // Ends nudged inside the piece: exactly on the joint an arc's sweep test can wrap to 2π.
             const s = sampleSegment(p, seg, Math.min(1 - 1e-7, Math.max(1e-7, t)))

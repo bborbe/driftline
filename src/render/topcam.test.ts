@@ -9,7 +9,7 @@ describe('?cam=top', () => {
     expect(topCamRequested('?freeze=1')).toBe(false)
   })
 
-  for (const name of ['test1', 'test2', 'crossover', 'tower']) {
+  for (const name of ['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap']) {
     it(`${name}: every centreline point is inside the view`, () => {
       const track = loadLap(name)
       const fov = 70

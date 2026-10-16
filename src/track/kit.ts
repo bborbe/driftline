@@ -14,7 +14,7 @@ export type KitSurface = 'road' | 'dirt' | 'ice' | 'grass'
 
 export const KIT_SURFACES: readonly KitSurface[] = ['road', 'dirt', 'ice', 'grass']
 
-/** What leaves a connector: road the car drives on. ('air' arrives with jump pieces.) */
+/** What leaves a connector: road the car drives on. A jump keeps its air inside the piece (gap-jump). */
 export type ConnectorKind = 'road'
 
 /**
@@ -118,6 +118,22 @@ export const KIT_PIECES: readonly PieceDef[] = [
     turns: true,
     out: road(0, 4, 0, 2),
     expand: (turn) => plain([{ type: 'banked', turn, radius: 2 * CELL, angle: 180, bank: KIT_BANK }]),
+  },
+  {
+    // Kicker, gap, landing: crossover's jump on the grid. Both connectors are road; the air is
+    // inside the piece. The landing slope lies under the flight arc from ~16 m/s (the autopilot's
+    // jump speed) to flat out, so slow and fast cars both touch down on the downslope.
+    id: 'gap-jump',
+    family: 'slope',
+    surfaces: ROAD_ONLY,
+    turns: false,
+    out: road(6, 0, -2, 0),
+    expand: () =>
+      plain([
+        { type: 'ramp', length: CELL, rise: 1 },
+        { type: 'gap', length: 1.4 * CELL, fall: LEVEL },
+        { type: 'drop', length: 3.6 * CELL, fall: 2 * LEVEL - 3 },
+      ]),
   },
   flat('turbo', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.25, to: 0.75 }] }),
   flat('turbo-red', 'effect', { zones: [{ kind: 'turbo-red', segment: 0, from: 0.25, to: 0.75 }] }),
