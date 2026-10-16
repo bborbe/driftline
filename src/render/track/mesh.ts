@@ -51,17 +51,22 @@ const gateArch = (kind: 'start-finish' | 'checkpoint'): THREE.Group => {
   return arch
 }
 
-/** Build the whole track as a scene-graph group. */
-export const createTrackMesh = (track: Track): THREE.Group => {
+/**
+ * Build the track procedurally as a scene-graph group. `segments` and `gates`
+ * restrict it to those indices (the piece renderer's fallbacks); omitted = all.
+ */
+export const createTrackMesh = (track: Track, segments?: number[], gates?: number[]): THREE.Group => {
   const group = new THREE.Group()
   group.name = `track:${track.name}`
-  for (const g of buildTrack(track)) {
+  buildTrack(track).forEach((g, i) => {
+    if (segments && !segments.includes(i)) return
     const mesh = new THREE.Mesh(toBufferGeometry(g), roadMaterial)
     mesh.receiveShadow = true
     group.add(mesh)
-  }
+  })
   const ps = poses(track)
-  for (const gate of track.gates) {
+  for (const [i, gate] of track.gates.entries()) {
+    if (gates && !gates.includes(i)) continue
     const p = ps[gate.segment]
     const arch = gateArch(gate.kind)
     arch.position.set(p.x, p.y, p.z)

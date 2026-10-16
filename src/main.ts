@@ -3,10 +3,10 @@ import { createCar, dot, FixedStepper, forwardOf } from './physics'
 import { createChase, updateChase } from './camera/chase'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
-import { FIXTURE_TRACK } from './render/track/fixture'
+import { loadLap } from './render/track/lap'
 import { GameAudio, mountAudioControls } from './audio'
 
-const view = await createView(FIXTURE_TRACK)
+const view = await createView(loadLap())
 const { camera, backend } = view
 
 const hud = document.createElement('div')
