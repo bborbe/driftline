@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import type { Track } from '../track/schema'
+import { poses, type Track } from '../track/schema'
 import {
-  createCar, dot, FLAT, forwardOf, NO_INPUT, rotate, step, trackSurface, v3, wheelContacts,
+  createCar, createCarAt, dot, FLAT, forwardOf, NO_INPUT, rotate, step, trackSurface, v3, wheelContacts,
   type CarInput, type CarState, type Surface,
 } from './index'
 
@@ -23,14 +24,30 @@ describe('surface raycast', () => {
     expect(hit.normal.z).toBeCloseTo(-0.2 / Math.hypot(0.2, 1), 9)
   })
 
-  it('banked turn raises the outer edge by tan(bank) per metre', () => {
-    // Right turn from heading 0: centre at (-R, 0); outward at the entry is +x.
-    // No ground plane: the inner edge dips below y = 0.
-    const surf = trackSurface(track([{ type: 'banked', turn: 'right', radius: 30, angle: 90, bank: Math.PI / 6 }]), { groundY: null })
-    const outer = surf.raycast(v3(3, 10, 0.5), DOWN, 20)!
-    const inner = surf.raycast(v3(-3, 10, 0.5), DOWN, 20)!
-    expect(10 - outer.distance).toBeCloseTo(3 * Math.tan(Math.PI / 6), 2)
-    expect(10 - inner.distance).toBeCloseTo(-3 * Math.tan(Math.PI / 6), 2)
+  it('banked turn raises the outer edge by tan(bank) per metre about the centreline', () => {
+    // Right turn from heading 0: centre at (-R, 0); outward is +x. Mid-turn (45° of 90°)
+    // the bank is fully in, so heights follow (r - R) · tan(bank).
+    const R = 30
+    const surf = trackSurface(track([{ type: 'banked', turn: 'right', radius: R, angle: 90, bank: Math.PI / 6 }]), { groundY: null })
+    const at = (r: number) => {
+      const a = Math.PI / 4
+      return 10 - surf.raycast(v3(-R + r * Math.cos(a), 10, r * Math.sin(a)), DOWN, 20)!.distance
+    }
+    expect(at(R + 3)).toBeCloseTo(3 * Math.tan(Math.PI / 6), 2)
+    expect(at(R - 3)).toBeCloseTo(-3 * Math.tan(Math.PI / 6), 2)
+  })
+
+  it('banked turn joints are flat and continuous with the segments either side', () => {
+    const surf = trackSurface(
+      track([{ type: 'straight', length: 10 }, { type: 'banked', turn: 'right', radius: 30, angle: 90, bank: 0.26 }, { type: 'straight', length: 10 }]),
+      { groundY: null },
+    )
+    for (const x of [-4.9, -2, 0, 2, 4.9]) {
+      // Just before and just after the entry joint (z = 10), across the whole road width.
+      const before = 10 - surf.raycast(v3(x, 10, 9.99), DOWN, 20)!.distance
+      const after = 10 - surf.raycast(v3(x, 10, 10.01), DOWN, 20)!.distance
+      expect(Math.abs(after - before), `x ${x}`).toBeLessThan(0.01)
+    }
   })
 
   it('misses off the track edge when there is no ground plane', () => {
@@ -120,9 +137,52 @@ describe('banked turn', () => {
   it('holds a 30° banked 180° turn at 25 m/s', () => {
     const r = driveTurn(bankedTrack(Math.PI / 6))
     expect(r.fell).toBe(false)
-    expect(r.maxOffset).toBeLessThan(1.5)
+    // 2.5 m, not 1.5: the bank now eases in and out over 30% of the turn at each end
+    // (src/track/bank.ts) so both joints are flat — the fix for the operator-visible step at
+    // the joints. Less bank near the ends widens the line on this synthetic 30°/25 m/s turn.
+    // A deliberate trade, not a loosened bar: the real lap1 turn keeps 1.5 m (test below).
+    expect(r.maxOffset).toBeLessThan(2.5)
     expect(r.minContacts).toBeGreaterThanOrEqual(2)
     expect(r.fullContact).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it('drives lap1\'s banked turn (segment 5) at race speed: ≤ 1.5 m off line, 4 wheels down, no step', () => {
+    const lap = JSON.parse(readFileSync('assets/track/lap1.json', 'utf8')) as Track
+    const surface = trackSurface(lap)
+    const seg = lap.segments[5] as Extract<Track['segments'][number], { type: 'banked' }>
+    const entry = poses(lap)[5] // (-30, -30), heading π; right turn, centre (-15, -30)
+    const cx = entry.x - Math.cos(entry.heading) * seg.radius
+    const cz = entry.z + Math.sin(entry.heading) * seg.radius
+    let s = createCarAt({ ...entry, z: entry.z + 70 }) // 70 m run-up on straight 4
+    let maxOffset = 0
+    let minContacts = 4
+    let maxClimb = 0
+    let prevY = s.position.y
+    let entered = false
+    for (let t = 0; t < 3000; t++) {
+      const rx = s.position.x - cx
+      const rz = s.position.z - cz
+      if (entered && rx > 0) break // 90° done: past the exit at (-15, -45)
+      let steer = -0.5 * (s.position.x - entry.x) // hold the run-up centreline (heading -z)
+      if (rz < 0) {
+        entered = true
+        const r = Math.hypot(rx, rz)
+        let tx = rz / r
+        let tz = -rx / r
+        if (tx * s.velocity.x + tz * s.velocity.z < 0) [tx, tz] = [-tx, -tz]
+        const f = forwardOf(s)
+        steer = Math.max(-1, Math.min(1, 0.3 * (r - seg.radius) + 3 * (tx * -f.z + tz * f.x)))
+        maxOffset = Math.max(maxOffset, Math.abs(r - seg.radius))
+        minContacts = Math.min(minContacts, wheelContacts(s, surface))
+      }
+      maxClimb = Math.max(maxClimb, Math.abs(s.position.y - prevY))
+      prevY = s.position.y
+      s = step(s, { ...NO_INPUT, steer, throttle: speedOf(s) < 14 ? 1 : 0 }, surface)
+    }
+    expect(entered).toBe(true)
+    expect(maxOffset).toBeLessThanOrEqual(1.5)
+    expect(minContacts).toBe(4)
+    expect(maxClimb).toBeLessThan(0.05) // per 10 ms tick: no step at either joint
   })
 
   it('the same turn unbanked slides off at that speed', () => {
