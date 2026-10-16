@@ -170,5 +170,11 @@
       "kind": "checkpoint",
       "segment": 23
     }
-  ]
+  ],
+  "medals": {
+    "author": 34000,
+    "gold": 38000,
+    "silver": 45000,
+    "bronze": 55000
+  }
 }

@@ -7,6 +7,8 @@ import {
 import { gateLine, type Pose, type Track } from '../track/schema'
 
 export const COUNTDOWN_TICKS = 3 * TICK_HZ
+/** Restart (Backspace) skips the full 3-2-1: control is back in under a second. */
+export const RESTART_COUNTDOWN_TICKS = Math.round(0.8 * TICK_HZ)
 /** Half the gate width in metres: a crossing counts within this lateral distance of the gate centre. */
 export const GATE_HALF_WIDTH = TRACK_WIDTH / 2 + 1
 /** Ground plane height of the track surface (trackSurface's default groundY). */
@@ -25,6 +27,8 @@ export interface RaceEvents {
   checkpoint?(tick: number, index: number): void
   lapFinish?(tick: number, lapTimeMs: number, isNewBest: boolean): void
   respawn?(tick: number): void
+  /** Backspace restart: the car is back on the start line, the short countdown begins. */
+  restart?(tick: number): void
 }
 
 interface GatePose {
@@ -149,15 +153,16 @@ export class LapLoop {
     return car
   }
 
-  /** Back to the countdown at the start line; `tick` is the current tick. */
+  /** Back to a short countdown at the start line; `tick` is the current tick. */
   restart(tick: number): CarState {
     if (this.phase === 'ready') return { ...this.spawn(), tick } // still waiting for Begin
     this.phase = 'countdown'
     this.passed = 0
     this.lastPosition = null
     this.airborneTicks = 0
-    this.countdownEndTick = tick + COUNTDOWN_TICKS
+    this.countdownEndTick = tick + RESTART_COUNTDOWN_TICKS
     this.lastCountdown = -1
+    this.emit((l) => l.restart?.(tick))
     this.announceCountdown(tick)
     return { ...this.spawn(), tick }
   }

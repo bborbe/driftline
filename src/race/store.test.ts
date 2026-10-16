@@ -84,3 +84,26 @@ describe('RaceStore per layout', () => {
 describe('formatLapTime', () => {
   it('formats m:ss.mmm', () => expect(formatLapTime(83456)).toBe('1:23.456'))
 })
+
+describe('RaceStore splits and medal', () => {
+  it('persists the best lap splits per track and layout', () => {
+    const mem = memory()
+    const store = new RaceStore(mem, 'lap2', 'abc')
+    expect(store.bestSplits()).toBeNull()
+    store.recordSplits([1000, 2500])
+    expect(new RaceStore(mem, 'lap2', 'abc').bestSplits()).toEqual([1000, 2500])
+    expect(new RaceStore(mem, 'lap2', 'other').bestSplits()).toBeNull()
+  })
+
+  it('keeps only the best medal across reloads', () => {
+    const mem = memory()
+    const store = new RaceStore(mem, 'lap2', 'abc')
+    expect(store.bestMedal()).toBeNull()
+    expect(store.recordMedal(null)).toBe(false)
+    expect(store.recordMedal('silver')).toBe(true)
+    expect(store.recordMedal('bronze')).toBe(false)
+    expect(new RaceStore(mem, 'lap2', 'abc').bestMedal()).toBe('silver')
+    expect(store.recordMedal('author')).toBe(true)
+    expect(new RaceStore(mem, 'lap2', 'abc').bestMedal()).toBe('author')
+  })
+})
