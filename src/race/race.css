@@ -45,7 +45,12 @@
 .race-speed { position: relative; font-size: clamp(30px, 8vmin, 110px); line-height: 1; font-style: italic; color: #ffd24a; }
 .race-unit { position: relative; font-size: clamp(9px, 1.5vmin, 20px); letter-spacing: 0.2em; color: #c7d2e0; }
 /* The one key hint: small, bottom left. */
-.race-keys { left: 8px; bottom: 8px; max-width: calc(50vw - 24vmin); font: 12px/1.3 ui-monospace, monospace; color: rgba(255, 255, 255, 0.75); text-shadow: 0 0 3px #000; }
+/* On a dark plate like the timer's: bare text vanishes against the light road. */
+.race-keys {
+  left: 8px; bottom: 8px; max-width: calc(50vw - 24vmin); padding: 4px 10px; border-radius: 8px;
+  background: var(--hud-plate); border: 1px solid rgba(255, 255, 255, 0.18);
+  font: 600 13px/1.3 system-ui, sans-serif; letter-spacing: 0.04em; color: #fff;
+}
 /* Start: three lights (red one by one, all green on GO) above a big glossy 3-2-1-GO!. */
 .race-countdown { top: 26%; left: 0; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2vmin; }
 .race-lights { display: flex; gap: 1.6vmin; padding: 1vmin 1.6vmin; background: var(--hud-plate); border-radius: 3vmin; }
