@@ -1,7 +1,8 @@
-// Begin overlay, volume slider and M-to-mute. The Begin click is the user gesture that unlocks audio.
+// Begin overlay, volume slider and M-to-mute. The Begin click is the user gesture that unlocks audio
+// and, through `onBegin`, starts the race countdown — the game's single start signal.
 import type { GameAudio } from './game-audio'
 
-export const mountAudioControls = (audio: GameAudio): void => {
+export const mountAudioControls = (audio: GameAudio, onBegin: () => void = () => {}): void => {
   const overlay = document.createElement('button')
   overlay.id = 'begin'
   overlay.textContent = 'Begin'
@@ -9,6 +10,7 @@ export const mountAudioControls = (audio: GameAudio): void => {
   overlay.addEventListener('click', () => {
     void audio.begin().then(() => console.log(`audio: ${audio.state}`))
     overlay.remove()
+    onBegin()
   }, { once: true })
   document.body.appendChild(overlay)
 

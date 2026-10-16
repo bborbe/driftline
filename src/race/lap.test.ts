@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TICK_HZ, v3, type CarState } from '../physics'
+import { NO_INPUT, TICK_HZ, v3, type CarState } from '../physics'
 import { poses } from '../track/schema'
 import { COUNTDOWN_TICKS, LapLoop, crosses } from './lap'
 import { FLAT_OVAL } from './fixture.test-track'
@@ -34,6 +34,7 @@ function race(isNewBest = () => true) {
     respawn: () => events.push('respawn'),
   })
   let car = loop.spawn()
+  loop.start(0)
   for (let t = 0; t <= COUNTDOWN_TICKS; t++) {
     car = { ...car, tick: t }
     loop.update(car)
@@ -42,13 +43,32 @@ function race(isNewBest = () => true) {
 }
 
 describe('LapLoop', () => {
-  it('holds the car during the countdown and starts racing at its end', () => {
+  it('waits for Begin, then counts down 3 s and starts racing at its end', () => {
     const loop = new LapLoop(FLAT_OVAL, () => true)
-    loop.update({ ...loop.spawn(), tick: COUNTDOWN_TICKS - 1 })
-    expect(loop.frozen).toBe(true)
-    expect(loop.lapTimeMs(COUNTDOWN_TICKS - 1)).toBe(0)
-    loop.update({ ...loop.spawn(), tick: COUNTDOWN_TICKS })
+    loop.update({ ...loop.spawn(), tick: 5000 })
+    expect(loop.phase).toBe('ready') // no countdown until Begin
+    loop.start(5000)
+    loop.update({ ...loop.spawn(), tick: 5000 + COUNTDOWN_TICKS - 1 })
+    expect(loop.phase).toBe('countdown')
+    expect(loop.lapTimeMs(5000 + COUNTDOWN_TICKS - 1)).toBe(0)
+    loop.update({ ...loop.spawn(), tick: 5000 + COUNTDOWN_TICKS })
     expect(loop.phase).toBe('racing')
+  })
+
+  it('passes input only while racing', () => {
+    const loop = new LapLoop(FLAT_OVAL, () => true)
+    const throttle = { ...NO_INPUT, throttle: 1 }
+    expect(loop.input(throttle)).toEqual(NO_INPUT) // before Begin
+    loop.start(0)
+    expect(loop.input(throttle)).toEqual(NO_INPUT) // during countdown
+    loop.update({ ...loop.spawn(), tick: COUNTDOWN_TICKS })
+    expect(loop.input(throttle)).toEqual(throttle) // go
+  })
+
+  it('restart before Begin keeps waiting for Begin', () => {
+    const loop = new LapLoop(FLAT_OVAL, () => true)
+    loop.restart(10)
+    expect(loop.phase).toBe('ready')
   })
 
   it('finishes only after every checkpoint in order', () => {
@@ -117,7 +137,7 @@ describe('LapLoop', () => {
   it('restart returns to a fresh countdown', () => {
     const { loop } = race()
     const r = loop.restart(1000)
-    expect(loop.phase).toBe('countdown')
+    expect(loop.phase).toBe('countdown') // Begin already given: straight to 3-2-1
     expect(loop.passed).toBe(0)
     expect(loop.countdownLeft(1000)).toBe(COUNTDOWN_TICKS)
     expect(r.tick).toBe(1000)

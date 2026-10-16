@@ -1,7 +1,8 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
+// Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
 // Keys: R = respawn at last checkpoint, Backspace = restart, L = toggle leaderboard.
-import { NO_INPUT, TICK_HZ, type CarInput, type FixedStepper } from '../physics'
+import { TICK_HZ, wheelContacts, type CarInput, type FixedStepper } from '../physics'
 import type { Track } from '../track/schema'
 import { LapLoop, type RaceEvents } from './lap'
 import { formatLapTime, RaceStore } from './store'
@@ -17,7 +18,9 @@ export interface RaceOptions {
 
 export interface Race {
   loop: LapLoop
-  /** Advances the sim (holding the car during the countdown) and updates lap state and HUD. */
+  /** Begin clicked: start the countdown. */
+  start(): void
+  /** Advances the sim (no input before go), updates lap state, auto-respawns on a fall, draws the HUD. */
   frame(elapsedSeconds: number, input: CarInput): void
 }
 
@@ -41,6 +44,9 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
 
   return {
     loop,
+    start() {
+      loop.start(sim.state.tick)
+    },
     frame(elapsedSeconds, input) {
       if (pending === 'respawn' && loop.phase === 'racing') sim.state = loop.respawn(sim.state.tick)
       if (pending === 'restart') {
@@ -48,10 +54,9 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
         view.hideFinish()
       }
       pending = null
-      const hold = loop.frozen || loop.phase === 'finished'
-      sim.advance(elapsedSeconds, hold ? NO_INPUT : input)
-      if (loop.frozen) sim.state = { ...loop.spawn(), tick: sim.state.tick }
-      loop.update(sim.state)
+      sim.advance(elapsedSeconds, loop.input(input))
+      const respawned = loop.update(sim.state, wheelContacts(sim.state, sim.surface))
+      if (respawned) sim.state = respawned
       const tick = sim.state.tick
       const left = loop.countdownLeft(tick)
       view.render({

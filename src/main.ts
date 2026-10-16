@@ -17,12 +17,11 @@ document.body.appendChild(hud)
 
 const input = new KeyboardInput()
 const audio = new GameAudio()
-mountAudioControls(audio)
-Object.assign(window, { audio }) // dev console: audio.onCheckpoint() etc. until the lap loop calls them
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
 const race = initRace(sim, track, {
   listeners: [{ checkpoint: () => audio.onCheckpoint(), lapFinish: () => audio.onFinish(), respawn: () => audio.onRespawn() }],
 })
+mountAudioControls(audio, () => race.start())
 let chase = createChase(sim.state.position, forwardOf(sim.state))
 let last = performance.now()
 
