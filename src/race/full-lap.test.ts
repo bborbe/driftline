@@ -16,6 +16,9 @@ const HUMAN_PACE = 0.67
 const CASES = [
   { track: load('lap1'), minMs: 10_000, maxMs: 90_000 },
   { track: load('lap2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
+  // Multi-level laps: ~33 s human, the low end of the 35-55 s band from the design brief.
+  { track: load('crossover'), minMs: 40_000, maxMs: 65_000 },
+  { track: load('tower'), minMs: 40_000, maxMs: 65_000 },
 ]
 
 interface Sample {
@@ -32,6 +35,8 @@ function partial(seg: Segment, f: number): Segment {
       return { ...seg, length: seg.length * f, rise: seg.rise * f }
     case 'drop':
       return { ...seg, length: seg.length * f, fall: seg.fall * f }
+    case 'gap':
+      return { ...seg, length: seg.length * f, fall: (seg.fall ?? 0) * f }
     case 'hairpin':
       return { type: 'curve', turn: seg.turn, radius: seg.radius, angle: (180 * f) as 90 }
     case 'curve':
@@ -47,6 +52,7 @@ const TARGET_SPEED: Record<Segment['type'], number> = {
   hairpin: 11,
   curve: 13,
   banked: 14,
+  gap: 26,
 }
 
 function centreline(track: Track): Sample[] {

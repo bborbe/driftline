@@ -1,7 +1,7 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
 import { gatePillars, poses, type Pillar, type Track } from '../../track/schema'
-import { buildApron, buildRampSupport, buildTrack, lateralPoint, PROFILE, sampleSegment, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
+import { buildApron, buildDeck, buildRampSupport, buildTrack, lateralPoint, planDeckPillars, PROFILE, sampleSegment, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road.
@@ -74,6 +74,7 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
   const ps = poses(track)
   buildTrack(track).forEach((g, i) => {
     if (segments && !segments.includes(i)) return
+    if (track.segments[i].type === 'gap') return // no road to draw
     const mesh = new THREE.Mesh(toBufferGeometry(g), roadMaterial)
     mesh.receiveShadow = true
     group.add(mesh)
@@ -110,8 +111,10 @@ const pillarMaterial = new THREE.MeshStandardMaterial({ color: linear(0.45, 0.46
 const PILLAR_STEP = 5
 const PILLAR_MIN_HEIGHT = 0.6
 const PILLAR_SIZE = 0.7
+/** Deck pillars are heavier: they carry a whole road, not a ramp's edge. */
+const DECK_PILLAR_SIZE = 1.6
 
-/** Sides and pillars under every ramp and drop (visual only; physics drives the road strip). */
+/** Sides and pillars under every ramp and drop, and decks on pillars under elevated road (visual only; physics drives the road strip). */
 export const createRampSupports = (track: Track): THREE.Group => {
   const group = new THREE.Group()
   group.name = 'ramp-supports'
@@ -149,6 +152,32 @@ export const createRampSupports = (track: Track): THREE.Group => {
       }
     }
   })
+  // Elevated flat road: a concrete box under the deck, on square pillars that leave underpasses open.
+  track.segments.forEach((seg, i) => {
+    const g = buildDeck(ps[i], seg)
+    if (!g) return
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(g.positions, 3))
+    geo.setIndex(new THREE.BufferAttribute(g.indices, 1))
+    const colors = new Float32Array(g.positions.length)
+    for (let r = 0; r < g.rows; r++) {
+      ;[CONCRETE_TOP, CONCRETE_FOOT, CONCRETE_TOP, CONCRETE_FOOT].forEach((c, k) => c.toArray(colors, (r * g.perRow + k) * 3))
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    geo.computeVertexNormals()
+    const deck = new THREE.Mesh(geo, supportMaterial)
+    deck.castShadow = deck.receiveShadow = true
+    group.add(deck)
+  })
+  for (const p of planDeckPillars(track)) {
+    pillars.push(
+      new THREE.Matrix4().compose(
+        new THREE.Vector3(p.x, p.top / 2, p.z),
+        new THREE.Quaternion(),
+        new THREE.Vector3(DECK_PILLAR_SIZE, p.top, DECK_PILLAR_SIZE),
+      ),
+    )
+  }
   if (pillars.length > 0) {
     const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), pillarMaterial, pillars.length)
     pillars.forEach((m, k) => mesh.setMatrixAt(k, m))

@@ -1,0 +1,141 @@
+{
+  "name": "tower",
+  "start": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "heading": 0
+  },
+  "segments": [
+    {
+      "type": "straight",
+      "length": 60
+    },
+    {
+      "type": "ramp",
+      "length": 60,
+      "rise": 12
+    },
+    {
+      "type": "banked",
+      "turn": "right",
+      "radius": 25,
+      "angle": 180,
+      "bank": 0.6
+    },
+    {
+      "type": "straight",
+      "length": 50
+    },
+    {
+      "type": "curve",
+      "turn": "right",
+      "radius": 20,
+      "angle": 90
+    },
+    {
+      "type": "straight",
+      "length": 120
+    },
+    {
+      "type": "drop",
+      "length": 50,
+      "fall": 12
+    },
+    {
+      "type": "banked",
+      "turn": "left",
+      "radius": 25,
+      "angle": 90,
+      "bank": 0.3
+    },
+    {
+      "type": "straight",
+      "length": 85
+    },
+    {
+      "type": "curve",
+      "turn": "left",
+      "radius": 20,
+      "angle": 90
+    },
+    {
+      "type": "straight",
+      "length": 20.147
+    },
+    {
+      "type": "curve",
+      "turn": "left",
+      "radius": 30,
+      "angle": 45
+    },
+    {
+      "type": "curve",
+      "turn": "right",
+      "radius": 30,
+      "angle": 45
+    },
+    {
+      "type": "straight",
+      "length": 10
+    },
+    {
+      "type": "curve",
+      "turn": "right",
+      "radius": 30,
+      "angle": 45
+    },
+    {
+      "type": "curve",
+      "turn": "left",
+      "radius": 30,
+      "angle": 45
+    },
+    {
+      "type": "straight",
+      "length": 10
+    },
+    {
+      "type": "curve",
+      "turn": "left",
+      "radius": 20,
+      "angle": 90
+    },
+    {
+      "type": "straight",
+      "length": 60.0
+    }
+  ],
+  "gates": [
+    {
+      "kind": "start-finish",
+      "segment": 0
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 2
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 5
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 7
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 10
+    },
+    {
+      "kind": "checkpoint",
+      "segment": 16
+    }
+  ],
+  "medals": {
+    "author": 31500,
+    "gold": 34000,
+    "silver": 38500,
+    "bronze": 44500
+  }
+}

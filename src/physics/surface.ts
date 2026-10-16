@@ -98,6 +98,8 @@ const piece = (p: Pose, seg: Segment, width: number): Piece => {
       return strip(p, seg.length, seg.rise, width)
     case 'drop':
       return strip(p, seg.length, -seg.fall, width)
+    case 'gap':
+      return () => null // no road: the car flies across or falls
     case 'curve':
       return sector(p, seg.turn === 'left', seg.radius, (seg.angle * Math.PI) / 180, 0, width)
     case 'hairpin':

@@ -4,7 +4,7 @@ import { loadLap } from './track/lap'
 import { FIXTURE_TRACK } from './track/fixture'
 import { CLEARANCE, planScenery } from './scenery'
 
-const tracks = { lap1: loadLap('lap1'), lap2: loadLap('lap2'), fixture: FIXTURE_TRACK }
+const tracks = { lap1: loadLap('lap1'), lap2: loadLap('lap2'), crossover: loadLap('crossover'), tower: loadLap('tower'), fixture: FIXTURE_TRACK }
 
 describe('planScenery', () => {
   for (const [name, track] of Object.entries(tracks)) {

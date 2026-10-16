@@ -1,10 +1,10 @@
 // Debug screenshots: walk each lap's centreline every STEP metres and save one PNG per pose.
-// Usage: npm run shots [-- lap1 lap2] (env STEP=20, OUT=shots). Starts its own Vite dev server.
+// Usage: npm run shots [-- lap1 lap2 crossover tower] (env STEP=20, OUT=shots). Starts its own Vite dev server.
 import { mkdirSync } from 'node:fs'
 import { createServer } from 'vite'
 import { chromium } from 'playwright'
 
-const laps = process.argv.slice(2).length ? process.argv.slice(2) : ['lap1', 'lap2']
+const laps = process.argv.slice(2).length ? process.argv.slice(2) : ['lap1', 'lap2', 'crossover', 'tower']
 const step = Number(process.env.STEP ?? 20)
 const out = process.env.OUT ?? 'shots'
 

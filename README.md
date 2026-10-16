@@ -10,6 +10,10 @@ make build
 
 See `VISION.md` and `AGENTS.md`.
 
+## Tracks
+
+Every `assets/track/*.json` except `pieces.json` is a track in the menu (`?track=<file name>`). `lap1` and `lap2` are the flat test laps. `crossover` and `tower` are multi-level: the road climbs onto elevated decks on pillars and passes over itself (crossover: a figure-eight bridge over the start straight, then a gap jump — a `gap` segment is open air; tower: a 60 m climb into a steep 34° banked 180 at 12 m, a bridge over the start straight and a 12 m drop into a banked turn). A checkpoint or finish line only counts when the car passes under its arch, so a road above or below a gate never triggers it.
+
 ## Laps
 
 A race is 1 lap by default. Pick 1–10 laps under **Laps** in the start-screen / Esc-menu settings (saved in localStorage), or pass `?laps=N` (e.g. `?track=lap2&laps=3`), which overrides the saved setting. In a multi-lap race the HUD shows `LAP 1/3`, split deltas flash at every checkpoint and lap line, and the finish panel shows the total time plus each lap time with the best lap marked. Best time, splits and the top-10 board are kept separately per lap count (1-lap records keep their original keys); medals are single-lap only. The ghost replays the session's best single lap at the start of every lap. R respawns at the current lap's last checkpoint; Backspace restarts at lap 1.

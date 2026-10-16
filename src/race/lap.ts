@@ -4,13 +4,19 @@
 import {
   createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Vec3,
 } from '../physics'
-import { gateLine, type Pose, type Track } from '../track/schema'
+import { GATE_PILLAR, gateLine, type Pose, type Track } from '../track/schema'
 
 export const COUNTDOWN_TICKS = 3 * TICK_HZ
 /** Restart (Backspace) skips the full 3-2-1: control is back in under a second. */
 export const RESTART_COUNTDOWN_TICKS = Math.round(0.8 * TICK_HZ)
 /** Half the gate width in metres: a crossing counts within this lateral distance of the gate centre. */
 export const GATE_HALF_WIDTH = TRACK_WIDTH / 2 + 1
+/**
+ * A crossing counts only between this far below the gate's road and the top of its arch, so on a
+ * multi-level track a road passing over or under a gate never triggers it.
+ */
+export const GATE_BELOW = 2
+export const GATE_ABOVE = GATE_PILLAR.height
 /** Ground plane height of the track surface (trackSurface's default groundY). */
 export const GROUND_Y = 0
 /** Auto-respawn when the car drops this far below the ground plane. */
@@ -240,7 +246,7 @@ export function advanceRace(loop: LapLoop, sim: FixedStepper, elapsedSeconds: nu
   return respawned
 }
 
-/** Did the segment prev→cur cross the gate plane forwards, within the gate width? */
+/** Did the segment prev→cur cross the gate plane forwards, within the gate width and under its arch? */
 export function crosses(gate: Pose, prev: Vec3, cur: Vec3): boolean {
   const fx = Math.sin(gate.heading)
   const fz = Math.cos(gate.heading)
@@ -250,5 +256,6 @@ export function crosses(gate: Pose, prev: Vec3, cur: Vec3): boolean {
   const t = before / (before - after)
   const x = prev.x + (cur.x - prev.x) * t - gate.x
   const z = prev.z + (cur.z - prev.z) * t - gate.z
-  return Math.abs(x * fz - z * fx) <= GATE_HALF_WIDTH
+  const y = prev.y + (cur.y - prev.y) * t - gate.y
+  return Math.abs(x * fz - z * fx) <= GATE_HALF_WIDTH && y >= -GATE_BELOW && y <= GATE_ABOVE
 }

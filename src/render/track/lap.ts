@@ -3,14 +3,21 @@
 import { validate, type Track } from '../../track/schema'
 import { FIXTURE_TRACK } from './fixture'
 
-const LAPS = import.meta.glob('/assets/track/lap*.json', { import: 'default', eager: true }) as Record<string, unknown>
+// Every track JSON except the piece catalogue (pieces.json) is a drivable lap.
+const LAPS = import.meta.glob(['/assets/track/*.json', '!/assets/track/pieces.json'], { import: 'default', eager: true }) as Record<
+  string,
+  unknown
+>
 
 export const DEFAULT_LAP = 'lap1'
 
-/** Shipped lap names in order (lap1, lap2, …). */
-export const LAP_NAMES = Object.keys(LAPS)
-  .map((k) => k.slice('/assets/track/'.length, -'.json'.length))
-  .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+/** Shipped lap names in order: the lapN test laps first (lap1, lap2, …), then the named tracks alphabetically. */
+export const LAP_NAMES = sortLaps(Object.keys(LAPS).map((k) => k.slice('/assets/track/'.length, -'.json'.length)))
+
+export function sortLaps(names: string[]): string[] {
+  const rank = (n: string) => (/^lap\d+$/.test(n) ? 0 : 1)
+  return [...names].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, undefined, { numeric: true }))
+}
 
 /** The lap after `name`, wrapping to the first. */
 export const nextLap = (name: string, names: string[] = LAP_NAMES): string => names[(names.indexOf(name) + 1) % names.length]
