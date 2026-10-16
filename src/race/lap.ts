@@ -181,7 +181,9 @@ export class LapLoop {
  * crossed the line instead of coasting off the track behind the panel. Returns the respawned
  * car, if any. This is the whole per-frame race step; race.frame() and the tests both use it.
  */
-export function advanceRace(loop: LapLoop, sim: FixedStepper, elapsedSeconds: number, raw: CarInput): CarState | null {
+// Paused: nothing advances — no tick, no accumulator, no lap/timer update — so resuming continues tick-exact.
+export function advanceRace(loop: LapLoop, sim: FixedStepper, elapsedSeconds: number, raw: CarInput, paused = false): CarState | null {
+  if (paused) return null
   if (loop.phase !== 'finished') sim.advance(elapsedSeconds, loop.input(raw))
   const respawned = loop.update(sim.state, wheelContacts(sim.state, sim.surface))
   if (respawned) sim.state = respawned

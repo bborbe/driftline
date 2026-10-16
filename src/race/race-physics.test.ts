@@ -96,3 +96,34 @@ describe('fall safety net', () => {
     expect(respawns).toBe(0)
   })
 })
+
+describe('pause', () => {
+  it('paused frames freeze tick, countdown, lap timer and car; resume continues exactly', () => {
+    const run = (pauseAt: number | null) => {
+      const { loop, sim } = setup()
+      loop.start(sim.state.tick)
+      const frozen: { tick: number; left: number; ms: number }[] = []
+      for (let i = 0; i < COUNTDOWN_TICKS + 3 * TICK_HZ; i++) {
+        if (i === pauseAt) {
+          const before = { tick: sim.state.tick, left: loop.countdownLeft(sim.state.tick), ms: loop.lapTimeMs(sim.state.tick), pos: sim.state.position }
+          // 5 s of wall time in odd-sized frames while paused.
+          for (let f = 0; f < 300; f++) advanceRace(loop, sim, 0.0167, THROTTLE, true)
+          expect(sim.state.tick).toBe(before.tick)
+          expect(loop.countdownLeft(sim.state.tick)).toBe(before.left)
+          expect(loop.lapTimeMs(sim.state.tick)).toBe(before.ms)
+          expect(sim.state.position).toEqual(before.pos)
+          frozen.push(before)
+        }
+        tick(loop, sim, THROTTLE)
+      }
+      return { state: sim.state, frozen }
+    }
+    const plain = run(null)
+    const inCountdown = run(COUNTDOWN_TICKS / 2)
+    const midLap = run(COUNTDOWN_TICKS + TICK_HZ)
+    expect(inCountdown.frozen[0].left).toBeGreaterThan(0)
+    expect(midLap.frozen[0].ms).toBeGreaterThan(0)
+    expect(inCountdown.state).toEqual(plain.state)
+    expect(midLap.state).toEqual(plain.state)
+  })
+})
