@@ -64,6 +64,9 @@ const ROAD_ONLY: readonly KitSurface[] = ['road']
 /** Kit bank angle (radians): the proven 0.26 of lap1/lap2, well inside the 0.6 rad limit. */
 export const KIT_BANK = 0.26
 
+/** Wide-bank angle (radians): steeper than KIT_BANK, inside the 0.6 rad limit. */
+export const KIT_BANK_WIDE = 0.45
+
 const curve = (id: string, cells: number): PieceDef => ({
   id,
   family: 'curve',
@@ -119,6 +122,16 @@ export const KIT_PIECES: readonly PieceDef[] = [
     turns: true,
     out: road(0, 4, 0, 2),
     expand: (turn) => plain([{ type: 'banked', turn, radius: 2 * CELL, angle: 180, bank: KIT_BANK }]),
+  },
+  {
+    // Flat-out 180 (Fullspeed): r 80 m holds a full-throttle, no-brake car near its 40 m/s top
+    // speed; tighter banks need braking whatever their angle (measured r 30–80 m × 0.26–0.6 rad).
+    id: 'bank-180-wide',
+    family: 'bank',
+    surfaces: ANY,
+    turns: true,
+    out: road(0, 16, 0, 2),
+    expand: (turn) => plain([{ type: 'banked', turn, radius: 8 * CELL, angle: 180, bank: KIT_BANK_WIDE }]),
   },
   {
     // Kicker, gap, landing: crossover's jump on the grid. Both connectors are road; the air is
@@ -177,6 +190,12 @@ export interface Placement {
   piece: string
   turn?: Turn
   surface?: KitSurface
+  /**
+   * Walls along the piece, following the road (curves and banks too): 'both' sides, or only the
+   * 'left' / 'right' one, flush with the road edge. Ground level only, like `walled` (barriers
+   * stand on y = 0). Closes a cut that pays, e.g. across the grass beside a dirt or ice corner.
+   */
+  walls?: 'both' | Turn
 }
 
 /** Kit track start: grid cell [x, z], level, and direction in quarter turns (0 = +z, CCW). */
@@ -244,6 +263,25 @@ export function compileKit(kt: KitTrack): CompiledKit {
     for (const z of ex.zones) zones.push({ ...z, segment: base + z.segment })
     if (surface !== 'road') ex.segments.forEach((_, k) => zones.push({ kind: surface, segment: base + k, from: 0, to: 1 }))
     for (const g of ex.gates) gates.push({ kind: g.kind, segment: base + g.segment })
+    if (pl.walls) {
+      if (!['both', 'left', 'right'].includes(pl.walls)) throw new Error(`kit piece ${i}: walls must be both, left or right`)
+      let p = entry
+      const onGround = ex.segments.every((seg) => {
+        p = exitPose(p, seg)
+        return seg.type !== 'gap' && Math.abs(p.y) < 1e-9
+      })
+      if (Math.abs(entry.y) > 1e-9 || !onGround) throw new Error(`kit piece ${i}: ${def.id} walls stand on the ground only`)
+      const sides: Turn[] = pl.walls === 'both' ? ['left', 'right'] : [pl.walls]
+      // Flush with the road edge (gap 0): a grass verge inside the wall would still pay on dirt or ice.
+      // A banked segment gets its inner wall only: its outer edge rises above a ground-standing wall
+      // (bank 0.26 lifts it 1.3 m, the wall is 1.2 m), and running wide off a bank is never a shortcut.
+      ex.segments.forEach((seg, k) =>
+        sides.forEach((side) => {
+          if (seg.type === 'banked' && side !== seg.turn) return
+          barriers.push({ segment: base + k, side, gap: 0 })
+        }),
+      )
+    }
     if (ex.walls) {
       if (Math.abs(entry.y) > 1e-9 || Math.abs(pose.y) > 1e-9) throw new Error(`kit piece ${i}: ${def.id} walls stand on the ground only`)
       const fx = Math.sin(entry.heading)

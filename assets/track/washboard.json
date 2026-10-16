@@ -1,0 +1,28 @@
+{
+  "name": "washboard",
+  "kit": {
+    "start": { "cell": [0, 0], "level": 0, "dir": 0 },
+    "pieces": [
+      { "piece": "start" },
+      { "piece": "turbo-red" },
+      { "piece": "bump" },
+      { "piece": "bump" },
+      { "piece": "bump" },
+      { "piece": "bump" },
+      { "piece": "bump" },
+      { "piece": "checkpoint" },
+      { "piece": "bank-180", "turn": "left" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-1" },
+      { "piece": "straight-1" },
+      { "piece": "bank-180", "turn": "left" }
+    ]
+  },
+  "medals": { "author": 15000, "gold": 16000, "silver": 18500, "bronze": 21500 },
+  "theme": {"sky": "sunset", "fog": "#ffc4e8", "ground": "#ff8fd1", "curb": "#ff00a8", "sign": "#39ff14", "screen": "#7b2cff", "scenery": ["cactus_tall", "tree_palm", "tree_blocks_fall"]}
+}

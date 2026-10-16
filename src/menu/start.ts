@@ -69,7 +69,7 @@ export function chooseTrack(names: string[]): Promise<string> {
     )
     focus(pos)
 
-    const hint = Object.assign(document.createElement('p'), { className: 'menu-hint', textContent: '←/→ choose · ↑/↓ campaign / test · Enter start · Esc close settings' })
+    const hint = Object.assign(document.createElement('p'), { className: 'menu-hint', textContent: '←/→ choose · ↑/↓ campaign / styles / test · Enter start · Esc close settings' })
     screen.append(title, ...sections, settingsButton, settings, hint)
     document.body.append(screen)
 

@@ -1,0 +1,36 @@
+{
+  "name": "switchback",
+  "kit": {
+    "start": { "cell": [0, 0], "level": 0, "dir": 0 },
+    "pieces": [
+      { "piece": "start" },
+      { "piece": "straight-1" },
+      { "piece": "curve-r1", "turn": "left" },
+      { "piece": "straight-2", "surface": "dirt" },
+      { "piece": "curve-r1", "turn": "right" },
+      { "piece": "straight-2" },
+      { "piece": "hairpin", "turn": "left" },
+      { "piece": "straight-2", "surface": "dirt" },
+      { "piece": "checkpoint" },
+      { "piece": "curve-r1", "turn": "right" },
+      { "piece": "straight-2", "surface": "dirt" },
+      { "piece": "curve-r1", "turn": "left" },
+      { "piece": "straight-1" },
+      { "piece": "straight-2", "walls": "both" },
+      { "piece": "straight-1", "walls": "both" },
+      { "piece": "curve-r1", "turn": "left", "walls": "both" },
+      { "piece": "straight-2", "surface": "dirt", "walls": "both" },
+      { "piece": "curve-r1", "turn": "right", "walls": "both" },
+      { "piece": "straight-2", "walls": "both" },
+      { "piece": "hairpin", "turn": "left", "walls": "both" },
+      { "piece": "straight-2", "surface": "dirt", "walls": "both" },
+      { "piece": "checkpoint" },
+      { "piece": "curve-r1", "turn": "right", "walls": "both" },
+      { "piece": "straight-2", "surface": "dirt", "walls": "both" },
+      { "piece": "curve-r1", "turn": "left", "walls": "both" },
+      { "piece": "straight-1", "walls": "both" }
+    ]
+  },
+  "medals": { "author": 23000, "gold": 25000, "silver": 28000, "bronze": 32500 },
+  "theme": {"sky": "day", "fog": "#cfd6dc", "ground": "#8c8a80", "curb": "#ff5a1f", "sign": "#ff5a1f", "screen": "#1f2937", "scenery": ["rock_largeA", "rock_tallA", "stone_largeA", "stump_round"]}
+}

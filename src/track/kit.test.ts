@@ -200,9 +200,36 @@ describe('kit level format', () => {
     for (const spline of ['test1', 'test2', 'crossover', 'tower']) expect(isKitTrack(read(spline)), spline).toBe(false)
   })
 
-  it('test-kit-all.json uses every kit piece type (the docs/track-kit.md catalogue track)', () => {
+  // The r 80 m bank-180-wide does not fit test-kit-all's compact loop; flatout (S02) shows it.
+  it('test-kit-all.json uses every kit piece type but the wide bank, which flatout.json uses (the docs/track-kit.md catalogue)', () => {
     const used = new Set((read('test-kit-all') as KitTrack).kit.pieces.map((p) => p.piece))
-    expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).sort())
+    expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).filter((id) => id !== 'bank-180-wide').sort())
+    expect((read('flatout') as KitTrack).kit.pieces.map((p) => p.piece)).toContain('bank-180-wide')
+  })
+
+  it('walls follow the road on any ground-level piece: both sides, inner side only on a bank', () => {
+    const loop = (pieces: KitTrack['kit']['pieces']): KitTrack => ({ name: 'walls', kit: { start: { cell: [0, 0], level: 0, dir: 0 }, pieces } })
+    const { track } = compileKit(
+      loop([
+        { piece: 'start', walls: 'both' },
+        { piece: 'curve-r2', turn: 'left', surface: 'ice', walls: 'both' },
+        { piece: 'bank-90', turn: 'left', walls: 'both' },
+        { piece: 'straight-2', walls: 'right' },
+        { piece: 'curve-r2', turn: 'left' },
+        { piece: 'curve-r2', turn: 'left' },
+      ]),
+    )
+    expect(track.barriers).toEqual([
+      { segment: 0, side: 'left', gap: 0 },
+      { segment: 0, side: 'right', gap: 0 },
+      { segment: 1, side: 'left', gap: 0 },
+      { segment: 1, side: 'right', gap: 0 },
+      { segment: 2, side: 'left', gap: 0 }, // a left bank: its inner (left) wall only
+      { segment: 3, side: 'right', gap: 0 },
+    ])
+    expect(validate(track)).toEqual([])
+    expect(() => compileKit(loop([{ piece: 'slope-up', walls: 'both' }]))).toThrow(/ground only/)
+    expect(() => compileKit(loop([{ piece: 'bump', walls: 'both' }]))).toThrow(/ground only/)
   })
 
   describe('test-kit.json demo', () => {

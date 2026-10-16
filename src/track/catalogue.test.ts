@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { CAMPAIGN, menuOrder, nextInGroup, recordName, resolveAlias, TEST_TRACKS, TIERS, trackGroups } from './catalogue'
+import { CAMPAIGN, menuOrder, nextInGroup, recordName, resolveAlias, STYLES, TEST_TRACKS, TIERS, trackGroups } from './catalogue'
 
 const shipped = readdirSync(new URL('../../assets/track/', import.meta.url))
   .filter((f) => f.endsWith('.json') && f !== 'pieces.json')
@@ -53,6 +53,20 @@ describe('track catalogue', () => {
   it('every campaign level ships, so the Campaign group lists A01-A05 in order', () => {
     for (const l of CAMPAIGN) expect(shipped).toContain(l.track)
     expect(trackGroups(shipped)[0].entries.map((e) => e.label)).toEqual(['A01', 'A02', 'A03', 'A04', 'A05'])
+  })
+
+  it('splits the style tracks into their own group, between Campaign and Test, S01-S05 in order', () => {
+    const groups = trackGroups(shipped)
+    expect(groups.map((g) => g.id)).toEqual(['campaign', 'styles', 'test'])
+    expect(groups[1].title).toBe('Styles')
+    expect(groups[1].entries.map((e) => e.label)).toEqual(['S01', 'S02', 'S03', 'S04', 'S05'])
+    for (const l of STYLES) {
+      expect(shipped).toContain(l.track)
+      expect(TIERS).toContain(l.tier)
+      expect(groups[0].entries.map((e) => e.track)).not.toContain(l.track)
+    }
+    expect(nextInGroup('washboard', shipped)).toBe('switchback')
+    expect(nextInGroup('switchback', shipped)).toBe('flatout')
   })
 
   it('every listed test track ships, and ≥ 5 single-feature test tracks exist', () => {

@@ -1,16 +1,16 @@
 // End-to-end: a simple pure-pursuit autopilot drives each shipped lap through the real physics and the
 // real lap loop, start to finish. Proves the shipped track is completable as a lap.
 import { describe, expect, it } from 'vitest'
-import { FixedStepper, NO_INPUT, TICK_HZ, trackSurface } from '../physics'
+import { FixedStepper, materialUnder, NO_INPUT, TICK_HZ, trackSurface } from '../physics'
 import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
-import { autopilot, centreline, loadTrack as load } from './autopilot.test-driver'
-import { TEST_TRACKS } from '../track/catalogue'
+import { autopilot, centreline, HUMAN_PACE, loadTrack as load, surfaceLine, type Sample } from './autopilot.test-driver'
+import { STYLES, TEST_TRACKS } from '../track/catalogue'
+import type { Track } from '../track/schema'
 
 // Lap-time window per track (ms) for this conservative autopilot. A human drives ~0.67x the
-// autopilot's time (operator's first lap2 run: 36.05 s vs 53.7 s), so lap2's 67-90 s window is a
-// ~45-60 s human lap; the floor also catches the track being shortened again.
-const HUMAN_PACE = 0.67
-const CASES = [
+// autopilot's time (HUMAN_PACE; operator's first lap2 run: 36.05 s vs 53.7 s), so lap2's 67-90 s
+// window is a ~45-60 s human lap; the floor also catches the track being shortened again.
+const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => Sample[] }[] = [
   { track: load('test1'), minMs: 10_000, maxMs: 90_000 },
   { track: load('test2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
   // Single-feature test tracks: one mechanic each, a lap in at most 20 s even at autopilot pace.
@@ -27,13 +27,20 @@ const CASES = [
   { track: load('plunge'), minMs: 45_000, maxMs: 70_000 },
   { track: load('knot'), minMs: 50_000, maxMs: 75_000 },
   { track: load('leap'), minMs: 55_000, maxMs: 85_000 },
+  // Style tracks S01-S05, driven on the surface-aware line (tight kit corners, dirt and ice): a
+  // 20-40 s human lap, washboard (LOL) 10-20 s. Autopilot ~38 / ~59 / ~39 / ~55 / ~25 s; medals at the
+  // A03-A05 ratios.
+  ...STYLES.map((l) => {
+    const human = l.track === 'washboard' ? [10_000, 20_000] : [20_000, 40_000]
+    return { track: load(l.track), minMs: human[0] / HUMAN_PACE, maxMs: human[1] / HUMAN_PACE, line: surfaceLine }
+  }),
 ]
 
-describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
+describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = centreline }) => {
   it('an autopilot completes a full lap: Begin, countdown, every checkpoint in order, finish, no respawn', () => {
     const loop = new LapLoop(track, () => true)
     const sim = new FixedStepper(loop.spawn(), trackSurface(track))
-    const drive = autopilot(centreline(track))
+    const drive = autopilot(line(track))
     const events: string[] = []
     let lapTime = 0
     loop.on({
@@ -67,7 +74,7 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
   it('an autopilot completes a 3-lap run: LAP 1/3 → 3/3 with no respawn, total = sum of laps', () => {
     const loop = new LapLoop(track, () => true, 3)
     const sim = new FixedStepper(loop.spawn(), trackSurface(track))
-    const drive = autopilot(centreline(track))
+    const drive = autopilot(line(track))
     const events: string[] = []
     let total = 0
     let times: number[] = []
@@ -119,5 +126,36 @@ describe.each(['crossover', 'leap', 'test-kit-all'])('%s gap jump at full thrott
     const cps = track.gates.filter((g) => g.kind === 'checkpoint').map((_, i) => `cp${i + 1}`)
     expect(events).toEqual([...cps, 'finish'])
     expect(peak).toBeGreaterThan(30) // it really was flat out, not the 18 m/s jump speed
+  })
+})
+
+// Fullspeed (S02 flatout): throttle held and the brake never touched from GO to the finish. The
+// autopilot steers (its 0.5 s time aim: a short fixed aim weaves at 38 m/s); it never lifts.
+describe('flatout at full throttle, no brake', () => {
+  it('a car flat out all lap scores every gate in order, never respawns and stays on the road', () => {
+    const track = load('flatout')
+    const loop = new LapLoop(track, () => true)
+    const surface = trackSurface(track)
+    const sim = new FixedStepper(loop.spawn(), surface)
+    const drive = autopilot(surfaceLine(track), 0.5)
+    const events: string[] = []
+    let ticks = 0
+    let offroad = 0
+    let peak = 0
+    loop.on({ checkpoint: (_t, i) => events.push(`cp${i}`), respawn: () => events.push('respawn'), lapFinish: () => events.push('finish') })
+    loop.start(sim.state.tick)
+    for (let i = 0; i < COUNTDOWN_TICKS + 90 * TICK_HZ && loop.phase !== 'finished'; i++) {
+      const racing = loop.phase === 'racing'
+      advanceRace(loop, sim, 1 / TICK_HZ, racing ? { ...drive(sim.state), throttle: 1, brake: 0 } : NO_INPUT)
+      if (racing) {
+        ticks++
+        if (materialUnder(sim.state, surface) === 'offroad') offroad++
+        peak = Math.max(peak, Math.hypot(sim.state.velocity.x, sim.state.velocity.z))
+      }
+    }
+    const cps = track.gates.filter((g) => g.kind === 'checkpoint').map((_, i) => `cp${i + 1}`)
+    expect(events).toEqual([...cps, 'finish'])
+    expect(offroad / ticks).toBeLessThan(0.05)
+    expect(peak).toBeGreaterThan(35) // really flat out, near the 40 m/s top speed
   })
 })
