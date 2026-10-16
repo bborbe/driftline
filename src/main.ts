@@ -131,7 +131,7 @@ view.renderer.setAnimationLoop(() => {
 
   const carInput = input.read()
   if (!freeze && !fly) race.frame(elapsed, carInput)
-  if (!fly) ghostRecorder.frame(race.loop.input(carInput), sim.state.tick)
+  if (!fly) ghostRecorder.consume(sim.fed)
   if (ghost && !fly) {
     ghost.advanceTo(sim.state.tick - lapStartTick)
     ghostCar.update(ghost.render(sim.alpha), race.paused ? 0 : elapsed)

@@ -7,7 +7,8 @@
 // Decals sit a hair above the road top and win the depth test by polygonOffset, not by a lift:
 // a larger lift shows as seams and a coplanar decal flickers (z-fighting).
 import * as THREE from 'three/webgpu'
-import { zoneCorners, type Pose, type Track, type Zone, type ZoneKind } from '../../track/schema'
+import { isEffect, zoneCorners, type EffectKind, type Pose, type Track, type Zone, type ZoneKind } from '../../track/schema'
+import { EFFECT_LOOK, effectIcon } from './effect-pads'
 import { PROFILE } from './geometry'
 
 const roadColumns = PROFILE.filter(([, , band]) => band === 'road')
@@ -33,7 +34,7 @@ const PAD_LOOK: Record<'turbo' | 'turbo-red', { color: number; emissive: number 
   'turbo-red': { color: 0xff2a2a, emissive: 0.6 },
 }
 
-type SurfaceKind = Exclude<ZoneKind, 'turbo' | 'turbo-red'>
+type SurfaceKind = Exclude<ZoneKind, 'turbo' | 'turbo-red' | EffectKind>
 
 // Base colour (sRGB) and the two noise layers mixed into it. `dark`/`light` are the extremes the
 // mottling swings between; `streak` stretches the noise along the road (ice reads as polished, dirt as tracked).
@@ -247,6 +248,13 @@ export const createZoneMeshes = (track: Track): THREE.Group => {
       }
       group.add(padMesh(zoneQuad(track, zone), materials.get(kind)!, 2))
       group.add(padMesh(turboChevrons(track, zone), chevron, 3))
+    } else if (isEffect(kind)) {
+      if (!materials.has(kind)) {
+        const look = EFFECT_LOOK[kind]
+        materials.set(kind, new THREE.MeshStandardMaterial({ ...DECAL, color: look.color, emissive: look.color, emissiveIntensity: look.emissive, roughness: 0.4 }))
+      }
+      group.add(padMesh(zoneQuad(track, zone), materials.get(kind)!, 2))
+      group.add(padMesh(effectIcon(track, { ...zone, kind }, ZONE_WIDTH, ZONE_LIFT + 0.002), chevron, 3))
     } else {
       if (!materials.has(kind)) materials.set(kind, surfaceMaterial(kind))
       group.add(patchMesh(surfacePatch(track, { ...zone, kind }), materials.get(kind)!))
