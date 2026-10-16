@@ -1,7 +1,8 @@
-// Barriers are walls on the open ground: they stand clear of the road and stop the car.
+// Barriers are walls on the open ground: they stand clear of the road, follow it at a constant
+// gap when built along a piece, and stop the car.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { barrierPillars, type Track } from '../track/schema'
+import { BARRIER, barrierPillars, barrierPosts, CELL, poses, type Track } from '../track/schema'
 import { createCarAt, FixedStepper, MAX_SPEED, NO_INPUT, step, TICK_HZ, trackSurface, v3 } from '.'
 
 const load = (name: string) =>
@@ -15,8 +16,8 @@ describe.each(['test1', 'test2', 'crossover', 'tower'])('%s barriers', (name) =>
   const surface = trackSurface(track)
   const walls = barrierPillars(track)
 
-  it('every barrier stands on the open ground, clear of the road', () => {
-    for (const o of walls) {
+  it('every barrier wall and post stands on the open ground, clear of the road', () => {
+    for (const o of [...walls, ...barrierPosts(track)]) {
       const fx = Math.sin(o.heading)
       const fz = Math.cos(o.heading)
       for (let u = -o.halfDepth; u <= o.halfDepth; u += 0.5) {
@@ -47,3 +48,33 @@ describe.each(['test1', 'test2', 'crossover', 'tower'])('%s barriers', (name) =>
     }
   })
 })
+
+describe('road-following barriers', () => {
+  const track: Track = {
+    name: 't',
+    start: { x: 0, y: 0, z: 0, heading: 0 },
+    segments: [
+      { type: 'straight', length: 40 },
+      { type: 'curve', turn: 'right', radius: 30, angle: 90 },
+    ],
+    gates: [],
+    barriers: [
+      { segment: 0, side: 'left' },
+      { segment: 1, side: 'right', gap: 2, from: 0.25 },
+    ],
+  }
+  const posts = barrierPosts(track)
+
+  it('keep the wall middle a constant distance off the centreline, with a post at every end and joint', () => {
+    // Straight: 40 m in 5 m lengths, wall middle 5 + 1.5 + 0.5 m to the left (+x).
+    const straight = posts.slice(0, 9)
+    expect(barrierPillars(track).filter((w) => w.halfDepth <= BARRIER.step / 2 + 1e-9)).toHaveLength(barrierPillars(track).length)
+    for (const p of straight) expect(p.x).toBeCloseTo(CELL / 2 + BARRIER.gap + BARRIER.halfWidth, 9)
+    expect(straight.map((p) => p.z)).toEqual([0, 5, 10, 15, 20, 25, 30, 35, 40])
+    // Curve: centred 30 m to the right of its entry, wall middle at 30 - (5 + 2 + 0.5) on the inside.
+    const entry = poses(track)[1]
+    const cx = entry.x - 30
+    for (const p of posts.slice(9)) expect(Math.hypot(p.x - cx, p.z - entry.z)).toBeCloseTo(30 - (CELL / 2 + 2 + BARRIER.halfWidth), 9)
+  })
+})
+
