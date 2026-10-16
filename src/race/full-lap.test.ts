@@ -125,4 +125,32 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs }) => {
     expect(lapTime).toBeLessThan(maxMs)
     console.log(`${track.name} autopilot lap time: ${(lapTime / 1000).toFixed(2)} s`)
   })
+
+  it('an autopilot completes a 3-lap run: LAP 1/3 → 3/3 with no respawn, total = sum of laps', () => {
+    const loop = new LapLoop(track, () => true, 3)
+    const sim = new FixedStepper(loop.spawn(), trackSurface(track))
+    const drive = autopilot(centreline(track))
+    const events: string[] = []
+    let total = 0
+    let times: number[] = []
+    loop.on({
+      lapStart: (_t, lap) => events.push(`lap${lap}`),
+      respawn: () => events.push('respawn'),
+      lapFinish: () => events.push('line'),
+      raceFinish: (_t, ms, _best, lapTimes) => {
+        total = ms
+        times = lapTimes
+      },
+    })
+    loop.start(sim.state.tick)
+    for (let i = 0; i < COUNTDOWN_TICKS + 3 * 90 * TICK_HZ && loop.phase !== 'finished'; i++) {
+      const raw = loop.phase === 'racing' ? drive(sim.state) : NO_INPUT
+      advanceRace(loop, sim, 1 / TICK_HZ, raw)
+    }
+    expect(events).toEqual(['lap1', 'line', 'lap2', 'line', 'lap3', 'line'])
+    expect(loop.phase).toBe('finished')
+    expect(times).toHaveLength(3)
+    for (const ms of times) expect(ms).toBeLessThan(maxMs)
+    expect(total).toBeCloseTo(times[0] + times[1] + times[2], 6)
+  })
 })

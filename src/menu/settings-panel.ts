@@ -1,6 +1,7 @@
 // The settings panel, shared by the start screen and the in-race Esc menu. Writes through to localStorage.
 import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camera/views'
 import { FX } from '../render/fx/flags'
+import { MAX_LAPS } from '../race/lap'
 import { loadSettings, saveSettings, type Settings } from './settings'
 
 export interface SettingsHooks {
@@ -40,8 +41,13 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     window.dispatchEvent(new CustomEvent(CAMERA_EVENT, { detail: cam.value }))
   })
   box.append(label('Camera (1/2/3)'), cam)
-  // Slot for the lap-count task; wired when it lands.
-  box.append(label('Laps'), Object.assign(label('1'), { className: 'menu-slot' }))
-  box.append(Object.assign(label('Effects apply on the next race'), { className: 'menu-hint' }))
+  const laps = document.createElement('select')
+  for (let n = 1; n <= MAX_LAPS; n++) laps.append(new Option(String(n), String(n), false, n === s.laps))
+  laps.addEventListener('change', () => {
+    s.laps = Number(laps.value)
+    saveSettings(localStorage, s)
+  })
+  box.append(label('Laps'), laps)
+  box.append(Object.assign(label('Effects and laps apply on the next race'), { className: 'menu-hint' }))
   return box
 }

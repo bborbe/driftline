@@ -81,6 +81,24 @@ describe('RaceStore per layout', () => {
   })
 })
 
+describe('RaceStore per lap count', () => {
+  it('a 3-lap run keeps its own best and board; 1-lap records and keys are untouched', () => {
+    const mem = memory()
+    mem.data.set('driftline-best', '30000')
+    const three = new RaceStore(mem, 'lap1', 'cccc0003', 3)
+    expect(three.best()).toBeNull()
+    expect(three.recordLap(95000)).toBe(true)
+    three.addToLeaderboard('ben', 95000)
+    expect(mem.data.get('driftline-best-laps3')).toBe('95000')
+    expect(new RaceStore(mem, 'lap1', 'cccc0003').best()).toBe(30000)
+    expect(new RaceStore(mem, 'lap1', 'cccc0003').leaderboard()).toEqual([])
+    new RaceStore(mem, 'lap2', 'aaaa0001', 2).recordLap(80000)
+    expect(mem.data.get('driftline-best-lap2-aaaa0001-laps2')).toBe('80000')
+    expect(new RaceStore(mem, 'lap2', 'aaaa0001').best()).toBeNull()
+    expect(new RaceStore(mem, 'lap2', 'aaaa0001', 1).best()).toBeNull() // laps=1 is the unsuffixed key
+  })
+})
+
 describe('formatLapTime', () => {
   it('formats m:ss.mmm', () => expect(formatLapTime(83456)).toBe('1:23.456'))
 })

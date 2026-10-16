@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { NO_INPUT, TICK_HZ, v3, type CarState } from '../physics'
 import { gateLine } from '../track/schema'
-import { COUNTDOWN_TICKS, LapLoop, RESTART_COUNTDOWN_TICKS, crosses } from './lap'
+import { COUNTDOWN_TICKS, LapLoop, lapCount, MAX_LAPS, RESTART_COUNTDOWN_TICKS, crosses } from './lap'
 import { FLAT_OVAL } from './fixture.test-track'
 
 const gatePoses = () => {
@@ -19,12 +19,15 @@ function passGate(loop: LapLoop, car: CarState, pose: { x: number; z: number; he
   return after
 }
 
-function race(isNewBest = () => true) {
+function race(isNewBest: (totalMs: number) => boolean = () => true, laps = 1) {
   const events: string[] = []
   const finishes: number[] = []
-  const loop = new LapLoop(FLAT_OVAL, isNewBest)
+  const loop = new LapLoop(FLAT_OVAL, isNewBest, laps)
   loop.on({
-    lapStart: (t) => events.push(`start@${t}`),
+    lapStart: (t, lap) => events.push(lap === 1 ? `start@${t}` : `lap${lap}`),
+    raceFinish: (_t, ms, _best, times) => {
+      if (laps > 1) events.push(`race ${ms} [${times.join(',')}]`)
+    },
     checkpoint: (_t, i) => events.push(`cp${i}`),
     lapFinish: (_t, ms) => {
       events.push('finish')
@@ -178,6 +181,82 @@ describe('LapLoop', () => {
     expect(loop.phase).toBe('racing')
     expect(((t - 2000) * 1000) / TICK_HZ).toBeLessThan(1000)
     expect(loop.input({ ...NO_INPUT, throttle: 1 }).throttle).toBe(1)
+  })
+})
+
+describe('LapLoop multi-lap', () => {
+  const lapOf = (loop: LapLoop, car: CarState, drive = 0): CarState => {
+    for (const g of gatePoses().filter((g) => g.kind === 'checkpoint')) car = passGate(loop, car, g.pose)
+    car = { ...car, tick: car.tick + drive }
+    return passGate(loop, car, gatePoses().find((g) => g.kind === 'start-finish')!.pose)
+  }
+
+  it('runs 3 laps: lap events per lap, then one race finish with the total and each lap time', () => {
+    const { loop, events } = race(() => true, 3)
+    let { car } = race()
+    expect(loop.lap).toBe(1)
+    car = lapOf(loop, car, 100)
+    expect(loop.lap).toBe(2)
+    expect(loop.passed).toBe(0)
+    expect(loop.phase).toBe('racing')
+    car = lapOf(loop, car, 300)
+    car = lapOf(loop, car, 200)
+    expect(loop.phase).toBe('finished')
+    const [a, b, c] = loop.lapTimes
+    expect(b - a).toBe(2000) // 200 extra ticks
+    expect(c - a).toBe(1000)
+    const total = a + b + c
+    expect(loop.lapTimeMs(car.tick)).toBe(total)
+    const lapEvents = (n: number) => ['cp1', 'cp2', 'cp3', 'finish', ...(n < 3 ? [`lap${n + 1}`] : [])]
+    expect(events).toEqual([`start@${COUNTDOWN_TICKS}`, ...lapEvents(1), ...lapEvents(2), ...lapEvents(3), `race ${total} [${a},${b},${c}]`])
+  })
+
+  it('judges the best on the run total, once', () => {
+    const judged: number[] = []
+    const { loop } = race((ms) => judged.push(ms) > 0, 2)
+    let { car } = race()
+    car = lapOf(loop, car)
+    expect(judged).toEqual([])
+    lapOf(loop, car)
+    expect(judged).toEqual([loop.lapTimes[0] + loop.lapTimes[1]])
+  })
+
+  it('respawns at the start line in a later lap before its first checkpoint, and at that lap\'s checkpoint after', () => {
+    const { loop } = race(() => true, 3)
+    let { car } = race()
+    car = lapOf(loop, car)
+    expect(loop.respawn(car.tick).position.z).toBeCloseTo(FLAT_OVAL.start.z)
+    const cp1 = gatePoses().filter((g) => g.kind === 'checkpoint')[0].pose
+    car = passGate(loop, car, cp1)
+    expect(loop.respawn(car.tick).position.x).toBeCloseTo(cp1.x)
+    expect(loop.lap).toBe(2)
+  })
+
+  it('restart goes back to lap 1 with no lap times', () => {
+    const { loop } = race(() => true, 3)
+    let { car } = race()
+    car = lapOf(loop, car)
+    loop.restart(car.tick + 1)
+    expect(loop.lap).toBe(1)
+    expect(loop.lapTimes).toEqual([])
+  })
+})
+
+describe('lapCount', () => {
+  it('reads ?laps=N, defaulting to 1 and capping at MAX_LAPS', () => {
+    expect(lapCount('')).toBe(1)
+    expect(lapCount('?track=lap2&laps=3')).toBe(3)
+    expect(lapCount('?laps=0')).toBe(1)
+    expect(lapCount('?laps=2.5')).toBe(1)
+    expect(lapCount('?laps=abc')).toBe(1)
+    expect(lapCount('?laps=99')).toBe(MAX_LAPS)
+  })
+  it('falls back to the saved setting; a valid ?laps= overrides it', () => {
+    expect(lapCount('', 3)).toBe(3)
+    expect(lapCount('?laps=', 3)).toBe(3)
+    expect(lapCount('?laps=x', 3)).toBe(3)
+    expect(lapCount('?laps=2', 3)).toBe(2)
+    expect(lapCount('?laps=1', 3)).toBe(1)
   })
 })
 
