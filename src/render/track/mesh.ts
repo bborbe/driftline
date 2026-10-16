@@ -1,13 +1,14 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
+import { ASPHALT } from '../look'
 import { barrierPillars, barrierPosts, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
 import { buildApron, buildDeck, buildRampSupport, buildTrack, lateralPoint, planDeckPillars, PROFILE, sampleSegment, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
-// segments and glb pieces read as one road.
+// segments and glb pieces read as one road; the road itself is the shared ASPHALT.
 const linear = (r: number, g: number, b: number) => new THREE.Color().setRGB(r, g, b, THREE.LinearSRGBColorSpace)
 const BAND: Record<Band, THREE.Color> = {
-  road: linear(0.267, 0.267, 0.267),
+  road: ASPHALT, // look.ts; kenney.ts retints the pieces' own road to match
   curb: linear(0.945, 0.949, 0.965),
   grass: linear(0.302, 0.561, 0.431),
 }
