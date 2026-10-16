@@ -258,7 +258,7 @@ export const buildDeck = (entry: Pose, seg: Segment): SegmentGeometry | null => 
     const b = (r + 1) * perRow
     idx.push(a, a + 1, b, a + 1, b + 1, b) // left skirt
     idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3) // right skirt
-    idx.push(a + 1, a + 3, b + 1, a + 3, b + 3, b + 1) // soffit
+    idx.push(a + 1, b + 1, a + 3, a + 3, b + 1, b + 3) // soffit, wound to face down so it lights from below
   }
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }

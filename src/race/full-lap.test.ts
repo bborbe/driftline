@@ -17,6 +17,8 @@ const CASES = [
   ...TEST_TRACKS.filter((n) => n.startsWith('test-')).map((n) => ({ track: load(n), minMs: 5_000, maxMs: 20_000 })),
   // Multi-level campaign tracks: autopilot ~52.5 s (~35 s human, the low end of the brief's 35-55 s band).
   { track: load('crossover'), minMs: 40_000, maxMs: 65_000 },
+  // Built only from kit pieces (assets/track/test-kit.json, src/track/kit.ts).
+  { track: load('test-kit'), minMs: 10_000, maxMs: 40_000 },
   { track: load('tower'), minMs: 40_000, maxMs: 65_000 },
 ]
 

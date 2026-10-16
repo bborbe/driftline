@@ -1,0 +1,254 @@
+// Track piece kit: Trackmania-style drivable pieces that snap on a grid. Each piece is ONE
+// definition that expands to schema Segments, zones, gates and barriers, so the render mesh
+// (src/render/track) and the physics collider (src/physics/surface.ts) both derive from it and
+// can never disagree. A kit track is a list of placed pieces; compileKit() turns it into a
+// plain Track, so everything downstream (lap loop, ghost, render) is unchanged.
+// Pure TypeScript: no three, no browser APIs, so physics may import it.
+import { CELL, exitPose, type Barrier, type Gate, type GateKind, type Pose, type Segment, type Track, type Turn, type Zone, type ZoneKind } from './schema'
+
+/** Height of one kit level in metres. Every connector sits on a multiple of it. */
+export const LEVEL = 4
+
+/** Road surface a piece is built in. Non-road surfaces are full-length zones (planar pieces only). */
+export type KitSurface = 'road' | 'dirt' | 'ice' | 'grass'
+
+export const KIT_SURFACES: readonly KitSurface[] = ['road', 'dirt', 'ice', 'grass']
+
+/** What leaves a connector: road the car drives on. ('air' arrives with jump pieces.) */
+export type ConnectorKind = 'road'
+
+/**
+ * A piece's exit connector, relative to its entry connector, in grid units: `forward` cells
+ * along the entry heading, `left` cells to its left, `up` levels, `turn` quarter turns CCW.
+ * Every kit connector is flat across (bank 0) — banked pieces ease in and out inside the piece.
+ */
+export interface Connector {
+  forward: number
+  left: number
+  up: number
+  turn: number
+  bank: 0
+  kind: ConnectorKind
+}
+
+/** Families follow the Trackmania Stadium block families (see docs/track-kit.md). */
+export type PieceFamily = 'road' | 'curve' | 'slope' | 'bank' | 'effect' | 'gate' | 'wall'
+
+/** A piece's contents, relative to its first segment. */
+export interface Expansion {
+  segments: Segment[]
+  zones: { kind: ZoneKind; segment: number; from: number; to: number }[]
+  gates: { kind: GateKind; segment: number }[]
+  /** Barriers along both sides (ground level only: schema barriers stand on y = 0). */
+  walls: boolean
+}
+
+export interface PieceDef {
+  id: string
+  family: PieceFamily
+  /** Surfaces the piece can be built in; the first is the default. */
+  surfaces: readonly KitSurface[]
+  /** True when the piece turns, so a placement may pick left or right. */
+  turns: boolean
+  /** Exit connector for a LEFT turn (a right turn mirrors `left` and `turn`). */
+  out: Connector
+  expand(turn: Turn): Expansion
+}
+
+const road = (forward: number, left: number, up: number, turn: number): Connector => ({ forward, left, up, turn, bank: 0, kind: 'road' })
+const plain = (segments: Segment[], extra: Partial<Expansion> = {}): Expansion => ({ segments, zones: [], gates: [], walls: false, ...extra })
+const PLANAR: readonly KitSurface[] = KIT_SURFACES
+const ROAD_ONLY: readonly KitSurface[] = ['road']
+
+/** Kit bank angle (radians): the proven 0.26 of lap1/lap2, well inside the 0.6 rad limit. */
+export const KIT_BANK = 0.26
+
+const curve = (id: string, cells: number): PieceDef => ({
+  id,
+  family: 'curve',
+  surfaces: ROAD_ONLY,
+  turns: true,
+  out: road(cells, cells, 0, 1),
+  expand: (turn) => plain([{ type: 'curve', turn, radius: cells * CELL, angle: 90 }]),
+})
+
+const flat = (id: string, family: PieceFamily, extra: Partial<Expansion>, cells = 1): PieceDef => ({
+  id,
+  family,
+  surfaces: ROAD_ONLY,
+  turns: false,
+  out: road(cells, 0, 0, 0),
+  expand: () => plain([{ type: 'straight', length: cells * CELL }], extra),
+})
+
+/** Every piece type of the kit, in catalogue order. */
+export const KIT_PIECES: readonly PieceDef[] = [
+  { ...flat('straight-1', 'road', {}), surfaces: PLANAR },
+  { ...flat('straight-2', 'road', {}, 2), surfaces: PLANAR },
+  curve('curve-r1', 1),
+  curve('curve-r2', 2),
+  curve('curve-r3', 3),
+  { id: 'hairpin', family: 'curve', surfaces: ROAD_ONLY, turns: true, out: road(0, 2, 0, 2), expand: (turn) => plain([{ type: 'hairpin', turn, radius: CELL }]) },
+  { id: 'slope-up', family: 'slope', surfaces: PLANAR, turns: false, out: road(2, 0, 1, 0), expand: () => plain([{ type: 'ramp', length: 2 * CELL, rise: LEVEL }]) },
+  { id: 'slope-down', family: 'slope', surfaces: PLANAR, turns: false, out: road(2, 0, -1, 0), expand: () => plain([{ type: 'drop', length: 2 * CELL, fall: LEVEL }]) },
+  {
+    id: 'bump',
+    family: 'slope',
+    surfaces: PLANAR,
+    turns: false,
+    out: road(2, 0, 0, 0),
+    expand: () =>
+      plain([
+        { type: 'ramp', length: CELL, rise: 1 },
+        { type: 'drop', length: CELL, fall: 1 },
+      ]),
+  },
+  {
+    id: 'bank-90',
+    family: 'bank',
+    surfaces: ROAD_ONLY,
+    turns: true,
+    out: road(2, 2, 0, 1),
+    expand: (turn) => plain([{ type: 'banked', turn, radius: 2 * CELL, angle: 90, bank: KIT_BANK }]),
+  },
+  {
+    id: 'bank-180',
+    family: 'bank',
+    surfaces: ROAD_ONLY,
+    turns: true,
+    out: road(0, 4, 0, 2),
+    expand: (turn) => plain([{ type: 'banked', turn, radius: 2 * CELL, angle: 180, bank: KIT_BANK }]),
+  },
+  flat('turbo', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.25, to: 0.75 }] }),
+  flat('turbo-red', 'effect', { zones: [{ kind: 'turbo-red', segment: 0, from: 0.25, to: 0.75 }] }),
+  flat('checkpoint', 'gate', { gates: [{ kind: 'checkpoint', segment: 0 }] }),
+  // Two cells: the start/finish arch stands mid-tile (schema START_ARCH_FRACTION).
+  flat('start', 'gate', { gates: [{ kind: 'start-finish', segment: 0 }] }, 2),
+  { ...flat('walled', 'wall', { walls: true }, 2), surfaces: PLANAR },
+]
+
+const BY_ID = new Map(KIT_PIECES.map((p) => [p.id, p]))
+
+export const pieceDef = (id: string): PieceDef | undefined => BY_ID.get(id)
+
+/** Exit connector for a placement: a right turn mirrors the left-turn connector. */
+export const outConnector = (def: PieceDef, turn: Turn = 'left'): Connector =>
+  turn === 'left' || !def.turns ? def.out : { ...def.out, left: -def.out.left, turn: -def.out.turn }
+
+/** World pose of a connector placed at `entry`. */
+export const connectorPose = (entry: Pose, c: Connector): Pose => {
+  const fx = Math.sin(entry.heading)
+  const fz = Math.cos(entry.heading)
+  // Left of travel is (+cos h, -sin h): the side schema.ts arcs turn towards for 'left'.
+  return {
+    x: entry.x + (fx * c.forward + fz * c.left) * CELL,
+    y: entry.y + c.up * LEVEL,
+    z: entry.z + (fz * c.forward - fx * c.left) * CELL,
+    heading: entry.heading + (c.turn * Math.PI) / 2,
+  }
+}
+
+/** True when a pose sits on the kit grid: x, z on CELL lines, y on a LEVEL, heading a quarter turn. */
+export const onGrid = (p: Pose, eps = 1e-6): boolean => {
+  const near = (v: number, step: number) => Math.abs(v / step - Math.round(v / step)) * step < eps
+  return near(p.x, CELL) && near(p.z, CELL) && near(p.y, LEVEL) && near(p.heading, Math.PI / 2)
+}
+
+/** One placed piece in a kit track. */
+export interface Placement {
+  piece: string
+  turn?: Turn
+  surface?: KitSurface
+}
+
+/** Kit track start: grid cell [x, z], level, and direction in quarter turns (0 = +z, CCW). */
+export interface KitStart {
+  cell: [number, number]
+  level: number
+  dir: number
+}
+
+/** A kit track file: assets/track/<name>.json with a `kit` block instead of `segments`. */
+export interface KitTrack {
+  name: string
+  kit: { start: KitStart; pieces: Placement[] }
+  medals?: Track['medals']
+}
+
+export const isKitTrack = (data: unknown): data is KitTrack => {
+  const kit = (data as { kit?: unknown } | null)?.kit
+  return typeof kit === 'object' && kit !== null
+}
+
+/** Barrier offset from the centreline: just outside the road edge (TRACK_WIDTH 10 → 5 m). */
+const WALL_OFFSET = CELL / 2 + 0.6
+
+export interface CompiledKit {
+  track: Track
+  /** Entry pose of every placed piece followed by the final exit pose. */
+  poses: Pose[]
+  /** Index of each placed piece's first segment in track.segments. */
+  firstSegment: number[]
+}
+
+/**
+ * Compile a kit track to a plain Track. Throws with the offending piece index when a piece is
+ * unknown, built in a surface it does not support, walled above ground, off the grid, or when
+ * the lap does not close back onto its start connector.
+ */
+export function compileKit(kt: KitTrack): CompiledKit {
+  const { start, pieces } = kt.kit
+  const startPose: Pose = { x: start.cell[0] * CELL, y: start.level * LEVEL, z: start.cell[1] * CELL, heading: (start.dir * Math.PI) / 2 }
+  const segments: Segment[] = []
+  const zones: Zone[] = []
+  const gates: Gate[] = []
+  const barriers: Barrier[] = []
+  const ps: Pose[] = [startPose]
+  const firstSegment: number[] = []
+  pieces.forEach((pl, i) => {
+    const def = pieceDef(pl.piece)
+    if (!def) throw new Error(`kit piece ${i}: unknown piece ${pl.piece}`)
+    const surface = pl.surface ?? def.surfaces[0]
+    if (!def.surfaces.includes(surface)) throw new Error(`kit piece ${i}: ${def.id} has no ${surface} variant`)
+    if (pl.turn && !def.turns) throw new Error(`kit piece ${i}: ${def.id} does not turn`)
+    const entry = ps[ps.length - 1]
+    if (!onGrid(entry)) throw new Error(`kit piece ${i}: entry is off the grid`)
+    const turn = pl.turn ?? 'left'
+    const ex = def.expand(turn)
+    const base = segments.length
+    firstSegment.push(base)
+    let pose = entry
+    for (const seg of ex.segments) {
+      segments.push(seg)
+      pose = exitPose(pose, seg)
+    }
+    for (const z of ex.zones) zones.push({ ...z, segment: base + z.segment })
+    if (surface !== 'road') ex.segments.forEach((_, k) => zones.push({ kind: surface, segment: base + k, from: 0, to: 1 }))
+    for (const g of ex.gates) gates.push({ kind: g.kind, segment: base + g.segment })
+    if (ex.walls) {
+      if (Math.abs(entry.y) > 1e-9 || Math.abs(pose.y) > 1e-9) throw new Error(`kit piece ${i}: ${def.id} walls stand on the ground only`)
+      const fx = Math.sin(entry.heading)
+      const fz = Math.cos(entry.heading)
+      for (const side of [1, -1]) {
+        const ox = fz * side * WALL_OFFSET
+        const oz = -fx * side * WALL_OFFSET
+        barriers.push({ from: [entry.x + ox, entry.z + oz], to: [pose.x + ox, pose.z + oz] })
+      }
+    }
+    ps.push(connectorPose(entry, outConnector(def, turn)))
+  })
+  const end = ps[ps.length - 1]
+  const turns = (end.heading - startPose.heading) / (2 * Math.PI)
+  const closed = Math.hypot(end.x - startPose.x, end.y - startPose.y, end.z - startPose.z) < 1e-6 && Math.abs(turns - Math.round(turns)) < 1e-9
+  if (!closed) throw new Error(`kit track ${kt.name}: lap does not close (ends at ${fmt(end)}, starts at ${fmt(startPose)})`)
+  const track: Track = { name: kt.name, start: startPose, segments, gates }
+  if (kt.medals) track.medals = kt.medals
+  if (zones.length) track.zones = zones
+  if (barriers.length) track.barriers = barriers
+  return { track, poses: ps, firstSegment }
+}
+
+const fmt = (p: Pose) => `(${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`
+
+/** A track file as loaded: kit tracks are compiled, spline tracks pass through unchanged. */
+export const resolveTrack = (data: unknown): unknown => (isKitTrack(data) ? compileKit(data).track : data)
