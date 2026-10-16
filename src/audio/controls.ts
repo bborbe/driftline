@@ -2,16 +2,38 @@
 // and, through `onBegin`, starts the race countdown — the game's single start signal.
 import type { GameAudio } from './game-audio'
 
+type KeyTarget = { tagName?: string; type?: string } | null
+
+// Enter / Space press Begin — except while typing (the top-10 name entry submits on Enter).
+export const isBeginKey = (code: string, repeat: boolean, target: KeyTarget): boolean => {
+  if (repeat || (code !== 'Enter' && code !== 'NumpadEnter' && code !== 'Space')) return false
+  const tag = target?.tagName?.toUpperCase()
+  if (tag === 'TEXTAREA') return false
+  return !(tag === 'INPUT' && target?.type !== 'range')
+}
+
 export const mountAudioControls = (audio: GameAudio, onBegin: () => void = () => {}): void => {
   const overlay = document.createElement('button')
   overlay.id = 'begin'
-  overlay.textContent = 'Begin'
-  overlay.style.cssText = 'position:fixed;inset:0;margin:auto;width:200px;height:64px;font-size:28px;cursor:pointer;z-index:10'
-  overlay.addEventListener('click', () => {
+  overlay.innerHTML = 'Begin<br><small style="font-size:12px">Enter / Space to start</small>'
+  overlay.style.cssText = 'position:fixed;inset:0;margin:auto;width:200px;height:72px;font-size:28px;cursor:pointer;z-index:10'
+  // One-shot: the overlay leaves the DOM on Begin, so a running countdown or race can never re-trigger it.
+  let begun = false
+  const begin = () => {
+    if (begun) return
+    begun = true
+    window.removeEventListener('keydown', onKey)
     void audio.begin().then(() => console.log(`audio: ${audio.state}`))
     overlay.remove()
     onBegin()
-  }, { once: true })
+  }
+  const onKey = (e: KeyboardEvent) => {
+    if (!overlay.isConnected || !isBeginKey(e.code, e.repeat, e.target as KeyTarget)) return
+    e.preventDefault()
+    begin()
+  }
+  overlay.addEventListener('click', begin)
+  window.addEventListener('keydown', onKey)
   document.body.appendChild(overlay)
 
   const slider = document.createElement('input')
