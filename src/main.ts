@@ -3,6 +3,7 @@ import './style.css'
 import { createCar, dot, FixedStepper, forwardOf } from './physics'
 import { createChase, updateChase } from './camera/chase'
 import { KeyboardInput } from './input'
+import { initRace } from './race'
 
 const forceWebGL = new URLSearchParams(location.search).get('renderer') === 'webgl2'
 
@@ -55,6 +56,7 @@ document.body.appendChild(hud)
 
 const input = new KeyboardInput()
 const sim = new FixedStepper(createCar())
+const race = initRace(scene, sim)
 let chase = createChase(sim.state.position, forwardOf(sim.state))
 let last = performance.now()
 
@@ -63,7 +65,7 @@ renderer.setAnimationLoop(() => {
   const elapsed = (now - last) / 1000
   last = now
 
-  sim.advance(elapsed, input.read())
+  race.frame(elapsed, input.read())
   const s = sim.state
   const speed = dot(s.velocity, forwardOf(s))
 
