@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { poses, SEGMENT_TYPES, validate } from '../../track/schema'
 import { FIXTURE_TRACK } from './fixture'
-import { buildTrack, rowCenter, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import { buildTrack, lateralPoint, rowCenter, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
@@ -58,11 +58,14 @@ describe('render track geometry', () => {
     expect(maxY(geoms[r])).toBeGreaterThan(ps[r].y + ramp.rise)
   })
 
-  it('banked turn reaches its bank angle mid-segment and is flat at both ends', () => {
+  it('banked turn matches the physics surface: outer edge raised by (r - radius) * tan(bank)', () => {
     const b = indexOf('banked')
-    const seg = segs[b] as { bank: number }
-    expect(sampleSegment(ps[b], segs[b], 0.5).roll).toBeCloseTo(seg.bank, 6)
-    expect(sampleSegment(ps[b], segs[b], 0).roll).toBe(0)
-    expect(sampleSegment(ps[b], segs[b], 1).roll).toBe(0)
+    const seg = segs[b] as { bank: number; turn: 'left' | 'right' }
+    const p = sampleSegment(ps[b], segs[b], 0.5)
+    expect(p.roll).toBe(seg.bank)
+    const outer = seg.turn === 'right' ? 1 : -1 // lateral u > 0 is left of travel
+    const s = seg.turn === 'right' ? -1 : 1
+    const [, y] = lateralPoint(p, outer * 5, s)
+    expect(y - SURFACE_LIFT - p.y).toBeCloseTo(5 * Math.tan(seg.bank), 6)
   })
 })
