@@ -1,23 +1,30 @@
-// Translucent ghost car, same silhouette as the player car.
+// Ghost car: the same registry model as the player (build-time VITE_CAR), rendered translucent.
 import * as THREE from 'three/webgpu'
-import type { CarState } from '../physics'
+import { createCarView, type CarView } from '../render/car/model'
 
 export const GHOST_OPACITY = 0.35
 
-export const createGhostMesh = (): THREE.Group => {
-  const material = new THREE.MeshStandardMaterial({ color: 0x9ad1ff, transparent: true, opacity: GHOST_OPACITY, depthWrite: false })
-  const ghost = new THREE.Group()
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.7, 4.2), material)
-  body.position.y = 0.1
-  ghost.add(body)
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.6), material)
-  nose.position.set(0, 0.55, 1.6)
-  ghost.add(nose)
-  ghost.visible = false
-  return ghost
+/** Make every mesh under `root` translucent with its own material copies; casts no shadow. */
+export const ghostify = (root: THREE.Object3D): void => {
+  const fade = (m: THREE.Material): THREE.Material => {
+    const c = m.clone()
+    c.transparent = true
+    c.opacity = GHOST_OPACITY
+    c.depthWrite = false
+    return c
+  }
+  root.traverse((o) => {
+    o.castShadow = false
+    const mesh = o as THREE.Mesh
+    if (!mesh.isMesh) return
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(fade) : fade(mesh.material)
+  })
 }
 
-export const placeGhost = (ghost: THREE.Group, s: CarState): void => {
-  ghost.position.set(s.position.x, s.position.y, s.position.z)
-  ghost.quaternion.set(s.orientation.x, s.orientation.y, s.orientation.z, s.orientation.w)
+/** Hidden until a best run exists; pose it each frame with `update(state, dt)`. */
+export const createGhostCar = async (id?: string): Promise<CarView> => {
+  const car = await createCarView(id)
+  ghostify(car.object)
+  car.object.visible = false
+  return car
 }
