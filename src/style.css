@@ -1,2 +1,6 @@
 html, body { margin: 0; height: 100%; overflow: hidden; }
 canvas { display: block; }
+#hud {
+  position: fixed; top: 8px; left: 8px; padding: 4px 8px;
+  font: 14px/1.4 ui-monospace, monospace; color: #fff; background: rgba(0, 0, 0, 0.5);
+}
