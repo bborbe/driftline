@@ -44,8 +44,7 @@
 .race-ticks i.on:nth-child(n + 20) { background: #ff5a3c; box-shadow: 0 0 0.8vmin rgba(255, 80, 50, 0.9); }
 .race-speed { position: relative; font-size: clamp(30px, 8vmin, 110px); line-height: 1; font-style: italic; color: #ffd24a; }
 .race-unit { position: relative; font-size: clamp(9px, 1.5vmin, 20px); letter-spacing: 0.2em; color: #c7d2e0; }
-/* Key hints: small, bottom left, part of the debug overlay. */
-/* Wraps before it reaches the timer plate on narrow windows. */
+/* The one key hint: small, bottom left. */
 .race-keys { left: 8px; bottom: 8px; max-width: calc(50vw - 24vmin); font: 12px/1.3 ui-monospace, monospace; color: rgba(255, 255, 255, 0.75); text-shadow: 0 0 3px #000; }
 /* Start: three lights (red one by one, all green on GO) above a big glossy 3-2-1-GO!. */
 .race-countdown { top: 26%; left: 0; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2vmin; }
@@ -95,3 +94,20 @@
 .race-medal-bronze { color: #d08040; }
 .race-medal-none { color: #888; }
 .race-laps { text-align: left; }
+/* Controls help: H in-race (over the race, which keeps running) and Controls in the Esc menu. */
+.race-help {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 20; max-height: 90vh; overflow-y: auto;
+  padding: 2vmin 3vmin; background: rgba(8, 10, 16, 0.9); color: #fff; border-radius: 1.6vmin; border: 0.25vmin solid rgba(255, 255, 255, 0.18);
+  font: 15px/1.4 system-ui, sans-serif; text-align: center;
+}
+.race-help[hidden] { display: none; }
+.race-help h2 { margin: 0 0 1vmin; font-family: var(--hud-font); font-style: italic; }
+.race-help p { margin: 1vmin 0 0; color: #c7d2e0; font-size: 13px; }
+.controls { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 1vmin 3vmin; text-align: left; font: 14px/1.35 system-ui, sans-serif; }
+.race-pause .controls { margin-top: 12px; }
+.controls h3 { margin: 0.6vmin 0; font-family: var(--hud-font); font-style: italic; color: #ffd24a; letter-spacing: 0.04em; }
+.controls div { display: flex; gap: 1.2vmin; align-items: baseline; padding: 0.2vmin 0; }
+.controls kbd {
+  flex: 0 0 8em; text-align: right; font: 600 13px ui-monospace, monospace; color: #fff;
+}
+.controls span { color: #dfe7f2; }

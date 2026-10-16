@@ -6,8 +6,10 @@ import {
 } from '../physics'
 import { gateLine, type Pose, type Track } from '../track/schema'
 
-export const COUNTDOWN_TICKS = 3 * TICK_HZ
-/** Restart (Backspace) skips the full 3-2-1: control is back in under a second. */
+/** Steps announced before GO: 3, 2, 1. */
+export const COUNTDOWN_STEPS = 3
+export const COUNTDOWN_TICKS = COUNTDOWN_STEPS * TICK_HZ
+/** Restart (Backspace) runs the same 3-2-1 compressed: control is back in under a second. */
 export const RESTART_COUNTDOWN_TICKS = Math.round(0.8 * TICK_HZ)
 /** Half the gate width in metres: a crossing counts within this lateral distance of the gate centre. */
 export const GATE_HALF_WIDTH = TRACK_WIDTH / 2 + 1
@@ -85,6 +87,7 @@ export class LapLoop {
   private readonly track: Track
   private readonly isNewBest: (totalMs: number) => boolean
   private countdownEndTick = 0
+  private countdownTicks = COUNTDOWN_TICKS
   private lastCountdown = -1
   private airborneTicks = 0
   private lastTick = 0
@@ -116,6 +119,7 @@ export class LapLoop {
   start(tick: number): void {
     if (this.phase !== 'ready') return
     this.phase = 'countdown'
+    this.countdownTicks = COUNTDOWN_TICKS
     this.countdownEndTick = tick + COUNTDOWN_TICKS
     this.announceCountdown(tick)
   }
@@ -213,6 +217,7 @@ export class LapLoop {
     this.lapTimes = []
     this.lastPosition = null
     this.airborneTicks = 0
+    this.countdownTicks = RESTART_COUNTDOWN_TICKS
     this.countdownEndTick = tick + RESTART_COUNTDOWN_TICKS
     this.lastCountdown = -1
     this.emit((l) => l.restart?.(tick))
@@ -220,9 +225,10 @@ export class LapLoop {
     return { ...this.spawn(), tick }
   }
 
-  // Emits countdown(n) once per whole second left: 3 at the start, 2, 1, then 0 on GO.
+  // Emits countdown(n) once per step: 3 at the start, 2, 1, then 0 on GO. The steps split the countdown into
+  // equal thirds, so the full one ticks once a second and the restart one runs the same 3-2-1 compressed.
   private announceCountdown(tick: number): void {
-    const n = Math.ceil(Math.max(0, this.countdownEndTick - tick) / TICK_HZ)
+    const n = Math.ceil((COUNTDOWN_STEPS * Math.max(0, this.countdownEndTick - tick)) / this.countdownTicks)
     if (n === this.lastCountdown) return
     this.lastCountdown = n
     this.emit((l) => l.countdown?.(tick, n))
