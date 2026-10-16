@@ -1,8 +1,9 @@
 // Evenly spaced poses along a track's centreline, for debug screenshots (scripts/shots.mjs).
-// Pure TypeScript like schema.ts.
-import { partialPose, poses, segmentLength, type Pose, type Track } from './schema'
+// Pure TypeScript like schema.ts; the per-segment math is pose.ts.
+import { partialPose, poses, segmentLength } from './pose'
+import type { Pose, Track } from './schema'
 
-export { partialPose, segmentLength } from './schema'
+export { partialPose, segmentLength } from './pose'
 
 /** One pose every `step` metres from the start pose to (excluding) the final exit. */
 export function centreline(track: Track, step: number): Pose[] {
