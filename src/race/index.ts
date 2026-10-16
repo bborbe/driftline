@@ -1,7 +1,7 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Keys: R = respawn at last checkpoint, Backspace = restart, L = toggle leaderboard.
 import * as THREE from 'three/webgpu'
-import { NO_INPUT, type CarInput, type FixedStepper } from '../physics'
+import { NO_INPUT, TICK_HZ, type CarInput, type FixedStepper } from '../physics'
 import { poses, type Track } from '../track/schema'
 import { LapLoop, type RaceEvents } from './lap'
 import { formatLapTime, RaceStore } from './store'
@@ -59,7 +59,7 @@ export function initRace(scene: THREE.Scene, sim: FixedStepper, opts: RaceOption
       const tick = sim.state.tick
       const left = loop.countdownLeft(tick)
       view.render({
-        countdown: loop.phase === 'countdown' ? Math.ceil(left / 100) : null,
+        countdown: loop.phase === 'countdown' ? Math.ceil(left / TICK_HZ) : null,
         time: formatLapTime(loop.lapTimeMs(tick)),
         checkpoints: `${loop.passed}/${loop.checkpointCount}`,
         best: store.best(),
