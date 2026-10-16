@@ -52,7 +52,8 @@ const race = initRace(sim, track, {
   ],
   onPause: (paused) => void audio.setPaused(paused),
 })
-mountAudioControls(audio, () => race.start())
+// Begin is ignored while paused (Esc); unpause first.
+mountAudioControls(audio, () => race.start(), () => !race.paused)
 // Debug spawn for screenshots (README § Debug screenshots): ?x&y&z&yaw places the car, freeze=1 holds it.
 const pose = debugPose(location.search)
 if (pose) sim.state = createCarAt(pose)
