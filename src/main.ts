@@ -26,7 +26,12 @@ let ghost: GhostReplayer | null = null
 let lapStartTick = 0
 const race = initRace(sim, track, {
   listeners: [
-    { checkpoint: () => audio.onCheckpoint(), lapFinish: () => audio.onFinish(), respawn: () => audio.onRespawn() },
+    {
+      countdown: (_t, n) => audio.onCountdown(n),
+      checkpoint: () => audio.onCheckpoint(),
+      lapFinish: () => audio.onFinish(),
+      respawn: () => audio.onRespawn(),
+    },
     ghostRecorder.listener(() => sim.state),
     {
       // Each new lap replays the best run so far from its own start line.
@@ -35,7 +40,10 @@ const race = initRace(sim, track, {
         ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
         ghostMesh.visible = ghost !== null
       },
-      checkpoint: (tick, index) => console.info(`split: checkpoint ${index} at tick ${tick - lapStartTick}`),
+      // Dev-only split log: the lap-2 ghost check compares these against the best lap.
+      checkpoint: (tick, index) => {
+        if (import.meta.env.DEV) console.info(`split: checkpoint ${index} at tick ${tick - lapStartTick}`)
+      },
     },
   ],
 })

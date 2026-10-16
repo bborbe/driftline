@@ -84,6 +84,11 @@ export class GameAudio {
     this.play('respawn')
   }
 
+  // Start countdown: n = 3, 2, 1 → short low beep; n = 0 (GO) → higher, longer beep.
+  onCountdown(n: number): void {
+    this.play(n > 0 ? 'countdown' : 'go')
+  }
+
   private play(event: AudioEvent): void {
     const ctx = this.ctx
     if (!ctx || !this.master) return

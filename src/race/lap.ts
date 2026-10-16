@@ -17,6 +17,8 @@ export const MAX_AIRBORNE_TICKS = 3 * TICK_HZ
 export type Phase = 'ready' | 'countdown' | 'racing' | 'finished'
 
 export interface RaceEvents {
+  /** Start countdown: 3, 2, 1 as each second begins, then 0 on GO. */
+  countdown?(tick: number, n: number): void
   lapStart?(tick: number): void
   checkpoint?(tick: number, index: number): void
   lapFinish?(tick: number, lapTimeMs: number, isNewBest: boolean): void
@@ -41,6 +43,7 @@ export class LapLoop {
   private readonly track: Track
   private readonly isNewBest: (lapTimeMs: number) => boolean
   private countdownEndTick = 0
+  private lastCountdown = -1
   private airborneTicks = 0
   private lastTick = 0
 
@@ -71,6 +74,7 @@ export class LapLoop {
     if (this.phase !== 'ready') return
     this.phase = 'countdown'
     this.countdownEndTick = tick + COUNTDOWN_TICKS
+    this.announceCountdown(tick)
   }
 
   /** Ticks remaining in the countdown (0 outside it). */
@@ -99,6 +103,7 @@ export class LapLoop {
     const ticks = Math.max(0, tick - this.lastTick)
     this.lastTick = tick
     if (this.phase === 'countdown') {
+      this.announceCountdown(tick)
       if (tick >= this.countdownEndTick) {
         this.phase = 'racing'
         this.startTick = tick
@@ -151,7 +156,17 @@ export class LapLoop {
     this.lastPosition = null
     this.airborneTicks = 0
     this.countdownEndTick = tick + COUNTDOWN_TICKS
+    this.lastCountdown = -1
+    this.announceCountdown(tick)
     return { ...this.spawn(), tick }
+  }
+
+  // Emits countdown(n) once per whole second left: 3 at the start, 2, 1, then 0 on GO.
+  private announceCountdown(tick: number): void {
+    const n = Math.ceil(Math.max(0, this.countdownEndTick - tick) / TICK_HZ)
+    if (n === this.lastCountdown) return
+    this.lastCountdown = n
+    this.emit((l) => l.countdown?.(tick, n))
   }
 
   private emit(fn: (l: RaceEvents) => void): void {

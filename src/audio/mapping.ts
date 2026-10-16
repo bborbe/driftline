@@ -34,7 +34,7 @@ export const skidGain = (slipDeg: number, speed: number): number => {
 // Master output gain: 0 when muted, otherwise the clamped volume slider value.
 export const masterGain = (muted: boolean, volume: number): number => (muted ? 0 : clamp01(volume))
 
-export type AudioEvent = 'checkpoint' | 'finish' | 'respawn'
+export type AudioEvent = 'checkpoint' | 'finish' | 'respawn' | 'countdown' | 'go'
 
 export type OneShot = {
   freqs: readonly number[] // played in sequence
@@ -47,4 +47,7 @@ export const ONE_SHOTS: Readonly<Record<AudioEvent, OneShot>> = {
   checkpoint: { freqs: [880, 1320], duration: 0.09, type: 'sine' },
   finish: { freqs: [523, 659, 784, 1047], duration: 0.16, type: 'triangle' },
   respawn: { freqs: [440, 220], duration: 0.14, type: 'square' },
+  // Trackmania-style start: three short low beeps (3, 2, 1), then a higher, longer one on GO.
+  countdown: { freqs: [440], duration: 0.15, type: 'triangle' },
+  go: { freqs: [880], duration: 0.6, type: 'triangle' },
 }
