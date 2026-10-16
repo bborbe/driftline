@@ -1,4 +1,4 @@
-.PHONY: install run test build
+.PHONY: install run test build shots
 
 node_modules: package.json package-lock.json
 	npm install
@@ -14,3 +14,6 @@ test: node_modules
 
 build: node_modules
 	npm run build
+
+shots: node_modules
+	npm run shots
