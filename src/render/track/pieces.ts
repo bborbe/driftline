@@ -6,7 +6,6 @@ import { exitPose, poses, TILE_LENGTH, tileLength, type Pose, type Segment, type
 
 /** Native dimensions of the normalized pieces, from assets/track/pieces.json. */
 const STRAIGHT_LENGTH = TILE_LENGTH
-const RAMP_RISE = 5.2
 const CORNER_RADIUS = 15 // the corner piece turns RIGHT at this radius
 
 /** Road width of every normalized piece at scale 1, in metres (TRACK_WIDTH in geometry.ts matches). */
@@ -50,18 +49,10 @@ const planSegment = (entry: Pose, seg: Segment, startLine: boolean): Placement[]
       }))
     }
     case 'ramp':
-      return [{ piece: 'ramp', pose: entry, scale: [1, seg.rise / RAMP_RISE, seg.length / STRAIGHT_LENGTH] }]
-    case 'drop': {
-      // A ramp laid backwards from the exit edge descends along the travel direction.
-      const exit = exitPose(entry, seg)
-      return [
-        {
-          piece: 'ramp',
-          pose: { ...exit, heading: exit.heading + Math.PI },
-          scale: [1, seg.fall / RAMP_RISE, seg.length / STRAIGHT_LENGTH],
-        },
-      ]
-    }
+    case 'drop':
+      // Procedural: the Kenney ramp's curved profile matched neither the physics strip
+      // (linear) nor the support walls, leaving a step at the foot and walls poking out.
+      return null
     case 'curve':
     case 'hairpin':
     case 'banked': {

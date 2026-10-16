@@ -1,7 +1,7 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
 import { gatePillars, poses, type Pillar, type Track } from '../../track/schema'
-import { buildApron, buildRampSupport, buildTrack, PROFILE, type Band, type SegmentGeometry } from './geometry'
+import { buildApron, buildRampSupport, buildTrack, lateralPoint, PROFILE, sampleSegment, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road.
@@ -101,23 +101,59 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
   return group
 }
 
-/** Ramp/drop sides in the Kenney wall grey, for every ramp and drop whether glb or procedural. */
-const supportMaterial = new THREE.MeshStandardMaterial({ color: BAND.curb, roughness: 0.9, side: THREE.DoubleSide })
+/** Concrete for ramp/drop supports: the Kenney curb grey at the top edge, darker at the foot, so the sides read as a solid structure. */
+const CONCRETE_TOP = BAND.curb
+const CONCRETE_FOOT = linear(0.32, 0.33, 0.36)
+const supportMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide })
+const pillarMaterial = new THREE.MeshStandardMaterial({ color: linear(0.45, 0.46, 0.5), roughness: 0.85 })
+/** Pillar spacing along a ramp, and the lowest road height that still gets one. */
+const PILLAR_STEP = 5
+const PILLAR_MIN_HEIGHT = 0.6
+const PILLAR_SIZE = 0.7
 
+/** Sides and pillars under every ramp and drop (visual only; physics drives the road strip). */
 export const createRampSupports = (track: Track): THREE.Group => {
   const group = new THREE.Group()
   group.name = 'ramp-supports'
   const ps = poses(track)
+  const pillars: THREE.Matrix4[] = []
   track.segments.forEach((seg, i) => {
     const g = buildRampSupport(ps[i], seg)
     if (!g) return
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(g.positions, 3))
     geo.setIndex(new THREE.BufferAttribute(g.indices, 1))
+    const colors = new Float32Array(g.positions.length)
+    for (let r = 0; r < g.rows; r++) {
+      ;[CONCRETE_TOP, CONCRETE_FOOT, CONCRETE_TOP, CONCRETE_FOOT].forEach((c, k) => c.toArray(colors, (r * g.perRow + k) * 3))
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     geo.computeVertexNormals()
     const wall = new THREE.Mesh(geo, supportMaterial)
     wall.castShadow = wall.receiveShadow = true
     group.add(wall)
+    // Pillars just outside each wall, every PILLAR_STEP metres where the road is high enough.
+    const len = (seg as { length: number }).length
+    for (let d = PILLAR_STEP / 2; d < len; d += PILLAR_STEP) {
+      const p = sampleSegment(ps[i], seg, d / len)
+      if (p.y < PILLAR_MIN_HEIGHT) continue
+      for (const u of [TRACK_WIDTH / 2 + PILLAR_SIZE / 2, -TRACK_WIDTH / 2 - PILLAR_SIZE / 2]) {
+        const [x, , z] = lateralPoint(p, u, 1)
+        pillars.push(
+          new THREE.Matrix4().compose(
+            new THREE.Vector3(x, p.y / 2, z),
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), p.heading),
+            new THREE.Vector3(PILLAR_SIZE, p.y, PILLAR_SIZE),
+          ),
+        )
+      }
+    }
   })
+  if (pillars.length > 0) {
+    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), pillarMaterial, pillars.length)
+    pillars.forEach((m, k) => mesh.setMatrixAt(k, m))
+    mesh.castShadow = mesh.receiveShadow = true
+    group.add(mesh)
+  }
   return group
 }
