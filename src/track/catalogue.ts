@@ -29,8 +29,8 @@ export const CAMPAIGN: readonly CampaignLevel[] = [
 export const STYLES: readonly CampaignLevel[] = [
   { id: 'S01', track: 'switchback', tier: 'blue' }, // Tech: hairpins and r 10 m kinks, asphalt and dirt
   { id: 'S02', track: 'flatout', tier: 'green' }, // Fullspeed: full throttle all lap, r 80 m banks and drops
-  { id: 'S03', track: 'dustbowl', tier: 'blue' }, // Dirt: sweepers to slide through
-  { id: 'S04', track: 'glacier', tier: 'red' }, // Ice: a banked ice channel
+  { id: 'S03', track: 'dustbowl', tier: 'blue' }, // Dirt: asphalt with short dirt sections
+  { id: 'S04', track: 'glacier', tier: 'red' }, // Ice: asphalt with short banked ice sections
   { id: 'S05', track: 'washboard', tier: 'white' }, // LOL: a red turbo into five bumps
   { id: 'S06', track: 'looping', tier: 'green' }, // Loop: a turbo into one full vertical loop, then a banked turn and two climbs
   { id: 'S07', track: 'velodrome', tier: 'blue' }, // Wallride: two velodrome walls, a left-right spiral pair between them
