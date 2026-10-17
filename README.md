@@ -64,6 +64,7 @@ Debug
 - [A03 plunge](https://bborbe.github.io/driftline/?track=plunge) - climb onto a deck and plunge two levels into a banked 180
 - [A04 knot](https://bborbe.github.io/driftline/?track=knot) - figure-eight over the start straight, then dirt and a hairpin switchback
 - [A05 leap](https://bborbe.github.io/driftline/?track=leap) - a high gap jump onto a deck, ice, a red turbo and dirt
+- [showcase](https://bborbe.github.io/driftline/?track=showcase) - every set-piece in one lap: loop, spiral, deck crossing, gap jump, wallride and all three corners
 
 **Styles**, one per Trackmania map style:
 

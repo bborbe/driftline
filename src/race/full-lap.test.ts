@@ -23,7 +23,8 @@ const RUN_UP: Record<string, [number, number]> = { 'test-ramp': [25_000, 45_000]
 // Tracks whose medals were last set from this autopilot's lap (mixed-surface redesign, 2026-10-17).
 const MEDALS_FROM_AUTOPILOT = ['dustbowl', 'glacier']
 
-const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => Sample[] }[] = [
+// authorOf: the track's author medal is this share of the autopilot lap, within 5 % (the campaign rule).
+const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => Sample[]; authorOf?: number }[] = [
   { track: load('test1'), minMs: 10_000, maxMs: 90_000 },
   { track: load('test2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
   // Single-feature test tracks: one mechanic each, a lap in at most 20 s even at autopilot pace.
@@ -43,6 +44,9 @@ const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => 
   { track: load('plunge'), minMs: 45_000, maxMs: 70_000 },
   { track: load('knot'), minMs: 50_000, maxMs: 75_000 },
   { track: load('leap'), minMs: 55_000, maxMs: 85_000 },
+  // Showcase: every set-piece in one lap (loop, spiral, wallride, gap-jump, turbo, the three corner
+  // radii, a deck over the start straight). A ~35-55 s human lap; medals checked against this lap below.
+  { track: load('showcase'), minMs: 50_000, maxMs: 85_000, authorOf: 0.6 },
   // Style tracks S01-S05, driven on the surface-aware line (tight kit corners, dirt and ice): a
   // 20-40 s human lap, washboard (LOL) 10-20 s. Autopilot ~38 / ~59 / ~35 / ~47 / ~25 s; medals at the
   // A03-A05 ratios.
@@ -52,7 +56,7 @@ const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => 
   }),
 ]
 
-describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = centreline }) => {
+describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = centreline, authorOf }) => {
   it('an autopilot completes a full lap: Begin, countdown, every checkpoint in order, finish, no respawn', () => {
     const loop = new LapLoop(track, () => true)
     const sim = new FixedStepper(loop.spawn(), trackSurface(track))
@@ -84,6 +88,7 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = ce
     expect(loop.phase).toBe('finished')
     expect(lapTime).toBeGreaterThan(minMs)
     expect(lapTime).toBeLessThan(maxMs)
+    if (authorOf) expect(Math.abs(track.medals!.author / (authorOf * lapTime) - 1)).toBeLessThan(0.05)
     console.log(`${track.name} autopilot lap time: ${(lapTime / 1000).toFixed(2)} s`)
     // Medals set from this lap (the A03-A05 ratios): author 0.6 × autopilot, gold/silver/bronze at
     // +8 / +22 / +42 % of author, each within rounding to the half second.
@@ -127,7 +132,7 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = ce
 // The conservative autopilot slows to jump speed before every ramp; a human floors it. At full
 // throttle the car flies ~60 m down crossover's landing slope; every gate must still count. leap and
 // test-kit-all jump the kit's gap-jump piece, crossover's jump on the grid.
-describe.each(['crossover', 'leap', 'test-kit-all'])('%s gap jump at full throttle', (name) => {
+describe.each(['crossover', 'leap', 'test-kit-all', 'showcase'])('%s gap jump at full throttle', (name) => {
   it('a car flat out from the run-up over the gap still scores every gate and finishes', () => {
     const track = load(name)
     const gapAt = track.segments.findIndex((s) => s.type === 'gap')
@@ -138,7 +143,7 @@ describe.each(['crossover', 'leap', 'test-kit-all'])('%s gap jump at full thrott
     })
     const loop = new LapLoop(track, () => true)
     const sim = new FixedStepper(loop.spawn(), trackSurface(track))
-    const drive = autopilot(samples)
+    const drive = autopilot(samples, 0, hasLoop(track))
     const events: string[] = []
     let peak = 0
     loop.on({ checkpoint: (_t, i) => events.push(`cp${i}`), respawn: () => events.push('respawn'), lapFinish: () => events.push('finish') })
