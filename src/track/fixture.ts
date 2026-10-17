@@ -16,6 +16,7 @@ export const FIXTURE_TRACK: Track = {
     { type: 'straight', length: 40 },
     { type: 'hairpin', turn: 'left', radius: 20 },
     { type: 'curve', turn: 'left', radius: 25, angle: 45 },
+    { type: 'loop', turn: 'right', radius: 15 },
   ],
   gates: [
     { kind: 'start-finish', segment: 0 },

@@ -32,7 +32,7 @@ export interface Connector {
 }
 
 /** Families follow the Trackmania Stadium block families (see docs/track-kit.md). */
-export type PieceFamily = 'road' | 'curve' | 'slope' | 'bank' | 'effect' | 'gate' | 'wall'
+export type PieceFamily = 'road' | 'curve' | 'slope' | 'bank' | 'effect' | 'gate' | 'wall' | 'loop'
 
 /** A piece's contents, relative to its first segment. */
 export interface Expansion {
@@ -66,6 +66,12 @@ export const KIT_BANK = 0.26
 
 /** Wide-bank angle (radians): steeper than KIT_BANK, inside the 0.6 rad limit. */
 export const KIT_BANK_WIDE = 0.45
+
+/**
+ * Loop radius (m): 30 m tall. Measured on a full-throttle car (docs/track-kit.md § loop): it stays
+ * on through the top from 12.1 m/s at the entry (≈ √(g·r), the apex's own need) up to 40 m/s.
+ */
+export const KIT_LOOP_RADIUS = 15
 
 const curve = (id: string, cells: number): PieceDef => ({
   id,
@@ -148,6 +154,21 @@ export const KIT_PIECES: readonly PieceDef[] = [
         { type: 'gap', length: CELL, fall: 1.8 },
         // Net two levels down: +1 lip, −1.8 gap, −7.2 landing.
         { type: 'drop', length: 8 * CELL, fall: 7.2 },
+      ]),
+  },
+  {
+    // Full vertical loop: a run-in, the loop, a run-out, one cell to the turn side (the climb and
+    // the exit never share road). Road only, so its grip and the measured entry speed hold.
+    id: 'loop',
+    family: 'loop',
+    surfaces: ROAD_ONLY,
+    turns: true,
+    out: road(3, 1, 0, 0),
+    expand: (turn) =>
+      plain([
+        { type: 'straight', length: KIT_LOOP_RADIUS },
+        { type: 'loop', turn, radius: KIT_LOOP_RADIUS },
+        { type: 'straight', length: KIT_LOOP_RADIUS },
       ]),
   },
   flat('turbo', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.25, to: 0.75 }] }),

@@ -1,0 +1,31 @@
+{
+  "name": "looping",
+  "kit": {
+    "start": { "cell": [0, 0], "level": 0, "dir": 0 },
+    "pieces": [
+      { "piece": "start" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "turbo" },
+      { "piece": "loop", "turn": "left" },
+      { "piece": "checkpoint" },
+      { "piece": "bank-180", "turn": "left" },
+      { "piece": "checkpoint" },
+      { "piece": "slope-up" },
+      { "piece": "slope-up" },
+      { "piece": "straight-2" },
+      { "piece": "slope-down" },
+      { "piece": "slope-down" },
+      { "piece": "straight-2" },
+      { "piece": "straight-2" },
+      { "piece": "checkpoint" },
+      { "piece": "curve-r3", "turn": "left" },
+      { "piece": "curve-r2", "turn": "left" }
+    ]
+  },
+  "medals": { "author": 19300, "gold": 20900, "silver": 23500, "bronze": 27400 },
+  "theme": {"sky": "day", "exposure": 1.05, "sun": "#ffffff", "sunIntensity": 2.4, "ground": "#4fb8c9", "curb": "#ff7a00", "sign": "#ff7a00", "screen": "#5a1f00", "scenery": ["tree_default", "tree_detailed", "plant_bushLarge"]}
+}

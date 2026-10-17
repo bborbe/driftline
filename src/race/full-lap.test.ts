@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import { FixedStepper, materialUnder, NO_INPUT, TICK_HZ, trackSurface } from '../physics'
 import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
-import { autopilot, centreline, HUMAN_PACE, loadTrack as load, surfaceLine, type Sample } from './autopilot.test-driver'
+import { autopilot, centreline, hasLoop, HUMAN_PACE, loadTrack as load, surfaceLine, type Sample } from './autopilot.test-driver'
 import { STYLES, TEST_TRACKS } from '../track/catalogue'
 import type { Track } from '../track/schema'
 
@@ -40,7 +40,7 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = ce
   it('an autopilot completes a full lap: Begin, countdown, every checkpoint in order, finish, no respawn', () => {
     const loop = new LapLoop(track, () => true)
     const sim = new FixedStepper(loop.spawn(), trackSurface(track))
-    const drive = autopilot(line(track))
+    const drive = autopilot(line(track), 0, hasLoop(track))
     const events: string[] = []
     let lapTime = 0
     loop.on({
@@ -74,7 +74,7 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = ce
   it('an autopilot completes a 3-lap run: LAP 1/3 → 3/3 with no respawn, total = sum of laps', () => {
     const loop = new LapLoop(track, () => true, 3)
     const sim = new FixedStepper(loop.spawn(), trackSurface(track))
-    const drive = autopilot(line(track))
+    const drive = autopilot(line(track), 0, hasLoop(track))
     const events: string[] = []
     let total = 0
     let times: number[] = []

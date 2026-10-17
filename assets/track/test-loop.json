@@ -1,0 +1,17 @@
+{
+  "name": "test-loop",
+  "kit": {
+    "start": { "cell": [0, 0], "level": 0, "dir": 0 },
+    "pieces": [
+      { "piece": "start" },
+      { "piece": "loop", "turn": "right" },
+      { "piece": "bank-180", "turn": "left" },
+      { "piece": "checkpoint" },
+      { "piece": "straight-1" },
+      { "piece": "straight-1" },
+      { "piece": "straight-1" },
+      { "piece": "curve-r2", "turn": "left" },
+      { "piece": "curve-r1", "turn": "left" }
+    ]
+  }
+}

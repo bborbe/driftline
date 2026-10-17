@@ -103,6 +103,7 @@ function segmentError(s: unknown): string | null {
     case 'curve':
       return turnOk && pos(o.radius) && (o.angle === 90 || o.angle === 45) ? null : 'needs turn, radius > 0, angle 45|90'
     case 'hairpin':
+    case 'loop':
       return turnOk && pos(o.radius) ? null : 'needs turn, radius > 0'
     case 'banked':
       return turnOk && pos(o.radius) && (o.angle === 90 || o.angle === 180) && Number.isFinite(o.bank)

@@ -5,6 +5,7 @@ import {
   createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Surface, type Vec3,
 } from '../physics'
 import { gateLine, type Pose, type Track } from '../track/schema'
+import { loopTubes } from '../track/pose'
 import { Effects } from './effects'
 
 /** Steps announced before GO: 3, 2, 1. */
@@ -28,6 +29,11 @@ export const GROUND_Y = 0
 export const FALL_DEPTH = 5
 /** Auto-respawn after this many ticks with no wheel on any surface (normal jumps last < 2 s). */
 export const MAX_AIRBORNE_TICKS = 3 * TICK_HZ
+/**
+ * Auto-respawn after this many ticks inside a loop with no wheel on the road: the car was too slow
+ * and fell off it (src/track/pose.ts loopTubes). Never on a track without a loop.
+ */
+export const LOOP_FALL_TICKS = 0.3 * TICK_HZ
 /** Upper bound for `?laps=N`. */
 export const MAX_LAPS = 10
 
@@ -91,6 +97,8 @@ export class LapLoop {
   private countdownTicks = COUNTDOWN_TICKS
   private lastCountdown = -1
   private airborneTicks = 0
+  private loopFallTicks = 0
+  private readonly inLoop: (p: Vec3) => boolean
   private lastTick = 0
   /** Effect pads active this run (src/race/effects.ts); cleared on respawn, restart and the finish. */
   readonly effects = new Effects()
@@ -103,6 +111,7 @@ export class LapLoop {
     this.checkpoints = track.gates.filter((g) => g.kind === 'checkpoint').map((g) => ({ pose: gateLine(track, g) }))
     const sf = track.gates.find((g) => g.kind === 'start-finish')
     this.finish = { pose: sf ? gateLine(track, sf) : track.start }
+    this.inLoop = loopTubes(track)
   }
 
   on(events: RaceEvents): void {
@@ -171,13 +180,15 @@ export class LapLoop {
         this.lapStartTick = tick
         this.lastPosition = car.position
         this.airborneTicks = 0
+    this.loopFallTicks = 0
         this.emit((l) => l.lapStart?.(tick, 1))
       }
       return null
     }
     if (this.phase !== 'racing') return null
     this.airborneTicks = wheelContacts === 0 ? this.airborneTicks + ticks : 0
-    if (car.position.y < GROUND_Y - FALL_DEPTH || this.airborneTicks > MAX_AIRBORNE_TICKS) {
+    this.loopFallTicks = wheelContacts === 0 && this.inLoop(car.position) ? this.loopFallTicks + ticks : 0
+    if (car.position.y < GROUND_Y - FALL_DEPTH || this.airborneTicks > MAX_AIRBORNE_TICKS || this.loopFallTicks > LOOP_FALL_TICKS) {
       return this.respawn(tick)
     }
     const prev = this.lastPosition ?? car.position
@@ -219,6 +230,7 @@ export class LapLoop {
     const car = { ...createCarAt(pose), tick }
     this.lastPosition = car.position
     this.airborneTicks = 0
+    this.loopFallTicks = 0
     this.effects.clear()
     this.emit((l) => l.respawn?.(tick))
     return car
@@ -233,6 +245,7 @@ export class LapLoop {
     this.lapTimes = []
     this.lastPosition = null
     this.airborneTicks = 0
+    this.loopFallTicks = 0
     this.effects.clear()
     this.countdownTicks = RESTART_COUNTDOWN_TICKS
     this.countdownEndTick = tick + RESTART_COUNTDOWN_TICKS

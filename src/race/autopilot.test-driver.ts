@@ -3,7 +3,7 @@
 // surface-aware `surfaceLine`) and the grass-cut test (cuts.test.ts, the faster `racingLine`,
 // surface-aware for the style tracks).
 import { readFileSync } from 'node:fs'
-import { dot, forwardOf, MATERIALS, type CarInput, type CarState, type Material } from '../physics'
+import { dot, forwardOf, MATERIALS, rotate, type CarInput, type CarState, type Material } from '../physics'
 import { resolveTrack } from '../track/kit'
 import { partialPose, poses, segmentLength, type Pose, type Segment, type Track } from '../track/schema'
 
@@ -26,6 +26,7 @@ const TARGET_SPEED: Record<Segment['type'], number> = {
   curve: 13,
   banked: 14,
   gap: 26,
+  loop: 40, // full throttle round the loop: it needs speed, never braking
 }
 
 export function centreline(track: Track): Sample[] {
@@ -91,11 +92,16 @@ export function surfaceLine(track: Track): Sample[] {
 }
 
 // `lookahead` (s): aim that far ahead at the current speed; 0 = four samples ahead.
-export function autopilot(samples: Sample[], lookahead = 0) {
+// `loops` (a track with a loop): where the road runs back over itself, track progress by distance in
+// 3D and aim in the car's own frame, which still holds upside down. Off by default, so the laps of
+// every track without a loop are unchanged.
+export function autopilot(samples: Sample[], lookahead = 0, loops = false) {
   let index = 0
   return (state: CarState): CarInput => {
     const p = state.position
-    const d2 = (s: Sample) => (s.pose.x - p.x) ** 2 + (s.pose.z - p.z) ** 2
+    const d2 = loops
+      ? (s: Sample) => (s.pose.x - p.x) ** 2 + (s.pose.y - p.y) ** 2 + (s.pose.z - p.z) ** 2
+      : (s: Sample) => (s.pose.x - p.x) ** 2 + (s.pose.z - p.z) ** 2
     // Track progress monotonically: only look a short way ahead of the last match.
     for (let k = 1; k <= 15; k++) {
       const j = (index + k) % samples.length
@@ -112,7 +118,7 @@ export function autopilot(samples: Sample[], lookahead = 0) {
     const dx = target.pose.x - p.x
     const dz = target.pose.z - p.z
     // Positive steer = right = toward -x (the car's local +x is its left).
-    const angle = Math.atan2(f.x * dz - f.z * dx, f.x * dx + f.z * dz)
+    const angle = loops ? bodyAngle(state, target.pose) : Math.atan2(f.x * dz - f.z * dx, f.x * dx + f.z * dz)
     const speed = dot(state.velocity, f)
     const want = samples[index].speed
     return {
@@ -123,6 +129,16 @@ export function autopilot(samples: Sample[], lookahead = 0) {
     }
   }
 }
+
+// Angle to `target` in the car's own frame (+ = to its right, like `angle` above), any way up.
+const bodyAngle = (s: CarState, target: Pose): number => {
+  const q = s.orientation
+  const l = rotate({ x: -q.x, y: -q.y, z: -q.z, w: q.w }, { x: target.x - s.position.x, y: target.y - s.position.y, z: target.z - s.position.z })
+  return Math.atan2(-l.x, l.z)
+}
+
+/** True when the track has a loop: drive it with autopilot(…, …, true). */
+export const hasLoop = (track: Track): boolean => track.segments.some((seg) => seg.type === 'loop')
 
 // Fast road line: the same centreline, with each piece's speed set by its corner radius
 // (v = √(LATERAL · r)) and braked for in time (BRAKING), so it runs near the car's road pace.
@@ -138,6 +154,8 @@ const pieceLimit = (seg: Segment): number => {
     case 'drop':
     case 'gap':
       return JUMP_SPEED
+    case 'loop':
+      return 40
     default:
       return Math.sqrt(LATERAL * seg.radius)
   }
