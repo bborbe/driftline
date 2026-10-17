@@ -23,4 +23,12 @@
 .menu-item.menu-focus { border-color: #ffc300; }
 .menu-settings { display: grid; grid-template-columns: auto auto; gap: 8px 16px; align-items: center; text-align: left; }
 .menu-settings .menu-slot { color: #667; }
+/* The grid's display would override [hidden]: only the open tab's page shows. */
+.menu-settings[hidden] { display: none; }
+.menu-settings-tabs { display: flex; flex-direction: column; gap: 12px; min-width: 360px; }
+.menu-tabs { display: flex; gap: 6px; align-items: center; border-bottom: 2px solid rgba(255, 255, 255, 0.12); }
+.menu-tab { padding: 6px 14px; background: rgba(255, 255, 255, 0.06); border: 2px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: #b8c4d0; font: 15px monospace; cursor: pointer; }
+.menu-tab:hover { color: #fff; }
+.menu-tab-active { color: #fff; background: rgba(255, 195, 0, 0.12); border-color: #ffc300; }
+.menu-tabs .menu-hint { margin-left: auto; }
 .menu-hint { color: #889; font-size: 13px; }
