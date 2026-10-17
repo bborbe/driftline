@@ -1,0 +1,13 @@
+{
+  "name": "test-pad",
+  "start": { "x": 120, "y": 0, "z": -170, "heading": 0 },
+  "segments": [{ "type": "straight", "length": 300 }],
+  "gates": [],
+  "pad": {
+    "centre": [0, 0],
+    "size": 400,
+    "circleCentre": [-60, 0],
+    "circles": [15, 40, 80],
+    "lane": { "from": [120, -170], "to": [120, 130], "marks": 50 }
+  }
+}
