@@ -34,16 +34,12 @@ export function gateLine(track: Track, gate: Gate): Pose {
 }
 
 /**
- * Gate pillar footprint, measured from the Kenney start model (assets/pieces): each pillar spans
- * 5.17–6.30 m either side of the centreline and 1.9 m along the track.
+ * Gate pillar footprint, measured from the Kenney start/checkpoint models (assets/pieces):
+ * each pillar spans 5.17–6.30 m either side of the centreline and 1.9 m along the track.
+ * The checkpoint model's drawn legs start at 5.0 m (render/track/kenney-plan.ts CHECKPOINT_LEG);
+ * the collider stays at 5.17 so the racing lines keep clear (the lint's COLLIDER_TOLERANCE covers it).
  */
 export const GATE_PILLAR = { offset: 5.735, halfWidth: 0.565, halfDepth: 0.95, height: 6.7 } as const
-
-/**
- * Checkpoint pillar footprint, measured from assets/pieces/checkpoint.glb (render/track/kenney.test.ts):
- * its legs are wider than the start arch's, 5.0–6.3 m either side of the centreline and 1.9 m along.
- */
-export const CHECKPOINT_PILLAR = { offset: 5.65, halfWidth: 0.65, halfDepth: 0.95, height: 6.7 } as const
 
 /** Lowest gate base whose legs are carried down to the ground (the arch's legs, gateLegs). */
 export const GATE_LEG_MIN_HEIGHT = 1
@@ -62,7 +58,7 @@ export interface Pillar extends Pose {
  */
 export function gatePillars(track: Track, gate: Gate): Pillar[] {
   const line = gateLine(track, gate)
-  const section = gate.kind === 'checkpoint' ? CHECKPOINT_PILLAR : GATE_PILLAR
+  const section = GATE_PILLAR
   const along = gate.kind === 'checkpoint' ? section.halfDepth : 0
   const fx = Math.sin(line.heading)
   const fz = Math.cos(line.heading)

@@ -44,7 +44,8 @@ describe('crossover bridge at the operator pose', () => {
     ).reduce((a, b) => (Math.hypot(b.p.x - pose!.x, b.p.z - pose!.z) < Math.hypot(a.p.x - pose!.x, a.p.z - pose!.z) ? b : a))
     expect(near.kind).toBe('span')
     expect(Math.hypot(near.p.x - pose!.x, near.p.z - pose!.z)).toBeGreaterThan(ROAD_WIDTH / 2)
-    const run = drive(surface, createCarAt(pose!), 3 * TICK_HZ, 10)
+    // The spawn stands on the parapet itself: give the wall half a second to push the car in onto the road.
+    const run = drive(surface, createCarAt(pose!), 3 * TICK_HZ, TICK_HZ / 2)
     expect(run.off, `off the deck at tick ${run.off}, ended at ${JSON.stringify(run.position)}`).toBe(-1)
   })
 })

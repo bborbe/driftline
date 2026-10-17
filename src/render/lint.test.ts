@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three/webgpu'
 import { closed, CONTACT_TOLERANCE, lintScene, MIN_THICKNESS, thickness } from './lint'
-import { flat, structural, type FlatReason, type StructuralKind } from './tags'
+import { flat, noCollide, structural, type FlatReason, type StructuralKind } from './tags'
 
 const box = (name: string, [w, h, d]: [number, number, number], [x, y, z]: [number, number, number]): THREE.Mesh => {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d))
@@ -110,6 +110,35 @@ describe('floating check', () => {
       box('beam', [11, 1.2, 1], [0, 6.6, 0]),
     )
     expect(offenders(arch, 'floating')).toEqual(['leg-b'])
+  })
+})
+
+describe('collider check', () => {
+  // A 0.5 × 0.8 × 10 m wall along z at x 0, standing on y 2 (a parapet on a deck).
+  const wall = () => structural(box('parapet', [0.5, 0.8, 10], [0, 2.4, 0]), 'wall')
+  const collider = { x: 0, y: 2, z: 0, heading: 0, halfWidth: 0.25, halfDepth: 5, height: 0.8 }
+  const colliderOffenders = (root: THREE.Object3D, obstacles: { x: number; y: number; z: number; heading: number; halfWidth: number; halfDepth: number; height: number }[]) =>
+    lintScene(root, obstacles).offenders.filter((o) => o.check === 'collider').map((o) => o.mesh)
+
+  it('fails a structural part with no collider (the pre-fix parapet) and names it; passes it once its collider is there', () => {
+    expect(colliderOffenders(scene(wall()), [])).toEqual(['parapet'])
+    expect(colliderOffenders(scene(wall()), [collider])).toEqual([])
+  })
+
+  it('fails a collider that covers only part of the mesh, or sits at another height', () => {
+    expect(colliderOffenders(scene(wall()), [{ ...collider, halfDepth: 2 }])).toEqual(['parapet'])
+    expect(colliderOffenders(scene(wall()), [{ ...collider, y: 10 }])).toEqual(['parapet'])
+  })
+
+  it('exempts a part tagged noCollide with a known reason, and counts it; an unknown reason fails the tag check', () => {
+    const r = lintScene(scene(noCollide(wall(), 'backdrop')), [])
+    expect(r.offenders.filter((o) => o.check === 'collider')).toEqual([])
+    expect(r.noCollideByReason).toEqual({ backdrop: 1 })
+    expect(offenders(scene(noCollide(wall(), 'nope' as 'backdrop')), 'tag')).toEqual(['parapet'])
+  })
+
+  it('needs no collider under a step the wheels climb', () => {
+    expect(colliderOffenders(scene(structural(box('foot', [10, 0.2, 2], [0, 0.1, 0]), 'ramp-body')), [])).toEqual([])
   })
 })
 

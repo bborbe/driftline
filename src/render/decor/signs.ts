@@ -5,7 +5,7 @@ import * as THREE from 'three/webgpu'
 import { centreline } from '../../track/centreline'
 import { poses, turnSign, zoneCorners, type Track } from '../../track/schema'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
-import { structural } from '../tags'
+import { noCollide, structural } from '../tags'
 import { lateralPoint, sampleSegment, segmentLength, TRACK_WIDTH } from '../track/geometry'
 import { merged, placement, prepared } from './instance'
 
@@ -153,6 +153,6 @@ export const createSigns = (track: Track, accent: string = SIGN_YELLOW): THREE.G
   }
   // One draw call for every board. A little self-lit so boards in shadow still read.
   const atlas = atlasTexture(accent)
-  group.add(structural(merged(parts, new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 })), 'sign'))
+  group.add(noCollide(structural(merged(parts, new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 })), 'sign'), 'roadside-sign'))
   return group
 }

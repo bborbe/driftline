@@ -20,8 +20,11 @@ export const CONTACT_TOLERANCE = 0.05
 /** Structural kinds that must carry themselves down: their own foot touches the ground or a surface below. */
 const LOAD_BEARING: readonly StructuralKind[] = ['wall', 'pillar', 'gate-leg']
 
-/** A structural vertex counts as covered when it is this close to a collider's footprint. */
-export const COLLIDER_TOLERANCE = 0.05
+/**
+ * A structural vertex counts as covered when it is this close to a collider's footprint: the
+ * checkpoint model's legs are drawn 0.17 m inside their collider (GATE_PILLAR, src/track/shapes.ts).
+ */
+export const COLLIDER_TOLERANCE = 0.2
 /** How far below a box's foot the car still hits it (src/physics/car.ts collide). */
 const COLLIDE_BELOW = 1
 /**
