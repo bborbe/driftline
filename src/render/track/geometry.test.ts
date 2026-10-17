@@ -7,7 +7,8 @@ import { FIXTURE_TRACK } from '../../track/fixture'
 import { resolveTrack } from '../../track/kit'
 import { trackSurface } from '../../physics'
 import type { Segment, Track } from '../../track/schema'
-import { buildApron, buildBody, buildDeck, buildTrack, CENTRE_COLUMN, DECK_DEPTH, DECK_PILLAR_CLEAR, GATE_FOOTING_MIN_HEIGHT, lateralPoint, planBodies, planDeckPillars, planGateFootings, PROFILE, RAISED_MIN, rowCenter, rowCount, SPAN_HEADROOM, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import { CHECKPOINT_LEG, GATE_LEG_MIN_HEIGHT, planGateLegs, planPieces } from './kenney-plan'
+import { buildApron, buildBody, buildDeck, buildTrack, CENTRE_COLUMN, DECK_DEPTH, DECK_PILLAR_CLEAR, lateralPoint, planBodies, planDeckPillars, PROFILE, RAISED_MIN, rowCenter, rowCount, SPAN_HEADROOM, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
@@ -293,46 +294,92 @@ describe('multi-level decks', () => {
   // Every catalogue track: campaign, styles and the test group.
   const catalogue = [...CAMPAIGN.map((l) => l.track), ...STYLES.map((l) => l.track), ...TEST_TRACKS]
 
-  it('every gate on an elevated deck stands on a footing reaching the ground', () => {
+  it('every gate on an elevated deck carries both legs to the ground in the checkpoint leg\'s own cross-section', () => {
     const grounded: string[] = []
     for (const name of catalogue) {
       const track = load(name)
-      const footings = planGateFootings(track)
+      const legs = planGateLegs(planPieces(track))
       track.gates.forEach((gate, g) => {
-        for (const p of gatePillars(track, gate)) {
-          if (p.y < GATE_FOOTING_MIN_HEIGHT) continue
-          const at = `${name} gate ${g} pillar at y ${p.y.toFixed(1)}`
-          const f = footings.find((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.01)
-          expect(f, at).toBeDefined()
-          expect(f!.y, at).toBe(0) // stands on the ground
-          expect(Math.abs(f!.y + f!.height - p.y), at).toBeLessThan(0.01) // reaches the pillar base
-          expect(Math.abs(f!.halfWidth - p.halfWidth) + Math.abs(f!.halfDepth - p.halfDepth), at).toBeLessThan(0.01) // under the whole pillar
-          expect(f!.heading, at).toBe(p.heading)
-          grounded.push(`${name}#${g}`)
+        const pillars = gatePillars(track, gate)
+        if (pillars[0].y < GATE_LEG_MIN_HEIGHT) return
+        const at = `${name} gate ${g} at y ${pillars[0].y.toFixed(1)}`
+        expect(gate.kind, at).toBe('checkpoint') // the piece the legs are measured from
+        const mine = legs.filter((l) => pillars.some((p) => Math.hypot(l.x - p.x, l.z - p.z) < 1))
+        expect(mine, at).toHaveLength(2)
+        for (const l of mine) {
+          expect(Math.abs(l.height - pillars[0].y), at).toBeLessThan(0.001) // ground up to the piece's base
+          expect(l.halfWidth, at).toBeCloseTo((CHECKPOINT_LEG.outer - CHECKPOINT_LEG.inner) / 2, 9) // 1.3 m: the drawn leg, not GATE_PILLAR's 1.13 m
+          expect(l.halfDepth, at).toBeCloseTo(CHECKPOINT_LEG.depth / 2, 9)
+          expect(l.heading, at).toBe(pillars[0].heading)
         }
+        grounded.push(`${name}#${g}`)
       })
     }
     // Not vacuous: the reported crossover CP 2 is in the set, among at least five gates.
     expect(grounded).toContain('crossover#2')
-    expect(new Set(grounded).size).toBeGreaterThanOrEqual(5)
+    expect(grounded.length).toBeGreaterThanOrEqual(5)
   })
 
-  it('no gate footing stands on a road passing underneath', () => {
+  it('every elevated gate leg stands flush against the deck wall: no step at the deck line, clear of the curb', () => {
+    // A straight 1.9 m piece on the tightest curve with an elevated gate (crossover CP 1) leaves its far
+    // inner corner 12 cm inside the deck wall on the inner leg and 7 cm off it on the outer leg — the
+    // same as the leg above the deck, so the column stays one piece.
+    const CHORD_OFFSET = 0.15
+    const CURB_EDGE = Math.max(...PROFILE.filter(([, , b]) => b === 'curb').map(([u]) => Math.abs(u)))
+    // The gate's own segment: the piece sits on its entry edge and runs 1.9 m into it.
+    const straight = (track: Track, l: { x: number; z: number }) =>
+      track.gates.some((g) => gatePillars(track, g).some((p) => Math.hypot(p.x - l.x, p.z - l.z) < 1) && track.segments[g.segment].type === 'straight')
+    let checked = 0
+    let flush = 0
     for (const name of catalogue) {
       const track = load(name)
-      for (const f of planGateFootings(track)) {
+      const ps = poses(track)
+      const centreline = track.segments.flatMap((seg, i) => (seg.type === 'gap' ? [] : Array.from({ length: 801 }, (_, k) => sampleSegment(ps[i], seg, k / 800))))
+      for (const l of planGateLegs(planPieces(track))) {
+        const fx = Math.sin(l.heading)
+        const fz = Math.cos(l.heading)
+        // The leg's inner face at both ends of its run along the road.
+        for (const along of [-l.halfDepth, l.halfDepth]) {
+          const cx = l.x + fx * along
+          const cz = l.z + fz * along
+          // Unit vector from the leg centre towards the road centreline, across the road.
+          const near = centreline.reduce((a, b) => (Math.hypot(b.x - cx, b.z - cz) < Math.hypot(a.x - cx, a.z - cz) ? b : a))
+          const side = Math.sign((l.x - near.x) * fz - (l.z - near.z) * fx)
+          const ix = cx - fz * side * l.halfWidth
+          const iz = cz + fx * side * l.halfWidth
+          const lateral = Math.min(...centreline.filter((q) => Math.abs(q.y - near.y) < 0.5).map((q) => Math.hypot(q.x - ix, q.z - iz)))
+          const at = `${name} leg at ${l.x.toFixed(1)},${l.z.toFixed(1)} end ${along}: inner face ${lateral.toFixed(4)} m`
+          // Never into the curb strip, and never further off the deck wall than the straight piece's chord on a curve.
+          expect(lateral, at).toBeGreaterThan(CURB_EDGE)
+          expect(Math.abs(lateral - TRACK_WIDTH / 2), at).toBeLessThan(CHORD_OFFSET)
+          // On a straight the wall is a plane: flush, no gap and no overlap.
+          if (straight(track, l)) {
+            expect(Math.abs(lateral - TRACK_WIDTH / 2), at).toBeLessThan(0.001)
+            flush++
+          }
+          checked++
+        }
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(20) // ≥ 5 gates × 2 legs × 2 ends
+    expect(flush).toBeGreaterThanOrEqual(16) // the four elevated gates on straights, crossover CP 2 among them
+  })
+
+  it('no gate leg stands on a road passing underneath', () => {
+    for (const name of catalogue) {
+      const track = load(name)
+      for (const l of planGateLegs(planPieces(track))) {
         for (const q of road(track)) {
-          if (q.y < f.height - 1) expect(Math.hypot(q.x - f.x, q.z - f.z), `${name} footing over seg ${q.seg}`).toBeGreaterThanOrEqual(TRACK_WIDTH / 2 + f.halfWidth)
+          if (q.y < l.height - 1) expect(Math.hypot(q.x - l.x, q.z - l.z), `${name} leg over seg ${q.seg}`).toBeGreaterThanOrEqual(TRACK_WIDTH / 2 + l.halfWidth)
         }
       }
     }
   })
 
-  it('ground-level gates get no footing', () => {
+  it('ground-level gates keep their legs as they are', () => {
     for (const name of catalogue) {
-      const track = load(name)
-      for (const f of planGateFootings(track)) expect(f.height, name).toBeGreaterThanOrEqual(GATE_FOOTING_MIN_HEIGHT)
+      for (const l of planGateLegs(planPieces(load(name)))) expect(l.height, name).toBeGreaterThanOrEqual(GATE_LEG_MIN_HEIGHT)
     }
-    expect(planGateFootings(load('test1'))).toEqual([])
+    expect(planGateLegs(planPieces(load('test1')))).toEqual([])
   })
 })

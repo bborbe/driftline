@@ -2,7 +2,8 @@
 import * as THREE from 'three/webgpu'
 import { ASPHALT } from '../look'
 import { barrierPillars, barrierPosts, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
-import { buildApron, buildBody, buildDeck, buildTrack, planBodies, planDeckPillars, planGateFootings, PROFILE, type Band, type SegmentGeometry } from './geometry'
+import { GATE_LEG_MIN_HEIGHT } from './kenney-plan'
+import { buildApron, buildBody, buildDeck, buildTrack, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road; the road itself is the shared ASPHALT.
@@ -44,14 +45,17 @@ const toBufferGeometry = (g: SegmentGeometry): THREE.BufferGeometry => {
   return geo
 }
 
-// Pillars from gatePillars() — the same boxes the physics collides with — plus a beam across.
+// Pillars from gatePillars() — the same boxes the physics collides with — plus a beam across. On an
+// elevated deck each pillar runs on down to the ground in the same box and material: one leg, not a leg on a block.
 const gateArch = (kind: 'start-finish' | 'checkpoint', pillars: Pillar[]): THREE.Group => {
   const color = kind === 'start-finish' ? 0xffffff : 0x4cc9f0
   const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6 })
   const arch = new THREE.Group()
   for (const p of pillars) {
-    const pillar = new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, p.height, 2 * p.halfDepth), mat)
-    pillar.position.set(p.x, p.y + p.height / 2, p.z)
+    const base = p.y >= GATE_LEG_MIN_HEIGHT ? 0 : p.y
+    const height = p.y + p.height - base
+    const pillar = new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, height, 2 * p.halfDepth), mat)
+    pillar.position.set(p.x, base + height / 2, p.z)
     pillar.rotation.y = p.heading
     arch.add(pillar)
   }
@@ -158,8 +162,8 @@ const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean): TH
 
 /**
  * Solid bodies down to the ground under every raised row (ramps, drops, raised road), a deck box
- * on pillars only where another road passes underneath (planBodies), and footings under elevated
- * gates. Visual only: physics drives the road strip and never sees any of them.
+ * on pillars only where another road passes underneath (planBodies). Elevated gates carry their own
+ * legs to the ground (gateArch, createGateLegs). Visual only: physics drives the road strip and never sees any of them.
  */
 export const createRampSupports = (track: Track): THREE.Group => {
   const group = new THREE.Group()
@@ -182,16 +186,6 @@ export const createRampSupports = (track: Track): THREE.Group => {
         new THREE.Vector3(p.x, p.top / 2, p.z),
         new THREE.Quaternion(),
         new THREE.Vector3(DECK_PILLAR_SIZE, p.top, DECK_PILLAR_SIZE),
-      ),
-    )
-  }
-  // Gate legs on an elevated deck stand beside the road, clear of the deck box: carry each to the ground.
-  for (const f of planGateFootings(track)) {
-    pillars.push(
-      new THREE.Matrix4().compose(
-        new THREE.Vector3(f.x, f.height / 2, f.z),
-        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), f.heading),
-        new THREE.Vector3(2 * f.halfWidth, f.height, 2 * f.halfDepth),
       ),
     )
   }

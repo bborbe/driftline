@@ -2,7 +2,7 @@
 // is unit-testable in Node; src/render/track/mesh.ts wraps the arrays for three.js.
 import { bankRise } from '../../track/bank'
 import { loopPoint, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, type LoopSegment, type Sample } from '../../track/pose'
-import { gatePillars, type Pillar, type Pose, type Segment, type Track } from '../../track/schema'
+import type { Pose, Segment, Track } from '../../track/schema'
 
 export { sampleSegment, segmentLength, type Sample } from '../../track/pose'
 
@@ -384,20 +384,3 @@ export const planDeckPillars = (track: Track): DeckPillar[] => {
   })
   return out
 }
-
-/** Lowest gate pillar base that gets a footing down to the ground. */
-export const GATE_FOOTING_MIN_HEIGHT = 1
-
-/**
- * A concrete footing under each pillar of every gate that stands on an elevated deck: the
- * pillar's own footprint (gatePillars(), the boxes physics collides with), from the ground up
- * to the pillar base. The pillars sit beside the road (GATE_PILLAR.offset > TRACK_WIDTH / 2),
- * outside the deck box and away from its centreline pillars, so without these the gate stands
- * on air. Visual only: the colliders stay the pillars above the deck.
- */
-export const planGateFootings = (track: Track): Pillar[] =>
-  track.gates
-    .filter((g) => g.segment < track.segments.length)
-    .flatMap((g) => gatePillars(track, g))
-    .filter((p) => p.y >= GATE_FOOTING_MIN_HEIGHT)
-    .map((p) => ({ ...p, y: 0, height: p.y }))
