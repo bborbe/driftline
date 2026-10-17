@@ -185,17 +185,22 @@ export const KIT_PIECES: readonly PieceDef[] = [
   {
     // Spiral (corkscrew) loop: the kit loop with its road drifting KIT_SPIRAL_SHIFT cells to the turn
     // side on the way round, so the car comes out on a parallel line beside the one it came in on.
+    // The same checkpoint at the top as the loop: a straight cut across the grass to the exit line
+    // otherwise beats driving it (cuts.test.ts, velodrome).
     id: 'spiral',
     family: 'loop',
     surfaces: ROAD_ONLY,
     turns: true,
     out: road(3, KIT_SPIRAL_SHIFT, 0, 0),
     expand: (turn) =>
-      plain([
-        { type: 'straight', length: KIT_LOOP_RADIUS },
-        { type: 'loop', turn, radius: KIT_LOOP_RADIUS, shift: KIT_SPIRAL_SHIFT * CELL },
-        { type: 'straight', length: KIT_LOOP_RADIUS },
-      ]),
+      plain(
+        [
+          { type: 'straight', length: KIT_LOOP_RADIUS },
+          { type: 'loop', turn, radius: KIT_LOOP_RADIUS, shift: KIT_SPIRAL_SHIFT * CELL },
+          { type: 'straight', length: KIT_LOOP_RADIUS },
+        ],
+        { gates: [{ kind: 'checkpoint', segment: 1, at: 0.5 }] },
+      ),
   },
   {
     // Velodrome 180: a flat turn whose outer edge curves up into a near-vertical wall the car rides

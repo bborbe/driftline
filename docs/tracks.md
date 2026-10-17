@@ -20,6 +20,8 @@ The start screen shows three groups (↑/↓ switches group, ←/→ picks a tra
 | `test-effects` | effect pads: no-steer, cruise, fragile, engine-off, slow-mo, then reset |
 | `test-checkpoint` | four checkpoints in a row: split deltas, respawn at the last one |
 | `test-loop` | one full vertical loop (r 15 m): stays on through the top at speed, falls off and respawns when too slow |
+| `test-wallride` | two velodrome 180s (r 30 m) whose outer edge rises into a near-vertical wall: held from 9.3 m/s, slides down when slower |
+| `test-spiral` | a corkscrew loop (r 15 m) whose road drifts 20 m sideways, checkpoint at the top |
 
 | Style level | Track | Style | What makes it that style |
 |---|---|---|---|
@@ -29,6 +31,7 @@ The start screen shows three groups (↑/↓ switches group, ←/→ picks a tra
 | `S04` | `glacier` | Ice | a walled ice channel: banked ice turns and a walled ice S |
 | `S05` | `washboard` | LOL | a red turbo straight into five bumps in a row; a 10–20 s lap |
 | `S06` | `looping` | Loop | a turbo straight into one full vertical loop, then a banked 180 and two climbs and drops |
+| `S07` | `velodrome` | Wallride | a climb and a turbo into a velodrome wall, a left and a right spiral down the back straight, a second wall home |
 
 Any other `assets/track/test*.json` joins the Test group; any other track not in `STYLES` joins the end of the campaign.
 

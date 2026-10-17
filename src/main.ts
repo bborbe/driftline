@@ -10,7 +10,7 @@ import { beginAllowed, GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
 import { lapCount } from './race/lap'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
-import { debugPose, frozen, poseQuery, yawDeg } from './race/debug-pose'
+import { debugPose, debugRoll, frozen, poseQuery, yawDeg, yawRoll } from './race/debug-pose'
 import { centreline } from './track/centreline'
 import { loopTubes } from './track/pose'
 import { rotate, v3 } from './physics/vec'
@@ -104,7 +104,7 @@ if (fromMenu) document.getElementById('begin')?.click()
 // With &cam=fly the same params (plus &pitch) place the free-fly camera instead, and the car stays on the grid.
 const pose = debugPose(location.search)
 const flyAtStart = flyRequested(location.search)
-if (pose && !flyAtStart) sim.state = createCarAt(pose)
+if (pose && !flyAtStart) sim.state = { ...createCarAt(pose), orientation: yawRoll(pose.heading, debugRoll(location.search)) }
 const freeze = frozen(location.search)
 if (freeze) document.getElementById('begin')?.remove()
 // Camera views (1/2/3), free-fly (C, ?cam=fly) and orbit (O): while flying the race, ghost and audio hold still,
