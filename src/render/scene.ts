@@ -20,15 +20,28 @@ import { DEFAULT_ENVIRONMENT, trackEnvironment, type Environment } from '../trac
 /** The Poly Haven grass is dry and yellow; tint it toward the Kenney verge green (a theme's `ground` overrides it). */
 const GRASS_TINT = 0x7fc25a
 
+/** Mean sRGB colour of grass_diff_1k.jpg (0–255), measured from the file: what a tint is multiplied onto. */
+export const GRASS_MEAN: readonly [number, number, number] = [113, 97, 36]
+
+/** A theme ground this light (every sRGB channel at least this) is snow: no grass shows through it. */
+const SNOW_MIN = 0xd0
+
+export const isSnowGround = (ground: THREE.ColorRepresentation): boolean => {
+  const c = new THREE.Color(ground).getRGB({ r: 0, g: 0, b: 0 }, THREE.SRGBColorSpace)
+  return Math.round(Math.min(c.r, c.g, c.b) * 255) >= SNOW_MIN
+}
+
 /** One grass texture tile in metres. */
 export const GRASS_TILE = 8
 
 /**
  * Grass ground plane. Drawn first and without depth writes, so it can never hide the road:
  * a banked turn's inner half dips below it mid-turn (src/track/bank.ts).
+ * A snow tint drops the grass map: tint × the dry grass reads olive, not white (glacier).
  */
-export const createGround = (map?: THREE.Texture, tint: THREE.ColorRepresentation = GRASS_TINT): THREE.Mesh => {
+export const createGround = (grass?: THREE.Texture, tint: THREE.ColorRepresentation = GRASS_TINT): THREE.Mesh => {
   const size = 2000
+  const map = isSnowGround(tint) ? undefined : grass
   if (map) {
     map.wrapS = map.wrapT = THREE.RepeatWrapping
     map.repeat.set(size / GRASS_TILE, size / GRASS_TILE)
@@ -37,7 +50,7 @@ export const createGround = (map?: THREE.Texture, tint: THREE.ColorRepresentatio
   }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(size, size),
-    new THREE.MeshStandardMaterial({ map, color: map ? tint : 0x5a9a48, roughness: 1, depthWrite: false }),
+    new THREE.MeshStandardMaterial({ map, color: tint, roughness: 1, depthWrite: false }),
   )
   ground.rotation.x = -Math.PI / 2
   ground.renderOrder = -1
