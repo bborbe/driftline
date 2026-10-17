@@ -45,8 +45,8 @@ describe('race input gate', () => {
 
 describe('fall safety net', () => {
   it('driving off the world edge respawns at the start line as soon as the car is 5 m down', () => {
-    // No ground plane: leaving the track means falling forever.
-    const { loop, sim } = setup(trackSurface(lap1, { groundY: null }))
+    // No ground plane and no edge rails: leaving the track means falling forever.
+    const { loop, sim } = setup(trackSurface(lap1, { groundY: null, rails: false }))
     loop.start(sim.state.tick)
     for (let i = 0; i <= COUNTDOWN_TICKS; i++) tick(loop, sim, NO_INPUT)
     const respawns: number[] = []

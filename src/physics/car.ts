@@ -6,11 +6,15 @@ import {
 } from './vec'
 import type { Pillar } from '../track/schema'
 import { FLAT, type Material, type RayHit, type Surface } from './surface'
+import { DEFAULT_HANDLING, handling, materials, materialsOf, type MaterialHandling } from './handling'
+
+export type { MaterialHandling }
 
 export const TICK_HZ = 100
 export const DT = 1 / TICK_HZ
-export const MAX_SPEED = 40 // m/s
-export const MAX_REVERSE_SPEED = 10 // m/s
+// Shipped top speeds, for the camera FOV and audio; step() reads the live values from handling().
+export const MAX_SPEED = DEFAULT_HANDLING.maxSpeed // m/s
+export const MAX_REVERSE_SPEED = DEFAULT_HANDLING.maxReverseSpeed // m/s
 
 export type CarInput = {
   throttle: number // 0..1
@@ -34,7 +38,8 @@ export type CarState = {
   turboForce: number // N, forward push while turbo > 0
 }
 
-const GRAVITY = 9.81
+// The tunable handling constants (grip, forces, steering, drift, gravity, suspension) live in
+// DEFAULT_HANDLING (./handling); step() binds the live config under the names used below each tick.
 const MASS = 1200
 // Box inertia for ~1.8 x 1.2 x 4.2 m body.
 const INERTIA = v3(
@@ -43,8 +48,6 @@ const INERTIA = v3(
   (MASS / 12) * (1.8 ** 2 + 1.2 ** 2),
 )
 const REST_LENGTH = 0.5
-const SPRING = 40000
-const DAMPER = 4500
 const WHEEL_RADIUS = 0.35
 // Wheel rays start this far above the spring mount (about the chassis top), so a mount that
 // has sunk through the surface on a hard landing still finds it and the spring pushes back.
@@ -57,32 +60,14 @@ const LOOP_BUMP = 0.35
 const LOOP_BUMP_SPRING = 300000
 // Floor for dot(body-up, surface normal) in the compression rate (car tilted < ~72°).
 const MIN_UP_DOT = 0.3
-const GRIP = 1.6 // front friction coefficient (arcade)
-const REAR_GRIP = 2.0 // rear grips more than front: stable, understeer-leaning balance
 // Traction control: drive force on a rear wheel is capped to this share of its grip,
 // so full throttle still leaves lateral grip (power oversteer otherwise spins the car).
-const DRIVE_SHARE = 0.75
-const HANDBRAKE_REAR_GRIP = 0.3 // fraction of rear lateral grip kept on handbrake
-const PEAK_SLIP = 0.15 // rad — softer slip curve, grip builds more gradually
-const ENGINE_FORCE = 9000 // N, rear-wheel drive total
-const BRAKE_FORCE = 16000 // N, all wheels total
-const REVERSE_FORCE = 6000 // N, rear-wheel drive total
 const STOPPED = 0.5 // m/s — below this, brake input becomes reverse and throttle drives forward
-const HANDBRAKE_FORCE = 3000 // N, rear wheels total
-const MAX_STEER = 0.5 // rad
-const STEER_RATE = 4 // rad/s
-const DRAG = 0.45
-const ROLLING = 30
 // Off-throttle coast-down (rolling resistance + drivetrain drag), as a fraction of wheel load.
-const COAST_RESISTANCE = 0.3
 // Yaw stability at speed: the soft tyres alone let a sharp input at 140 km/h overshoot the settled
 // yaw rate by ~100%. A yaw torque damps the body's rotation in excess of how fast its path turns
 // (zero in a steady corner, so it never limits the turn), at this rate (1/s). It fades out between
 // YAW_ASSIST_SLIP_LO and _HI degrees of body slip and is off on the handbrake, so drifts stay free.
-const YAW_ASSIST = 12
-const YAW_ASSIST_SLIP_LO = 8
-const YAW_ASSIST_SLIP_HI = 15
-const YAW_ASSIST_MIN_SPEED = 5 // m/s
 // Speed drift, Trackmania-style: at 90 km/h a handbrake tap with steer puts the car into a short
 // slide it keeps its speed through, and a longer press never spins it. The kick and the carry need
 // road grip (ice, dirt and grass keep their own slide); the spin guard acts on every material, so a
@@ -92,69 +77,26 @@ const YAW_ASSIST_MIN_SPEED = 5 // m/s
 // angle (a wall glance, a yawed landing), so those straighten out instead of spinning.
 // Entry: on the handbrake, a yaw torque (1/s² per unit steer) rotates the car in until the body
 // slips DRIFT_KICK_SLIP_HI degrees, so a 0.25 s tap already slides (the steer alone takes ~0.1 s to build).
-const DRIFT_KICK = 6
-const DRIFT_KICK_SLIP_LO = 20
-const DRIFT_KICK_SLIP_HI = 30
 // Spin guard: past DRIFT_LIMIT degrees of body slip while the handbrake is held (DRIFT_LIMIT_FREE
 // once it is released), damp the yaw that would grow it, fully from the limit + DRIFT_LIMIT_BAND,
 // at this rate (1/s). Holding Space drifts deeper (~32°, for a braked hairpin); a released tap
 // stays shallow (~24°), so on a 40 m corner at 90 km/h it does not cut the infield.
-const DRIFT_LIMIT = 26
-const DRIFT_LIMIT_FREE = 18
-const DRIFT_LIMIT_BAND = 6
-const DRIFT_LIMIT_RATE = 25
 // Carry: while the body slips past DRIFT_CARRY_SLIP_LO degrees (full from _HI), a force across the
 // travel turns the velocity toward the nose at DRIFT_CARRY (1/s per rad of slip), capped at
 // DRIFT_CARRY_MAX_G on the handbrake (DRIFT_CARRY_MAX_G_FREE after it). The slide turns the car's
 // path instead of scrubbing its speed, and ends itself in ~0.5-1 s once the velocity catches up
 // with the nose. A higher cap bends the path so tight that a 40 m corner is cut.
-const DRIFT_CARRY = 4
-const DRIFT_CARRY_MAX_G = 1.2
-const DRIFT_CARRY_MAX_G_FREE = 0.6
-const DRIFT_CARRY_SLIP_LO = 10
-const DRIFT_CARRY_SLIP_HI = 15
 // Hold with steer: once the slide is past DRIFT_HOLD_SLIP_LO degrees and Space is up, steer into the
 // turn holds the body slip at DRIFT_HOLD_SLIP degrees x steer, by a yaw torque on the slip error
 // (DRIFT_HOLD_KP, 1/s² per rad) damped by its rate (DRIFT_HOLD_KD, 1/s). With the steer inside
 // DRIFT_HOLD_NEUTRAL (straightened) it pulls the slip back to 0 at DRIFT_HOLD_RELEASE x that rate,
-// so letting go ends the slide in ~0.3 s; countersteer ends it on the tyres. Grip cornering slips
-// under DRIFT_HOLD_SLIP_LO, so row 1 grip is untouched.
-const DRIFT_HOLD_SLIP = 20
-const DRIFT_HOLD_SLIP_LO = 10
-const DRIFT_HOLD_SLIP_MAX = 45 // past this it is a crash or a spin, not a drift: hands off
-const DRIFT_HOLD_MIN_SPEED = 18 // m/s; below it a slide is a scrape (a wall or pillar glance), not a drift
-const DRIFT_HOLD_KP = 80
-const DRIFT_HOLD_KD = 10
-const DRIFT_HOLD_RELEASE = 0.5
-const DRIFT_HOLD_NEUTRAL = 0.2
+// so letting go ends the slide in ~0.3 s; countersteer ends it on the tyres. Only a drift: past
+// DRIFT_HOLD_SLIP_MAX degrees or under DRIFT_HOLD_MIN_SPEED m/s (a crash, a wall or pillar scrape) it
+// stays off. Grip cornering slips under DRIFT_HOLD_SLIP_LO, so row 1 grip is untouched.
 // Material grip at which the drift fades out (dirt 0.6) and is full (road 1).
-const DRIFT_GRIP_LO = 0.6
-const DRIFT_GRIP_HI = 1
 
-// Per-material handling. `grip` scales the tyre friction coefficient; `drag` is extra rolling
-// resistance as a fraction of wheel load, always on (grass and dirt bog the car down).
-// `driveGrip` (default `grip`) scales the friction available to the engine on its own, so ice
-// keeps most of its acceleration while losing side grip, Trackmania-style; brakes still use `grip`.
-// `maxSpeed` (m/s, default MAX_SPEED) caps what the engine drives a wheel to on that material;
-// above it the wheel is braked by OVERSPEED_DRAG, so diving onto it at speed bleeds speed fast.
-export type MaterialHandling = { grip: number; drag: number; maxSpeed?: number; driveGrip?: number }
-export const MATERIALS: Readonly<Record<Material, MaterialHandling>> = {
-  road: { grip: 1, drag: 0 },
-  'turbo': { grip: 1, drag: 0 },
-  'turbo-red': { grip: 1, drag: 0 },
-  // Effect pads drive like road; their effect is applied to the input by src/race/effects.ts.
-  'no-steer': { grip: 1, drag: 0 },
-  'engine-off': { grip: 1, drag: 0 },
-  'cruise': { grip: 1, drag: 0 },
-  'slow-mo': { grip: 1, drag: 0 },
-  'fragile': { grip: 1, drag: 0 },
-  'reset': { grip: 1, drag: 0 },
-  dirt: { grip: 0.6, drag: 0.04 },
-  ice: { grip: 0.18, drag: 0, driveGrip: 0.55 },
-  grass: { grip: 0.5, drag: 0.12 },
-  // Off-track ground, Trackmania-style: cutting across the field never beats the road.
-  offroad: { grip: 0.45, drag: 0.1, maxSpeed: 10 },
-}
+// Per-material handling: see MaterialHandling in ./handling. These are the shipped values; step() reads the live ones.
+export const MATERIALS: Readonly<Record<Material, MaterialHandling>> = materialsOf(DEFAULT_HANDLING)
 // Resistance (fraction of wheel load) once a wheel is OVERSPEED_RAMP m/s or more over its material's maxSpeed.
 const OVERSPEED_DRAG = 1.5
 const OVERSPEED_RAMP = 3 // m/s
@@ -165,8 +107,8 @@ const OVERSPEED_RAMP = 3 // m/s
 export const TURBO_ALIGN = 0.5
 
 export const TURBO = {
-  'turbo': { ticks: 1.0 * TICK_HZ, force: 7000 },
-  'turbo-red': { ticks: 1.5 * TICK_HZ, force: 14000 },
+  'turbo': { ticks: 1.0 * TICK_HZ, force: DEFAULT_HANDLING.turboForce },
+  'turbo-red': { ticks: 1.5 * TICK_HZ, force: DEFAULT_HANDLING.turboRedForce },
 } as const
 
 // Local frame: +z forward, +y up, so +x is the driver's LEFT (right = forward × up = -x). Mount points sit at the top of each spring.
@@ -225,6 +167,36 @@ const WALL_SCRAPE = 0.7
 
 type Moved = { position: Vec3; velocity: Vec3 }
 
+// Broadphase: each obstacle listed (by index) in every GRID-metre cell its reach (the early-out in
+// collide() below) can touch from, widened by PUSH_SLACK for the pushes earlier obstacles make within
+// one tick. A cell's list keeps the obstacles' order, so collide() visits exactly the obstacles that
+// could pass its reach test, in the same order — the result is bit-identical to a full scan. A push
+// past the slack (a car caught deep in a wide embankment box) falls back to the full scan.
+const GRID = 8
+const PUSH_SLACK = 2
+type Broadphase = Map<string, number[]>
+const broadphases = new WeakMap<readonly Pillar[], Broadphase>()
+const cellKey = (i: number, k: number) => `${i},${k}`
+
+const broadphase = (obstacles: readonly Pillar[]): Broadphase => {
+  const hit = broadphases.get(obstacles)
+  if (hit) return hit
+  const grid: Broadphase = new Map()
+  obstacles.forEach((o, index) => {
+    const reach = o.halfWidth + o.halfDepth + BODY_REACH + BODY_RADIUS + PUSH_SLACK
+    for (let i = Math.floor((o.x - reach) / GRID); i <= Math.floor((o.x + reach) / GRID); i++) {
+      for (let k = Math.floor((o.z - reach) / GRID); k <= Math.floor((o.z + reach) / GRID); k++) {
+        const key = cellKey(i, k)
+        const cell = grid.get(key)
+        if (cell) cell.push(index)
+        else grid.set(key, [index])
+      }
+    }
+  })
+  broadphases.set(obstacles, grid)
+  return grid
+}
+
 // Push the body out of every pillar it overlaps (in the horizontal plane) and kill its speed
 // into the pillar: a wall hit, Trackmania-style.
 const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly Pillar[] | undefined): Moved => {
@@ -234,10 +206,11 @@ const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly 
   const fz = flat > 1e-6 ? fwd.z / flat : 1
   let pos = position
   let vel = velocity
-  for (const o of obstacles) {
-    if (pos.y < o.y - 1 || pos.y > o.y + o.height) continue
+  const start = pos
+  const visit = (o: Pillar) => {
+    if (pos.y < o.y - 1 || pos.y > o.y + o.height) return
     const reach = o.halfWidth + o.halfDepth + BODY_REACH + BODY_RADIUS
-    if (Math.abs(pos.x - o.x) > reach || Math.abs(pos.z - o.z) > reach) continue
+    if (Math.abs(pos.x - o.x) > reach || Math.abs(pos.z - o.z) > reach) return
     // Deepest overlap among points along the body axis, in the pillar's frame (u along, w across).
     const ou = { x: Math.sin(o.heading), z: Math.cos(o.heading) }
     let best: { depth: number; nx: number; nz: number } | null = null
@@ -276,7 +249,7 @@ const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly 
         best = { depth, nx: du * ou.x + dw * ou.z, nz: du * ou.z - dw * ou.x }
       }
     }
-    if (!best) continue
+    if (!best) return
     pos = v3(pos.x + best.nx * best.depth, pos.y, pos.z + best.nz * best.depth)
     const vn = vel.x * best.nx + vel.z * best.nz
     if (vn < 0) {
@@ -285,13 +258,40 @@ const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly 
       vel = v3(tx * WALL_SCRAPE - WALL_BOUNCE * vn * best.nx, vel.y, tz * WALL_SCRAPE - WALL_BOUNCE * vn * best.nz)
     }
   }
+  const cell = broadphase(obstacles).get(cellKey(Math.floor(pos.x / GRID), Math.floor(pos.z / GRID))) ?? []
+  for (const j of cell) {
+    visit(obstacles[j])
+    // Pushed past the slack the cell was built with: finish with a full scan, so the result stays exact.
+    if (Math.abs(pos.x - start.x) > PUSH_SLACK || Math.abs(pos.z - start.z) > PUSH_SLACK) {
+      for (let k = j + 1; k < obstacles.length; k++) visit(obstacles[k])
+      break
+    }
+  }
   return { position: pos, velocity: vel }
 }
 
 export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): CarState => {
+  // The live handling config (./handling), bound under the constant names the comments above use.
+  const h = handling()
+  const MATERIALS = materials()
+  const {
+    maxSpeed: MAX_SPEED, maxReverseSpeed: MAX_REVERSE_SPEED, engineForce: ENGINE_FORCE, brakeForce: BRAKE_FORCE,
+    reverseForce: REVERSE_FORCE, driveShare: DRIVE_SHARE, drag: DRAG, rolling: ROLLING, coastResistance: COAST_RESISTANCE,
+    grip: GRIP, rearGrip: REAR_GRIP, peakSlip: PEAK_SLIP, handbrakeRearGrip: HANDBRAKE_REAR_GRIP, handbrakeForce: HANDBRAKE_FORCE,
+    maxSteer: MAX_STEER, steerRate: STEER_RATE, steerSpeedFalloff: STEER_SPEED_FALLOFF, yawAssist: YAW_ASSIST,
+    yawAssistSlipLo: YAW_ASSIST_SLIP_LO, yawAssistSlipHi: YAW_ASSIST_SLIP_HI, yawAssistMinSpeed: YAW_ASSIST_MIN_SPEED,
+    driftKick: DRIFT_KICK, driftKickSlipLo: DRIFT_KICK_SLIP_LO, driftKickSlipHi: DRIFT_KICK_SLIP_HI, driftLimit: DRIFT_LIMIT,
+    driftLimitFree: DRIFT_LIMIT_FREE, driftCarryMaxGFree: DRIFT_CARRY_MAX_G_FREE,
+    driftLimitBand: DRIFT_LIMIT_BAND, driftLimitRate: DRIFT_LIMIT_RATE, driftCarry: DRIFT_CARRY, driftCarryMaxG: DRIFT_CARRY_MAX_G,
+    driftCarrySlipLo: DRIFT_CARRY_SLIP_LO, driftCarrySlipHi: DRIFT_CARRY_SLIP_HI, driftGripLo: DRIFT_GRIP_LO, driftGripHi: DRIFT_GRIP_HI,
+    driftHoldSlip: DRIFT_HOLD_SLIP, driftHoldSlipLo: DRIFT_HOLD_SLIP_LO, driftHoldSlipMax: DRIFT_HOLD_SLIP_MAX,
+    driftHoldMinSpeed: DRIFT_HOLD_MIN_SPEED, driftHoldKp: DRIFT_HOLD_KP, driftHoldKd: DRIFT_HOLD_KD, driftHoldRelease: DRIFT_HOLD_RELEASE,
+    driftHoldNeutral: DRIFT_HOLD_NEUTRAL,
+    gravity: GRAVITY, spring: SPRING, damper: DAMPER,
+  } = h
   // Sim time this tick: DT, scaled by a slow-motion pad. DT * 1 === DT, so unscaled runs are bit-identical.
   const dt = DT * (input.timeScale ?? 1)
-  const steerTarget = clamp(input.steer, -1, 1) * MAX_STEER * (1 - 0.5 * clamp(length(s.velocity) / MAX_SPEED, 0, 1))
+  const steerTarget = clamp(input.steer, -1, 1) * MAX_STEER * (1 - STEER_SPEED_FALLOFF * clamp(length(s.velocity) / MAX_SPEED, 0, 1))
   const steerDelta = clamp(steerTarget - s.steerAngle, -STEER_RATE * dt, STEER_RATE * dt)
   const steerAngle = s.steerAngle + steerDelta
 
@@ -339,7 +339,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     contacts++
     if ((material === 'turbo' || material === 'turbo-red') && hit.padForward && dot(travel, hit.padForward) >= TURBO_ALIGN) {
       // A stronger pad overrides a weaker running boost; the same pad refreshes it.
-      const pad = TURBO[material]
+      const pad = { ticks: TURBO[material].ticks, force: material === 'turbo' ? h.turboForce : h.turboRedForce }
       if (pad.force >= turboForce || turbo === 0) {
         turbo = pad.ticks
         turboForce = pad.force
