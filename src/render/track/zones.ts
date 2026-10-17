@@ -10,6 +10,7 @@
 import * as THREE from 'three/webgpu'
 import { isEffect, poses, sampleSegment, segmentLength, SURFACE_KINDS, turnSign, zoneCorners, type Pose, type SurfaceKind, type Track, type Zone, type ZoneKind } from '../../track/schema'
 import { EFFECT_LOOK, effectIcon } from './effect-pads'
+import { flat } from '../tags'
 import { lateralPoint, PROFILE, rowCount } from './geometry'
 
 const roadColumns = PROFILE.filter(([, , band]) => band === 'road')
@@ -290,18 +291,18 @@ export const createZoneMeshes = (track: Track): THREE.Group => {
         const look = PAD_LOOK[kind]
         materials.set(kind, new THREE.MeshStandardMaterial({ ...DECAL, color: look.color, emissive: look.color, emissiveIntensity: look.emissive, roughness: 0.4 }))
       }
-      group.add(padMesh(zoneQuad(track, zone), materials.get(kind)!, 2))
-      group.add(padMesh(turboChevrons(track, zone), chevron, 3))
+      group.add(flat(padMesh(zoneQuad(track, zone), materials.get(kind)!, 2), 'effect-pad'))
+      group.add(flat(padMesh(turboChevrons(track, zone), chevron, 3), 'decal'))
     } else if (isEffect(kind)) {
       if (!materials.has(kind)) {
         const look = EFFECT_LOOK[kind]
         materials.set(kind, new THREE.MeshStandardMaterial({ ...DECAL, color: look.color, emissive: look.color, emissiveIntensity: look.emissive, roughness: 0.4 }))
       }
-      group.add(padMesh(zoneQuad(track, zone), materials.get(kind)!, 2))
-      group.add(padMesh(effectIcon(track, { ...zone, kind }, ZONE_WIDTH, ZONE_LIFT + 0.002), chevron, 3))
+      group.add(flat(padMesh(zoneQuad(track, zone), materials.get(kind)!, 2), 'effect-pad'))
+      group.add(flat(padMesh(effectIcon(track, { ...zone, kind }, ZONE_WIDTH, ZONE_LIFT + 0.002), chevron, 3), 'decal'))
     } else {
       if (!materials.has(kind)) materials.set(kind, surfaceMaterial(kind))
-      group.add(patchMesh(surfacePatch(track, { ...zone, kind }), materials.get(kind)!))
+      group.add(flat(patchMesh(surfacePatch(track, { ...zone, kind }), materials.get(kind)!), 'decal'))
     }
   }
   return group

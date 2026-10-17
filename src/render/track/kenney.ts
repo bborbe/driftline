@@ -7,6 +7,7 @@ import { createBarriers, createRampSupports, createTrackMesh, ROAD_ROUGHNESS } f
 import { ASPHALT } from '../look'
 import { planGateLegs, planPieces, type GateLeg } from './kenney-plan'
 import { createZoneMeshes } from './zones'
+import { flat, structural, type FlatReason } from '../tags'
 
 // Vite bundles each piece and hands back its URL, so the build works under any base path.
 const PIECE_URLS = import.meta.glob('/assets/pieces/*.glb', { query: '?url', import: 'default', eager: true }) as Record<
@@ -45,6 +46,22 @@ export const preparePiece = (root: THREE.Object3D): THREE.Object3D => {
 }
 
 /**
+ * Kenney piece materials as geometry tags (tags.ts): the asphalt and verge are road, the grey kerbs a
+ * curb strip. The checkpoint piece is an arch, not road: its legs must stand. The start piece's arch
+ * shares the grey of its kerbs.
+ */
+const PIECE_FLAT: Record<string, FlatReason> = { road: 'road', grass: 'road', grey: 'curb' }
+
+const tagPiece = (piece: string, root: THREE.Object3D): THREE.Object3D => {
+  if (piece === 'checkpoint') return structural(root, 'gate-leg')
+  root.traverse((o) => {
+    const reason = PIECE_FLAT[((o as THREE.Mesh).material as THREE.Material | undefined)?.name ?? '']
+    if ((o as THREE.Mesh).isMesh && reason) flat(o, reason)
+  })
+  return root
+}
+
+/**
  * The legs of elevated checkpoints carried down to the ground (planGateLegs), drawn with the
  * checkpoint piece's own material, so each leg is one column above and below the deck line.
  * Visual only: the colliders stay the gate pillars above the deck.
@@ -56,7 +73,7 @@ export const createGateLegs = (legs: GateLeg[], checkpoint: THREE.Object3D): THR
   checkpoint.traverse((o) => (material ??= (o as THREE.Mesh).material))
   if (!material) throw new Error('checkpoint piece has no material')
   for (const l of legs) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(2 * l.halfWidth, l.height, 2 * l.halfDepth), material)
+    const leg = structural(new THREE.Mesh(new THREE.BoxGeometry(2 * l.halfWidth, l.height, 2 * l.halfDepth), material), 'gate-leg')
     leg.position.set(l.x, l.height / 2, l.z)
     leg.rotation.y = l.heading
     leg.castShadow = leg.receiveShadow = true
@@ -73,7 +90,7 @@ export const createPieceTrack = async (track: Track): Promise<THREE.Group> => {
   await Promise.all(
     names.map(async (n) => {
       const gltf = await loader.loadAsync(urlFor(n))
-      models.set(n, preparePiece(gltf.scene))
+      models.set(n, tagPiece(n, preparePiece(gltf.scene)))
     }),
   )
 

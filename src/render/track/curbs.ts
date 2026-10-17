@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu'
 import { poses, turnSign, type Segment, type Track } from '../../track/schema'
 import { CURB_RED, CURB_WHITE } from '../look'
+import { flat } from '../tags'
 import { lateralPoint, PROFILE, sampleSegment, segmentLength } from './geometry'
 
 const curbColumns = PROFILE.filter(([, , band]) => band === 'curb')
@@ -98,6 +99,7 @@ export const createCurbs = (track: Track, accent: THREE.Color = CURB_RED): THREE
   geo.computeVertexNormals()
   const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ ...DECAL, vertexColors: true, roughness: 0.55 }))
   mesh.name = 'curbs'
+  flat(mesh, 'curb')
   mesh.receiveShadow = true
   mesh.renderOrder = 1 // after the road (decals write no depth); surface patches and pads draw over it
   return mesh

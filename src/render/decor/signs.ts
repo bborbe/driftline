@@ -5,6 +5,7 @@ import * as THREE from 'three/webgpu'
 import { centreline } from '../../track/centreline'
 import { poses, turnSign, zoneCorners, type Track } from '../../track/schema'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
+import { structural } from '../tags'
 import { lateralPoint, sampleSegment, segmentLength, TRACK_WIDTH } from '../track/geometry'
 import { merged, placement, prepared } from './instance'
 
@@ -57,9 +58,9 @@ export const planSigns = (track: Track): Sign[] => {
   return signs.filter(clear)
 }
 
-/** Board size and the height of its lower edge over the road edge, in metres. */
-export const BOARD = { width: 2.6, height: 1.3, depth: 0.12, bottom: 0.6 } as const
-const POST = { size: 0.12, spread: 0.9 }
+/** Board size and the height of its lower edge over the road edge, in metres. Board and posts stay above MIN_THICKNESS (render/lint.ts). */
+export const BOARD = { width: 2.6, height: 1.3, depth: 0.16, bottom: 0.6 } as const
+const POST = { size: 0.16, spread: 0.9 }
 
 const KINDS: readonly SignKind[] = ['left', 'right', 'turbo', 'turbo-red']
 /** Atlas: one 256×128 face per kind, top to bottom, then a strip of frame colour (posts, edges). */
@@ -152,6 +153,6 @@ export const createSigns = (track: Track, accent: string = SIGN_YELLOW): THREE.G
   }
   // One draw call for every board. A little self-lit so boards in shadow still read.
   const atlas = atlasTexture(accent)
-  group.add(merged(parts, new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 })))
+  group.add(structural(merged(parts, new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 })), 'sign'))
   return group
 }
