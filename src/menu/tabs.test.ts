@@ -13,11 +13,12 @@ describe('settings tabs', () => {
     expect([...placed].sort()).toEqual([...CONTROL_IDS].sort())
     expect(new Set(placed).size).toBe(placed.length)
   })
-  it('groups car, race, graphics and audio as agreed', () => {
+  it('groups car, race, graphics, audio and about as agreed', () => {
     expect(TAB_CONTROLS.car).toEqual(['livery', 'paint', 'number'])
     expect(TAB_CONTROLS.race).toEqual(['time', 'weather', 'laps'])
-    expect(TAB_CONTROLS.graphics).toEqual([...LIVE_FX, 'camera'])
+    expect(TAB_CONTROLS.graphics).toEqual([...LIVE_FX, 'camera', 'hudScale'])
     expect(TAB_CONTROLS.audio).toEqual(['volume'])
+    expect(TAB_CONTROLS.about).toEqual(['build'])
   })
   it('remembers the last tab and falls back on garbage', () => {
     const s = fake()
@@ -31,8 +32,9 @@ describe('settings tabs', () => {
   })
   it('cycles with Q and E, wrapping both ways', () => {
     expect(moveTab('car', 'KeyE')).toBe('race')
-    expect(moveTab('audio', 'KeyE')).toBe('car')
-    expect(moveTab('car', 'KeyQ')).toBe('audio')
+    expect(moveTab('audio', 'KeyE')).toBe('about')
+    expect(moveTab('about', 'KeyE')).toBe('car')
+    expect(moveTab('car', 'KeyQ')).toBe('about')
     expect(moveTab('race', 'ArrowLeft')).toBe('race')
   })
 })

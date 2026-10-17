@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chaseTarget, debugVisible, kmh, litTicks, SPEEDO_MAX_KMH, SPEEDO_TICKS } from './hud'
+import { chaseTarget, debugVisible, kmh, litTicks, SPEEDO_MAX_KMH, SPEEDO_TICKS, targetDelta } from './hud'
 
 const medals = { author: 40000, gold: 45000, silver: 52000, bronze: 60000 }
 
@@ -47,9 +47,23 @@ describe('chaseTarget', () => {
 })
 
 describe('debugVisible', () => {
-  it('is on by default and off with ?debug=0', () => {
-    expect(debugVisible('')).toBe(true)
+  it('is dev-only: off on a plain URL, on with ?dev=1 or ?debug=1, ?debug=0 always wins', () => {
+    expect(debugVisible('')).toBe(false)
+    expect(debugVisible('?track=lap2')).toBe(false)
+    expect(debugVisible('?track=lap2&dev=1')).toBe(true)
     expect(debugVisible('?track=lap2&debug=1')).toBe(true)
-    expect(debugVisible('?track=lap2&debug=0')).toBe(false)
+    expect(debugVisible('?track=lap2&dev=1&debug=0')).toBe(false)
+  })
+})
+
+describe('targetDelta', () => {
+  const gold = { label: 'GOLD', ms: 30000, medal: 'gold' as const }
+  it('is the best minus the medal time: positive while behind it', () => {
+    expect(targetDelta(gold, 30420)).toBe(420)
+    expect(targetDelta(gold, null)).toBeNull()
+  })
+  it('has nothing to show once the target is the best itself', () => {
+    expect(targetDelta({ label: 'BEST', ms: 30000, medal: null }, 30000)).toBeNull()
+    expect(targetDelta(null, 30000)).toBeNull()
   })
 })

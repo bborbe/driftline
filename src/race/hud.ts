@@ -1,4 +1,4 @@
-// Race HUD values (speed, speedometer ticks, the time to chase) and the debug-overlay switch. Pure and tested.
+// Race HUD values (speed, speedometer ticks, the time to chase and its delta) and the debug-overlay switch. Pure and tested.
 import type { Medals } from '../track/schema'
 import { EFFECT_LABEL, EFFECT_LOOK } from '../render/track/effect-pads'
 import type { ActiveEffect } from './effects'
@@ -49,5 +49,16 @@ export function effectChips(active: readonly ActiveEffect[]): EffectChip[] {
   )
 }
 
-/** `?debug=0` starts with the debug overlay hidden (backtick toggles it); it is shown by default (agents read it in screenshots). */
-export const debugVisible = (search: string): boolean => new URLSearchParams(search).get('debug') !== '0'
+/**
+ * The debug overlay (pose, fps, build label) is dev-only: `?dev=1` or `?debug=1` starts with it shown, `?debug=0` always
+ * hides it, and a plain URL hides it so screenshots show the game, not debug noise. Backtick toggles it either way.
+ */
+export function debugVisible(search: string): boolean {
+  const q = new URLSearchParams(search)
+  if (q.get('debug') === '0') return false
+  return q.get('debug') === '1' || q.get('dev') === '1'
+}
+
+/** Personal best vs the target time (ms; positive = still behind it), null without a best or for the BEST target itself. */
+export const targetDelta = (target: Target | null, bestMs: number | null): number | null =>
+  target === null || target.medal === null || bestMs === null ? null : bestMs - target.ms

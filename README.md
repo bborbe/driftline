@@ -52,7 +52,7 @@ Camera
 
 Debug
 
-- `` ` `` - Debug overlay on / off
+- `` ` `` - Debug overlay on / off (pose, fps, build label; hidden unless the URL carries `?dev=1` or `?debug=1`; the build label is also in Settings → About)
 - `P` - Copy this view as a URL
 
 ## Tracks

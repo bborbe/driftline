@@ -10,6 +10,7 @@ const custom: Settings = {
   time: 'night',
   weather: 'snow',
   livery: { pattern: 'checker', paint: 'teal', number: 42 },
+  hudScale: 1.15,
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
 
@@ -29,6 +30,8 @@ describe('url state', () => {
     expect(one('pattern', 'flag').livery.pattern).toBe('flag')
     expect(one('paint', 'pink').livery.paint).toBe('pink')
     expect(one('num', '13').livery.number).toBe(13)
+    expect(one('hud', '0.75').hudScale).toBe(0.75)
+    expect(one('hud', '2').hudScale).toBe(1)
   })
   it('keeps random and default choices, and no effects', () => {
     const s = { ...DEFAULT_SETTINGS, time: 'random' as const, weather: 'default' as const, fx: [] }

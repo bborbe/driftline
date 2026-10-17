@@ -56,7 +56,7 @@ let env = resolveEnvironment(location.search, track, settings, Date.now())
 const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery)
 const { camera, backend } = view
 
-// Debug overlay (pose, fps, build label) in the corners; backtick or ?debug=0 hides it, P copies the debug-spawn URL
+// Debug overlay (pose, fps, build label) in the corners, dev only (?dev=1 / ?debug=1; backtick toggles), P copies the debug-spawn URL
 // for the current view. The race HUD lives in src/race/view.ts.
 const debug = mountDebugOverlay({
   search: location.search,

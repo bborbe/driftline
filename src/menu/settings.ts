@@ -17,10 +17,17 @@ export interface Settings {
   weather: WeatherChoice
   /** Player car paint, pattern and race number; the ghost takes ghostLivery() of it. */
   livery: Livery
+  /** Race-HUD size multiplier (Settings → Graphics), one of HUD_SCALES. */
+  hudScale: number
 }
 
+/** HUD-scale choices, smallest first. */
+export const HUD_SCALES = [0.75, 0.9, 1, 1.15, 1.3] as const
+/** The stored HUD scale when it is one of HUD_SCALES, else 1. */
+export const clampHudScale = (v: unknown): number => ((HUD_SCALES as readonly unknown[]).includes(v) ? (v as number) : 1)
+
 const KEY = 'driftline-settings'
-export const DEFAULT_SETTINGS: Settings = { volume: 0.7, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY }
+export const DEFAULT_SETTINGS: Settings = { volume: 0.7, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY, hudScale: 1 }
 /** Window event the settings panel fires after every change; detail is the saved Settings, which the running race applies at once. */
 export const SETTINGS_EVENT = 'driftline:settings'
 
@@ -34,7 +41,7 @@ export function loadSettings(storage: KeyValueStore): Settings {
     const legacy = choiceOf(raw.environment === 'random' ? 'random' : 'fixed')
     const time = (TIME_CHOICES as readonly unknown[]).includes(raw.time) ? (raw.time as TimeChoice) : legacy.time
     const weather = (WEATHER_CHOICES as readonly unknown[]).includes(raw.weather) ? (raw.weather as WeatherChoice) : legacy.weather
-    return { volume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery) }
+    return { volume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery), hudScale: clampHudScale(raw.hudScale) }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
