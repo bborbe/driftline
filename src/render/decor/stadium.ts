@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { centreline } from '../../track/centreline'
 import type { Track } from '../../track/schema'
 import { bakeModel, merged, placement, prepared } from './instance'
+import { flat, structural } from '../tags'
 
 const MODEL_URLS = import.meta.glob('/assets/racing-kit/*.glb', { query: '?url', import: 'default', eager: true }) as Record<string, string>
 
@@ -131,24 +132,43 @@ const screenParts = (props: StadiumProp[]): { body: THREE.BufferGeometry[]; face
   return { body, faces }
 }
 
+/** The banner towers' cloth: single sheets hung in the tower frame, drawn as flat faces (tags.ts `screen-face`). */
+const BANNER_CLOTH = new Set(['red', 'grass']) // material names in bannerTowerRed / bannerTowerGreen.glb
+const isCloth = (m: string, o: THREE.Object3D) =>
+  m.startsWith('bannerTower') && BANNER_CLOTH.has(((o as THREE.Mesh).material as THREE.Material | undefined)?.name ?? '')
+
+/** Remove every mesh under `root` that `keep` rejects. */
+const keepMeshes = (root: THREE.Object3D, keep: (o: THREE.Object3D) => boolean) => {
+  const drop: THREE.Object3D[] = []
+  root.traverse((o) => (o as THREE.Mesh).isMesh && !keep(o) && drop.push(o))
+  for (const o of drop) o.removeFromParent()
+}
+
 export const createStadium = async (track: Track, screen?: string): Promise<THREE.Group> => {
   const loader = new GLTFLoader()
   const props = planStadium(track)
-  const parts = await Promise.all(
+  const baked = await Promise.all(
     STADIUM_MODELS.map(async (m) => {
       const url = MODEL_URLS[`/assets/racing-kit/${m}.glb`]
       if (!url) throw new Error(`no asset for stadium model "${m}"`)
       const root = (await loader.loadAsync(url)).scene
-      return bakeModel(root, props.filter((p) => p.model === m).map((p) => placement(p.x, 0, p.z, p.heading, p.scale)))
+      const at = props.filter((p) => p.model === m).map((p) => placement(p.x, 0, p.z, p.heading, p.scale))
+      // Bake the cloth and the rest of the model separately: same transforms, two meshes.
+      const cloth = root.clone()
+      keepMeshes(cloth, (o) => isCloth(m, o))
+      keepMeshes(root, (o) => !isCloth(m, o))
+      return { body: bakeModel(root, at), cloth: bakeModel(cloth, at) }
     }),
   )
+  const parts = baked.map((b) => b.body)
   const screens = screenParts(props.filter((p) => p.model === 'screen'))
   const group = new THREE.Group()
   group.name = 'stadium'
-  // Two draw calls for the whole arena. Fully rough (still lit by the HDRI, unlike Lambert, which
+  // Three draw calls for the whole arena (body, banner cloth, screen faces). Fully rough (still lit by the HDRI, unlike Lambert, which
   // left every shaded side black), and no shadows: it stands far outside the car's shadow frustum
   // (scene.ts, ±60 m).
-  group.add(merged([...parts.flat(), ...screens.body], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })))
-  group.add(merged(screens.faces, new THREE.MeshBasicMaterial({ map: screenTexture(screen), polygonOffset: true, polygonOffsetFactor: SCREEN_FACE.polygonOffsetFactor, polygonOffsetUnits: SCREEN_FACE.polygonOffsetUnits })))
+  group.add(structural(merged([...parts.flat(), ...screens.body], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })), 'stand'))
+  group.add(flat(merged(baked.flatMap((b) => b.cloth), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })), 'screen-face'))
+  group.add(flat(merged(screens.faces, new THREE.MeshBasicMaterial({ map: screenTexture(screen), polygonOffset: true, polygonOffsetFactor: SCREEN_FACE.polygonOffsetFactor, polygonOffsetUnits: SCREEN_FACE.polygonOffsetUnits })), 'screen-face'))
   return group
 }

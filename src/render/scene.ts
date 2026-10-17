@@ -10,7 +10,8 @@ import { createScenery } from './scenery'
 import { createCurbs } from './track/curbs'
 import { createSigns } from './decor/signs'
 import { createStadium } from './decor/stadium'
-import { resolveTheme, SKY_BRIGHTNESS, skyUrl } from './theme'
+import { flat } from './tags'
+import { resolveTheme, SKY_BRIGHTNESS, skyUrl, type ResolvedTheme } from './theme'
 
 /** The Poly Haven grass is dry and yellow; tint it toward the Kenney verge green (a theme's `ground` overrides it). */
 const GRASS_TINT = 0x7fc25a
@@ -37,7 +38,7 @@ export const createGround = (map?: THREE.Texture, tint: THREE.ColorRepresentatio
   ground.rotation.x = -Math.PI / 2
   ground.renderOrder = -1
   ground.receiveShadow = true
-  return ground
+  return flat(ground, 'terrain')
 }
 
 export type SceneSetup = {
@@ -46,19 +47,29 @@ export type SceneSetup = {
   follow: (x: number, y: number, z: number) => void
 }
 
+/**
+ * The static world around the track: ground, scenery, stadium, curbs and signs. No sky, lights or
+ * textures loaded here, so the geometry lint (geometry-lint.test.ts) builds exactly this, headless.
+ */
+export const createWorld = async (track: Track, theme: ResolvedTheme = resolveTheme(track), grass?: THREE.Texture): Promise<THREE.Group> => {
+  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery), createStadium(track, theme.screen)])
+  const curb = theme.curb === undefined ? undefined : new THREE.Color(theme.curb)
+  const world = new THREE.Group()
+  world.name = 'world'
+  world.add(createGround(grass, theme.ground), scenery, stadium, createCurbs(track, curb), createSigns(track, theme.sign))
+  return world
+}
+
 export const createScene = async (track: Track): Promise<SceneSetup> => {
   const theme = resolveTheme(track)
   const scene = new THREE.Scene()
-  const [sky, grass, scenery, stadium] = await Promise.all([
-    new HDRLoader().loadAsync(skyUrl(theme.sky)),
-    new THREE.TextureLoader().loadAsync(grassUrl),
-    createScenery(track, theme.scenery),
-    createStadium(track, theme.screen),
-  ])
-  sky.mapping = THREE.EquirectangularReflectionMapping
-  scene.background = sky
+  const sky = new HDRLoader().loadAsync(skyUrl(theme.sky))
+  const grass = await new THREE.TextureLoader().loadAsync(grassUrl)
+  const [skyTexture, world] = await Promise.all([sky, createWorld(track, theme, grass)])
+  skyTexture.mapping = THREE.EquirectangularReflectionMapping
+  scene.background = skyTexture
   scene.backgroundIntensity = SKY_BRIGHTNESS[theme.sky] // keeps the brighter HDRIs from clipping white (theme.ts)
-  scene.environment = sky // image-based lighting + road reflections
+  scene.environment = skyTexture // image-based lighting + road reflections
   scene.environmentIntensity = theme.skyLight
   // Fog fades distant ground into the sky's horizon instead of a hard edge.
   scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar)
@@ -72,8 +83,7 @@ export const createScene = async (track: Track): Promise<SceneSetup> => {
   sc.right = sc.top = 60
   sc.near = 1
   sc.far = 200
-  const curb = theme.curb === undefined ? undefined : new THREE.Color(theme.curb)
-  scene.add(sun, sun.target, createGround(grass, theme.ground), scenery, stadium, createCurbs(track, curb), createSigns(track, theme.sign))
+  scene.add(sun, sun.target, world)
 
   const follow = (x: number, y: number, z: number) => {
     sun.position.set(x + 40, y + 80, z + 30)

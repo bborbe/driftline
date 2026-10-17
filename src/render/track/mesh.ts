@@ -1,6 +1,7 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
 import { ASPHALT } from '../look'
+import { flat, structural, type StructuralKind } from '../tags'
 import { barrierPillars, barrierPosts, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
 import { buildApron, buildBody, buildDeck, buildTrack, planBodies, planDeckPillars, planGateFootings, PROFILE, type Band, type SegmentGeometry } from './geometry'
 
@@ -50,7 +51,7 @@ const gateArch = (kind: 'start-finish' | 'checkpoint', pillars: Pillar[]): THREE
   const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6 })
   const arch = new THREE.Group()
   for (const p of pillars) {
-    const pillar = new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, p.height, 2 * p.halfDepth), mat)
+    const pillar = structural(new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, p.height, 2 * p.halfDepth), mat), 'gate-leg')
     pillar.position.set(p.x, p.y + p.height / 2, p.z)
     pillar.rotation.y = p.heading
     arch.add(pillar)
@@ -76,7 +77,7 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
   buildTrack(track).forEach((g, i) => {
     if (segments && !segments.includes(i)) return
     if (track.segments[i].type === 'gap') return // no road to draw
-    const mesh = new THREE.Mesh(toBufferGeometry(g), roadMaterial)
+    const mesh = flat(new THREE.Mesh(toBufferGeometry(g), roadMaterial), 'road')
     mesh.receiveShadow = true
     group.add(mesh)
     const apron = buildApron(ps[i], track.segments[i])
@@ -91,7 +92,7 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
       }
       geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
       geo.computeVertexNormals()
-      const verge = new THREE.Mesh(geo, vergeMaterial)
+      const verge = flat(new THREE.Mesh(geo, vergeMaterial), 'road')
       verge.receiveShadow = true
       group.add(verge)
     }
@@ -115,7 +116,7 @@ export const createBarriers = (track: Track): THREE.Group => {
       [barrierMaterial, 0, p.height - BARRIER_CAP],
       [barrierCapMaterial, p.height - BARRIER_CAP, BARRIER_CAP],
     ] as const) {
-      const box = new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, h, 2 * p.halfDepth), mat)
+      const box = structural(new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, h, 2 * p.halfDepth), mat), 'wall')
       box.position.set(p.x, p.y + y0 + h / 2, p.z)
       box.rotation.y = p.heading
       box.castShadow = true
@@ -124,7 +125,7 @@ export const createBarriers = (track: Track): THREE.Group => {
     }
   }
   for (const p of barrierPosts(track)) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, p.height, 2 * p.halfDepth), barrierCapMaterial)
+    const post = structural(new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, p.height, 2 * p.halfDepth), barrierCapMaterial), 'wall')
     post.position.set(p.x, p.y + p.height / 2, p.z)
     post.rotation.y = p.heading
     post.castShadow = true
@@ -143,7 +144,7 @@ const pillarMaterial = new THREE.MeshStandardMaterial({ color: linear(0.45, 0.46
 /** Deck pillars carry a whole road. */
 const DECK_PILLAR_SIZE = 1.6
 
-const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean): THREE.Mesh => {
+const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kind: StructuralKind): THREE.Mesh => {
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(g.positions, 3))
   geo.setIndex(new THREE.BufferAttribute(g.indices, 1))
@@ -151,7 +152,7 @@ const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean): TH
   for (let v = 0; v < g.positions.length / 3; v++) (foot(v) ? CONCRETE_FOOT : CONCRETE_TOP).toArray(colors, v * 3)
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   geo.computeVertexNormals()
-  const mesh = new THREE.Mesh(geo, supportMaterial)
+  const mesh = structural(new THREE.Mesh(geo, supportMaterial), kind)
   mesh.castShadow = mesh.receiveShadow = true
   return mesh
 }
@@ -171,10 +172,10 @@ export const createRampSupports = (track: Track): THREE.Group => {
     const plan = plans[i]
     if (plan) {
       const body = buildBody(ps[i], seg, plan)
-      if (body.indices.length > 0) group.add(concreteMesh(body, (v) => body.positions[v * 3 + 1] === 0))
+      if (body.indices.length > 0) group.add(concreteMesh(body, (v) => body.positions[v * 3 + 1] === 0, 'ramp-body'))
     }
     const deck = buildDeck(ps[i], seg, plan?.kinds ?? null)
-    if (deck) group.add(concreteMesh(deck, (v) => v % deck.perRow === 1 || v % deck.perRow === 3))
+    if (deck) group.add(concreteMesh(deck, (v) => v % deck.perRow === 1 || v % deck.perRow === 3, 'deck'))
   })
   for (const p of planDeckPillars(track)) {
     pillars.push(
@@ -196,7 +197,7 @@ export const createRampSupports = (track: Track): THREE.Group => {
     )
   }
   if (pillars.length > 0) {
-    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), pillarMaterial, pillars.length)
+    const mesh = structural(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), pillarMaterial, pillars.length), 'pillar')
     pillars.forEach((m, k) => mesh.setMatrixAt(k, m))
     mesh.castShadow = mesh.receiveShadow = true
     group.add(mesh)
