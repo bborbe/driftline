@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createCar, dot, flatSurface, forwardOf, NO_INPUT, step, TICK_HZ, type CarInput, type CarState } from '../../physics'
+import { createCar, createCarAt, dot, forwardOf, NO_INPUT, step, TICK_HZ, trackSurface, type CarInput, type CarState } from '../../physics'
+import { CELL, ROAD_WIDTH } from '../../track/schema'
+import { loadLap } from '../../track/registry'
+import { ROAD_HALF_WIDTH, ROAD_TOP } from '../track/zones'
 import { DECAL_LIFT } from '../track/curbs'
 import { parseFx, pipelinePasses } from './flags'
 import { SkidTrail } from './skid'
@@ -57,15 +60,30 @@ describe('skid marks', () => {
     expect(trail.count).toBeGreaterThan(0)
   })
 
-  it('persist after the drift and sit on the road as decals (road top + 3 mm)', () => {
-    const trail = new SkidTrail(flatSurface(0))
-    const after = run(atSpeed(15), 2 * TICK_HZ, { ...NO_INPUT, steer: 1, handbrake: true }, (s) => trail.update(s))
+  it('persist after the drift and sit on the drawn surface as decals: asphalt top + 3 mm on the road, ground + 3 mm off it', () => {
+    const track = loadLap('test-flat')
+    const surface = trackSurface(track)
+    const trail = new SkidTrail(surface)
+    const go = (s: CarState, ticks: number, input: CarInput) => {
+      for (let t = 0; t < ticks; t++) {
+        s = step(s, input, surface)
+        trail.update(s)
+      }
+      return s
+    }
+    // Down test-flat's 120 m start straight to ~15 m/s, then a handbrake flick that stays on the asphalt.
+    let s = createCarAt(track.start)
+    while (speedOf(s) < 15) s = step(s, { ...NO_INPUT, throttle: 1 }, surface)
+    s = go(s, TICK_HZ / 2, { ...NO_INPUT, steer: 0.5, handbrake: true })
     const laid = trail.marks.map((m) => ({ ...m }))
     expect(laid.length).toBeGreaterThan(0)
-    run(after, 200, NO_INPUT, (s) => trail.update(s)) // rolling on: every mark already laid is still there, unmoved
+    go(s, 200, NO_INPUT) // rolling on: every mark already laid is still there, unmoved
     expect(trail.marks.slice(0, laid.length)).toEqual(laid)
-    for (const m of trail.marks) expect(m.y).toBeCloseTo(DECAL_LIFT, 6)
+    const onRoad = laid.filter((m) => Math.abs(m.x) < ROAD_HALF_WIDTH * (ROAD_WIDTH / CELL))
+    expect(onRoad.length).toBeGreaterThan(0)
+    for (const m of onRoad) expect(m.y).toBeCloseTo(ROAD_TOP + DECAL_LIFT, 6)
   })
+
 })
 
 describe('drift smoke', () => {
