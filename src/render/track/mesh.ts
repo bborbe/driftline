@@ -147,13 +147,15 @@ const CONCRETE_FOOT = linear(0.32, 0.33, 0.36)
 const supportMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
 const pillarMaterial = new THREE.MeshStandardMaterial({ color: linear(0.45, 0.46, 0.5), roughness: 0.85 })
 
-const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kind: StructuralKind): THREE.Mesh => {
-  const geo = new THREE.BufferGeometry()
+// `crisp`: one normal per face, so a bridge deck reads as a box with sharp edges, not a rounded pipe.
+const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kind: StructuralKind, crisp = false): THREE.Mesh => {
+  let geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(g.positions, 3))
   geo.setIndex(new THREE.BufferAttribute(g.indices, 1))
   const colors = new Float32Array(g.positions.length)
   for (let v = 0; v < g.positions.length / 3; v++) (foot(v) ? CONCRETE_FOOT : CONCRETE_TOP).toArray(colors, v * 3)
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  if (crisp) geo = geo.toNonIndexed()
   geo.computeVertexNormals()
   const mesh = structural(new THREE.Mesh(geo, supportMaterial), kind)
   mesh.castShadow = mesh.receiveShadow = true
@@ -183,7 +185,7 @@ export const createRampSupports = (track: Track): THREE.Group => {
     if (deck) {
       // A bridge deck (DECK_SECTION) or a loop's shell (left top, left foot, right top, right foot).
       const feet = seg.type === 'loop' ? [1, 3] : DECK_FOOT_COLUMNS
-      group.add(concreteMesh(deck, (v) => feet.includes(v % deck.perRow), 'deck'))
+      group.add(concreteMesh(deck, (v) => feet.includes(v % deck.perRow), 'deck', seg.type !== 'loop'))
     }
   })
   for (const p of planDeckPillars(track)) {
