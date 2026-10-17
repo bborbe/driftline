@@ -1,12 +1,32 @@
 // Camera wiring for main.ts: view keys 1/2/3, the free-fly camera (C, ?cam=fly), track orbit (O) and mouse look.
-// The math lives in chase.ts, fly.ts and views.ts; this module owns the mode state and drives the three.js camera.
+// The math lives in chase.ts, feel.ts, fly.ts and views.ts; this module owns the mode state and drives the three.js camera.
 import type { PerspectiveCamera } from 'three'
 import { forwardOf, type CarState } from '../physics'
-import { add, rotate, v3, type Vec3 } from '../physics/vec'
+import { add, cross, normalize, rotate, scale, v3, type Vec3 } from '../physics/vec'
 import type { Pose, Track } from '../track/schema'
 import { loopTubes } from '../track/pose'
 import { cockpitPose, COCKPIT_FOV, createChase, FAR_RIG, CLOSE_RIG, updateChase } from './chase'
 import { CAMERA_EVENT, loadView, saveView, viewForKey, type ViewMode } from './views'
+import {
+  CAMERA_FX_EVENT,
+  damp,
+  finishOrbitPosition,
+  fovFor,
+  FOV_REST,
+  fxScale,
+  impactOf,
+  leanFor,
+  loadCameraFx,
+  lookAheadFor,
+  NO_SHAKE,
+  shakeOffset,
+  signedSlipDeg,
+  sweepPosition,
+  sweepProgress,
+  updateShake,
+  type CameraFx,
+  type Shake,
+} from './feel'
 import {
   createFly,
   flyInputFrom,
@@ -52,6 +72,8 @@ export interface CameraOptions {
   pose: Pose | null
   search: string
   store: Storage
+  /** Race phase and countdown (seconds left of `countdownTotal`), for the start sweep and the finish orbit. */
+  race?: () => { phase: 'ready' | 'countdown' | 'racing' | 'finished'; countdownLeft: number; countdownTotal: number }
 }
 
 export interface CameraController {
@@ -79,6 +101,17 @@ export function createCameraController(o: CameraOptions): CameraController {
     chase = resetChase()
   }
   window.addEventListener(CAMERA_EVENT, (e) => setView((e as CustomEvent<ViewMode>).detail))
+
+  // Camera feel (feel.ts), scaled by Settings → Graphics → Camera effects: speed FOV, drift lean, look-ahead,
+  // impact shake, the start sweep over the countdown and the finish orbit.
+  let fxK = fxScale(loadCameraFx(o.store))
+  window.addEventListener(CAMERA_FX_EVENT, (e) => (fxK = fxScale((e as CustomEvent<CameraFx>).detail)))
+  let roll = 0 // degrees
+  let lookSide = 0 // metres toward the car's left
+  let shake: Shake = NO_SHAKE
+  let clock = 0
+  let prev: { velocity: Vec3; position: Vec3 } | null = null
+  let finish: { from: Vec3; t: number } | null = null
 
   // Free-fly camera (C, or ?cam=fly): C again (or 1/2/3) returns to the chase/in-car view. O orbits the whole track.
   let fly: FlyCam | null = null
@@ -185,14 +218,44 @@ export function createCameraController(o: CameraOptions): CameraController {
         const p = fly.position
         const d = lookDir(fly.yaw, fly.pitch)
         place(p, UP, FLY_FOV, v3(p.x + d.x, p.y + d.y, p.z + d.z))
+        prev = null
       } else if (viewMode === 'cockpit') {
+        prev = null
         const c = cockpitPose(s.position, s.orientation)
         place(c.eye, c.up, COCKPIT_FOV, c.look)
       } else {
+        const fwd = forwardOf(s)
         const carUp = inLoop(s.position) ? rotate(s.orientation, UP) : undefined
-        chase = updateChase(chase, s.position, forwardOf(s), Math.abs(speed), elapsed, rigFor(), carUp)
+        chase = updateChase(chase, s.position, fwd, Math.abs(speed), elapsed, rigFor(), carUp)
+        const dt = Math.min(elapsed, 0.1)
+        clock += dt
+        const k = fxK
+        roll = damp(roll, carUp ? 0 : leanFor(signedSlipDeg(fwd, s.velocity), k), 4, dt)
+        lookSide = damp(lookSide, carUp ? 0 : lookAheadFor(s.angularVelocity.y, speed, k), 3, dt)
+        const impact = prev && dt > 0 ? impactOf(prev.velocity, s.velocity, prev.position, s.position, dt) : 0
+        shake = updateShake(shake, impact, k, dt)
+        prev = { velocity: s.velocity, position: s.position }
+
+        const r = o.race?.()
+        let eye = chase.position
+        let fov = carUp ? chase.fov : fovFor(speed, k)
+        if (r?.phase === 'countdown' && k > 0) {
+          eye = sweepPosition(sweepProgress(r.countdownLeft, r.countdownTotal), s.position, fwd, chase.position)
+          fov = FOV_REST
+        }
+        if (r?.phase === 'finished' && k > 0) {
+          finish = finish ? { ...finish, t: finish.t + dt } : { from: chase.position, t: 0 }
+          eye = finishOrbitPosition(finish.t, s.position, finish.from)
+          fov = FOV_REST
+        } else finish = null
+        eye = add(eye, shakeOffset(shake, clock))
+
         const u = chase.up
-        place(chase.position, u, chase.fov, v3(s.position.x + 0.8 * u.x, s.position.y + 0.8 * u.y, s.position.z + 0.8 * u.z))
+        const left = normalize(cross(UP, v3(fwd.x, 0, fwd.z)))
+        const lean = (roll * Math.PI) / 180
+        const up = carUp ? u : normalize(add(scale(UP, Math.cos(lean)), scale(left, Math.sin(lean))))
+        const at = add(v3(s.position.x + 0.8 * u.x, s.position.y + 0.8 * u.y, s.position.z + 0.8 * u.z), finish ? v3() : scale(left, lookSide))
+        place(eye, up, fov, at)
       }
     },
   }
