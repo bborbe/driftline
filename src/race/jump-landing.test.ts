@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { dot, FixedStepper, length, NO_INPUT, TICK_HZ, trackSurface, v3, wheelContacts, type Surface, type Vec3 } from '../physics'
 import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
-import { autopilot, centreline, loadTrack, type Sample } from './autopilot.test-driver'
+import { autopilot, centreline, hasLoop, loadTrack, type Sample } from './autopilot.test-driver'
 import type { Track } from '../track/schema'
 
 const MAX_OFF_DEG = 15
@@ -26,7 +26,7 @@ function longestJump(track: Track, samples: Sample[]): Landing {
   const loop = new LapLoop(track, () => true)
   const surface = trackSurface(track)
   const sim = new FixedStepper(loop.spawn(), surface)
-  const drive = autopilot(samples)
+  const drive = autopilot(samples, 0, hasLoop(track))
   let respawns = 0
   loop.on({ respawn: () => respawns++ })
   loop.start(sim.state.tick)
@@ -76,6 +76,9 @@ const crossGap = firstOf(crossover, 'gap')
 const leap = loadTrack('leap')
 const leapGap = firstOf(leap, 'gap')
 const towerDrop = firstOf(tower, 'drop')
+// showcase jumps the same gap-jump off its 8 m deck, after the crossing over the start straight.
+const showcase = loadTrack('showcase')
+const showcaseGap = firstOf(showcase, 'gap')
 
 const CASES = [
   { name: 'test-ramp at autopilot pace', track: ramp, samples: centreline(ramp), minAir: 0.3, minSpeed: 12 },
@@ -86,6 +89,8 @@ const CASES = [
   { name: 'tower drop flat out', track: tower, samples: flatOut(tower, towerDrop - 1, towerDrop), minAir: 0.8, minSpeed: 35 },
   { name: 'leap gap-jump at autopilot pace', track: leap, samples: centreline(leap), minAir: 0.5, minSpeed: 14 },
   { name: 'leap gap-jump flat out off the deck', track: leap, samples: flatOut(leap, leapGap - 3, leapGap + 1), minAir: 1, minSpeed: 30 },
+  { name: 'showcase gap-jump at autopilot pace', track: showcase, samples: centreline(showcase), minAir: 0.5, minSpeed: 14 },
+  { name: 'showcase gap-jump flat out off the deck', track: showcase, samples: flatOut(showcase, showcaseGap - 3, showcaseGap + 1), minAir: 1, minSpeed: 30 },
 ]
 
 describe.each(CASES)('jump landing: $name', ({ track, samples, minAir, minSpeed }) => {
