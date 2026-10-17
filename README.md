@@ -78,8 +78,8 @@ Debug
 
 - [test1](https://bborbe.github.io/driftline/?track=test1) - the original first lap
 - [test2](https://bborbe.github.io/driftline/?track=test2) - the original second lap
-- [test-flat](https://bborbe.github.io/driftline/?track=test-flat) - grip, acceleration, top speed, hairpins
-- [test-ramp](https://bborbe.github.io/driftline/?track=test-ramp) - ramp jump and landing
+- [test-flat](https://bborbe.github.io/driftline/?track=test-flat) - grip, acceleration, top speed, hairpins; turbo pad into a ~140 km/h S-bend
+- [test-ramp](https://bborbe.github.io/driftline/?track=test-ramp) - ramp jump and landing, 120 m run-up to ~135 km/h
 - [test-bank](https://bborbe.github.io/driftline/?track=test-bank) - banked 180° turns
 - [test-surfaces](https://bborbe.github.io/driftline/?track=test-surfaces) - asphalt, dirt, ice and grass
 - [test-turbo](https://bborbe.github.io/driftline/?track=test-turbo) - yellow and red turbo pads

@@ -60,4 +60,5 @@ The why for each rule is in the PR it cites and in the operator's *3D Browser Ga
 
 Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). No releases or tags.
 
+- **Single-feature tracks stay short (≤ 20 s autopilot lap)** except where the mechanic needs top speed: test-ramp and test-flat carry a full-throttle run-up, pinned by `src/race/run-up.test.ts` (ramp entry 130–147 km/h; S-bend ≥ 130 km/h).
 - **Visual changes are verified with the debug spawn** (docs/development.md § Debug screenshots): before reporting, shoot the change from the chase cam and from off-track (side, below) on test1, test2 and the single-feature test track for the mechanic you touched (`test-ramp`, `test-bank`, `test-surfaces`, … — docs/tracks.md; `?x&y&z&yaw&freeze=1`, `&cam=top`, `make shots`) and judge shape and material, not only seams. A fix for a reported visual bug also gets a shot of the reporter's exact pose on the live site once its `<meta name="commit">` shows the merge.

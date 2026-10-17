@@ -9,12 +9,12 @@
   "segments": [
     {
       "type": "straight",
-      "length": 20
+      "length": 120
     },
     {
       "type": "ramp",
-      "length": 15,
-      "rise": 3.6
+      "length": 25,
+      "rise": 4.2
     },
     {
       "type": "ramp",
@@ -23,8 +23,8 @@
     },
     {
       "type": "drop",
-      "length": 36,
-      "fall": 4.4
+      "length": 55,
+      "fall": 5.0
     },
     {
       "type": "hairpin",
@@ -33,7 +33,7 @@
     },
     {
       "type": "straight",
-      "length": 81
+      "length": 210
     },
     {
       "type": "hairpin",
