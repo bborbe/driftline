@@ -7,6 +7,7 @@ import { createBarriers, createRampSupports, createTrackMesh, ROAD_ROUGHNESS } f
 import { ASPHALT } from '../look'
 import { applyAsphalt } from './asphalt'
 import { planGateLegs, planPieces, type GateLeg } from './kenney-plan'
+import { createPad } from './pad'
 import { createZoneMeshes } from './zones'
 import { flat, structural, type FlatReason } from '../tags'
 
@@ -94,6 +95,12 @@ export const createGateLegs = (legs: GateLeg[], checkpoint: THREE.Object3D): THR
 }
 
 export const createPieceTrack = async (track: Track): Promise<THREE.Group> => {
+  // A free-drive pad is its slab, guides and walls: its lane is painted, not a road piece.
+  if (track.pad) {
+    const group = new THREE.Group()
+    group.add(createPad(track), createBarriers(track))
+    return group
+  }
   const plan = planPieces(track)
   const loader = new GLTFLoader()
   const names = [...new Set(plan.placements.map((p) => p.piece))]

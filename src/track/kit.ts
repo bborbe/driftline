@@ -105,10 +105,19 @@ export const KIT_PIECES: readonly PieceDef[] = [
   curve('curve-r2', 2),
   curve('curve-r3', 3),
   // The three standard corner radii (CORNER_RADII): tight brakes, medium is the 90 km/h drift
-  // corner, wide is flat out. corner-tight shares curve-r2's geometry under its style name.
+  // corner, wide is flat out. corner-tight shares curve-r2's geometry under its style name. The wide
+  // 90° is two 45° halves (one arc, the same geometry): a 235 m arc in one segment is too coarse for
+  // the test autopilot's 20 samples per segment, whose line then cuts into the inner edge rail.
   curve('corner-tight', CORNER_RADII.tight / CELL),
   curve('corner-medium', CORNER_RADII.medium / CELL),
-  curve('corner-wide', CORNER_RADII.wide / CELL),
+  {
+    ...curve('corner-wide', CORNER_RADII.wide / CELL),
+    expand: (turn) =>
+      plain([
+        { type: 'curve', turn, radius: CORNER_RADII.wide, angle: 45 },
+        { type: 'curve', turn, radius: CORNER_RADII.wide, angle: 45 },
+      ]),
+  },
   { id: 'hairpin', family: 'curve', surfaces: ANY, turns: true, out: road(0, 2, 0, 2), expand: (turn) => plain([{ type: 'hairpin', turn, radius: CELL }]) },
   { id: 'slope-up', family: 'slope', surfaces: ANY, turns: false, out: road(2, 0, 1, 0), expand: () => plain([{ type: 'ramp', length: 2 * CELL, rise: LEVEL }]) },
   { id: 'slope-down', family: 'slope', surfaces: ANY, turns: false, out: road(2, 0, -1, 0), expand: () => plain([{ type: 'drop', length: 2 * CELL, fall: LEVEL }]) },

@@ -63,7 +63,9 @@ describe('track piece kit', () => {
     for (const size of CORNER_SIZES) {
       const def = KIT_PIECES.find((p) => p.id === `corner-${size}`)!
       const r = CORNER_RADII[size]
-      expect(def.expand('left').segments, size).toEqual([{ type: 'curve', turn: 'left', radius: r, angle: 90 }])
+      const arcs = def.expand('left').segments
+      expect(arcs.every((seg) => seg.type === 'curve' && seg.turn === 'left' && seg.radius === r), size).toBe(true)
+      expect(arcs.reduce((sum, seg) => sum + (seg.type === 'curve' ? seg.angle : 0), 0), size).toBe(90)
       expectPose(geometricExit(origin, def, 'left'), { x: r, y: 0, z: r, heading: Math.PI / 2 })
       expectPose(geometricExit(origin, def, 'right'), { x: -r, y: 0, z: r, heading: -Math.PI / 2 })
       expect(onGrid(connectorPose(origin, outConnector(def, 'right')))).toBe(true)

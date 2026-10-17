@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { FixedStepper, materialUnder, NO_INPUT, TICK_HZ, trackSurface } from '../physics'
 import { advanceRace, COUNTDOWN_TICKS, LapLoop } from './lap'
 import { autopilot, centreline, hasLoop, HUMAN_PACE, loadTrack as load, surfaceLine, type Sample } from './autopilot.test-driver'
-import { STYLES, TEST_TRACKS } from '../track/catalogue'
+import { FREE_DRIVE, STYLES, TEST_TRACKS } from '../track/catalogue'
 import type { Track } from '../track/schema'
 
 // A whole simulated lap (a 3-lap run on the longest tracks) takes ~5 s on a CI runner, past vitest's
@@ -24,7 +24,7 @@ const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => 
   { track: load('test1'), minMs: 10_000, maxMs: 90_000 },
   { track: load('test2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
   // Single-feature test tracks: one mechanic each, a lap in at most 20 s even at autopilot pace.
-  ...TEST_TRACKS.filter((n) => n.startsWith('test-') && !(n in RUN_UP)).map((n) => ({ track: load(n), minMs: 5_000, maxMs: 20_000 })),
+  ...TEST_TRACKS.filter((n) => n.startsWith('test-') && !(n in RUN_UP) && !FREE_DRIVE.includes(n)).map((n) => ({ track: load(n), minMs: 5_000, maxMs: 20_000 })),
   // The two whose mechanic needs top speed: a full-throttle run-up from the grid (~130-140 km/h)
   // makes the lap longer than 20 s, and the return leg has to match it.
   ...Object.entries(RUN_UP).map(([n, [minMs, maxMs]]) => ({ track: load(n), minMs, maxMs })),

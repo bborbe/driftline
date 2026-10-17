@@ -45,7 +45,8 @@ function gripLimit(radius: number): number {
     ],
     gates: [],
   }
-  const surface = trackSurface(track)
+  // No edge rails: the measurement is where grip lets go, so the car must be free to leave the road.
+  const surface = trackSurface(track, { rails: false })
   const [, entry, exit] = poses(track)
   let lo = 6
   let hi = 41
@@ -84,7 +85,8 @@ describe('standard corner radii', () => {
 describe('test-flat medium corner at 90 km/h', () => {
   const ENTRY = 25.5 // m/s, 92 km/h: inside the 25–26 window
   const track = loadTrack('test-flat')
-  const surface = trackSurface(track)
+  // No edge rails: both runs ask whether the car's own line stays on the road (AGENTS.md, rails).
+  const surface = trackSurface(track, { rails: false })
   const p = poses(track)
   const corner = track.segments.findIndex((s) => s.type === 'curve' && s.radius === CORNER_RADII.medium)
   const line = centreline(track).map((x) => x.pose)
