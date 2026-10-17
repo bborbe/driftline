@@ -10,7 +10,8 @@ import { centreline } from '../track/centreline'
 import { layoutId } from '../track/schema'
 import { loadLap } from '../track/registry'
 import { isSelectKey, moveGrid, type GridPos } from './nav'
-import { settingsPanel } from './settings-panel'
+import { labelTrackDefault, settingsPanel } from './settings-panel'
+import { trackEnvironment } from '../track/environment'
 import { outlinePath } from './thumbnail'
 
 const THUMB = 176
@@ -65,7 +66,10 @@ export function chooseTrack(names: string[], opts: ChooseOptions = {}): Promise<
     const focus = (p: GridPos) => {
       pos = p
       buttons.forEach((row, r) => row.forEach((b, c) => b.classList.toggle('menu-focus', r === p.row && c === p.col)))
-      opts.onFocus?.(buttons[p.row][p.col].dataset.track ?? null)
+      const name = buttons[p.row][p.col].dataset.track ?? null
+      // The Settings button keeps the last card's track default.
+      if (name) labelTrackDefault(settings, trackEnvironment(loadLap(name)))
+      opts.onFocus?.(name)
     }
     buttons.forEach((row, r) =>
       row.forEach((b, c) => {

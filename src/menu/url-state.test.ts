@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { v3 } from '../physics/vec'
 import { DEFAULT_SETTINGS, type Settings } from './settings'
-import { settingsFromUrl, stateQuery, viewFromUrl, type UrlState } from './url-state'
+import { screenQuery, settingsFromUrl, stateQuery, viewFromUrl, type UrlState } from './url-state'
 
 const custom: Settings = {
   volume: 0.25,
@@ -72,5 +72,32 @@ describe('url state', () => {
     const back = new URLSearchParams(stateQuery(`?${menu}`, race(custom)))
     expect([back.get('track'), back.has('sel')]).toEqual(['glacier', false])
     expect(new URLSearchParams(stateQuery('?sel=a', race(custom, { screen: { sel: null } }))).has('sel')).toBe(false)
+  })
+  it('leaves a seed link to name its own environment', () => {
+    const q = new URLSearchParams(stateQuery('?track=test1&seed=12', race(custom)))
+    expect([q.get('seed'), q.has('time'), q.has('weather')]).toEqual(['12', false, false])
+  })
+  it('mirrors orbit while flying', () => {
+    const fly = { position: v3(), velocity: v3(), yaw: 0, pitch: 0 }
+    expect(new URLSearchParams(stateQuery('', race(custom, { fly, orbiting: true }))).get('orbit')).toBe('1')
+    expect(new URLSearchParams(stateQuery('?orbit=1&cam=fly', race(custom, { fly, orbiting: false }))).has('orbit')).toBe(false)
+  })
+  it('leaving fly puts back the car spawn or top camera the page booted with', () => {
+    const fly = { position: v3(1, 2, 3), velocity: v3(), yaw: 0, pitch: 0 }
+    const spawn = '?track=test1&x=1&y=2&z=3&yaw=90&freeze=1'
+    const flying = stateQuery(spawn, race(custom, { fly, boot: spawn }))
+    const back = new URLSearchParams(stateQuery(flying, race(custom, { boot: spawn })))
+    expect(['x', 'y', 'z', 'yaw', 'freeze', 'cam', 'pitch'].map((k) => back.get(k))).toEqual(['1', '2', '3', '90', '1', null, null])
+    const top = '?track=test1&cam=top'
+    const fromTop = new URLSearchParams(stateQuery(stateQuery(top, race(custom, { fly, boot: top })), race(custom, { boot: top })))
+    expect([fromTop.get('cam'), fromTop.has('x')]).toEqual(['top', false])
+  })
+  it('Back to menu and Next track keep the settings and drop every spawn and camera link', () => {
+    const search = '?track=glacier&x=1&y=2&z=3&yaw=0&pitch=0&cam=fly&freeze=1&orbit=1&debug=0'
+    const menu = new URLSearchParams(screenQuery(search, race(custom), { sel: 'glacier' }))
+    expect(settingsFromUrl(`?${menu}`, DEFAULT_SETTINGS)).toEqual(custom)
+    expect([menu.get('sel'), menu.has('track'), menu.get('debug')]).toEqual(['glacier', false, '0'])
+    for (const k of ['x', 'y', 'z', 'yaw', 'pitch', 'cam', 'freeze', 'orbit']) expect(menu.has(k)).toBe(false)
+    expect(new URLSearchParams(screenQuery(search, race(custom), { track: 'dustbowl' })).get('track')).toBe('dustbowl')
   })
 })

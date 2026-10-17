@@ -18,9 +18,15 @@ export interface UrlState {
   screen: Screen
   /** The free-fly camera while flying, null when not, undefined before the camera exists (fly params kept as they are). */
   fly: FlyCam | null | undefined
+  /** Track orbit on (O) while flying. */
+  orbiting?: boolean
+  /** The page's boot query: leaving fly mode puts back the car spawn or `cam=top` it carried, if not a fly link. */
+  boot?: string
 }
 
 const FLY_KEYS = ['x', 'y', 'z', 'yaw', 'pitch', 'cam'] as const
+/** Every key a debug spawn or camera link sets. */
+const POSE_KEYS = [...FLY_KEYS, 'freeze', 'orbit'] as const
 
 /** `v` when it is one of `ok`, else `fallback`. */
 const oneOf = <T>(v: string | null, ok: readonly T[], fallback: T): T => ((ok as readonly unknown[]).includes(v) ? (v as T) : fallback)
@@ -60,8 +66,11 @@ export function stateQuery(search: string, state: UrlState): string {
     else q.set('sel', state.screen.sel)
   }
   const s = state.settings
-  q.set('time', s.time)
-  q.set('weather', s.weather)
+  // A `?seed=` link names the environment itself; a written time/weather would override it on the next load.
+  if (!q.has('seed')) {
+    q.set('time', s.time)
+    q.set('weather', s.weather)
+  }
   q.set('laps', String(s.laps))
   q.set('fx', s.fx.join(','))
   q.set('vol', String(s.volume))
@@ -72,12 +81,28 @@ export function stateQuery(search: string, state: UrlState): string {
   if (state.fly && 'track' in state.screen) {
     const pose = new URLSearchParams(flyQuery(state.screen.track, state.fly))
     for (const k of FLY_KEYS) q.set(k, pose.get(k)!)
+    if (state.orbiting) q.set('orbit', '1')
+    else q.delete('orbit')
   } else if (state.fly === null && q.get('cam') === 'fly') {
-    // Leaving fly mode drops the fly link with it, freeze and orbit included, so a reload races from the grid.
-    for (const k of [...FLY_KEYS, 'freeze', 'orbit']) q.delete(k)
+    // Leaving fly mode drops the fly link, freeze and orbit included, so a reload races from the grid; a car spawn
+    // or `cam=top` the page booted with comes back.
+    const boot = new URLSearchParams(state.boot ?? '')
+    const keep = boot.get('cam') === 'fly' ? new URLSearchParams() : boot
+    for (const k of POSE_KEYS) {
+      const v = keep.get(k)
+      if (v === null) q.delete(k)
+      else q.set(k, v)
+    }
   }
   const out = q.toString()
   return out ? `?${out}` : ''
+}
+
+/** The query that opens `screen` with this state: no spawn, fly or camera link (Back to menu, Next track). */
+export const screenQuery = (search: string, state: UrlState, screen: Screen): string => {
+  const q = new URLSearchParams(search)
+  for (const k of POSE_KEYS) q.delete(k)
+  return stateQuery(q.toString(), { ...state, screen, fly: null, boot: '' })
 }
 
 /** Keep the address bar on `state()` at 4 Hz and on pagehide, through history.replaceState (no new history entries). */

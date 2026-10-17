@@ -19,10 +19,10 @@ import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
 import { effectiveFxQuery, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './menu/settings'
 import { settingsChange } from './menu/live'
-import { settingsFromUrl, startUrlSync, viewFromUrl, type Screen } from './menu/url-state'
+import { screenQuery, settingsFromUrl, startUrlSync, viewFromUrl, type Screen, type UrlState } from './menu/url-state'
 import { clampLivery, ghostLivery } from './render/car/livery'
 import { settingsPanel } from './menu/settings-panel'
-import { environmentLabel, resolveEnvironment } from './track/environment'
+import { environmentLabel, resolveEnvironment, trackEnvironment } from './track/environment'
 import { devMode, RunTaint } from './debug/tuning'
 import { mountTuningPanel } from './debug/tuning-panel'
 import { isTuned } from './physics/handling'
@@ -42,8 +42,11 @@ const fromMenu = !skipMenu(location.search)
 const sel = new URLSearchParams(location.search).get('sel')
 let screen: Screen = fromMenu ? { sel } : { track: lapName(location.search) }
 let flying = (): FlyCam | null | undefined => undefined
+let orbiting = () => false
 let viewNow = (): ViewMode => shownView
-startUrlSync(() => ({ settings: shown, view: viewNow(), screen, fly: flying() }))
+const boot = location.search
+const urlState = (): UrlState => ({ settings: shown, view: viewNow(), screen, fly: flying(), orbiting: orbiting(), boot })
+startUrlSync(urlState)
 const trackName = fromMenu ? await chooseTrack(LAP_NAMES, { focus: sel, onFocus: (track) => (screen = { sel: track }) }) : lapName(location.search)
 screen = { track: trackName }
 const settings = loadSettings(localStorage)
@@ -125,9 +128,9 @@ const race = initRace(sim, track, {
   ],
   onPause: (paused) => void audio.setPaused(paused),
   menu: {
-    backToMenu: () => location.assign(`${location.pathname}?sel=${trackName}`),
-    nextTrack: () => location.assign(`${location.pathname}?track=${nextLap(track.name)}`),
-    settings: () => settingsPanel({ onVolume: (v) => audio.setVolume(v) }),
+    backToMenu: () => location.assign(`${location.pathname}${screenQuery(location.search, urlState(), { sel: trackName })}`),
+    nextTrack: () => location.assign(`${location.pathname}${screenQuery(location.search, urlState(), { track: nextLap(track.name) })}`),
+    settings: () => settingsPanel({ onVolume: (v) => audio.setVolume(v), trackDefault: trackEnvironment(track) }),
   },
   laps,
   recordsLocked: () => taint.locked,
@@ -186,6 +189,7 @@ const cam = createCameraController({
   store: localStorage,
 })
 flying = () => cam.fly
+orbiting = () => cam.orbiting
 viewNow = () => cam.viewMode
 // The one keydown dispatch for the shell; race keys are handled inside src/race.
 window.addEventListener('keydown', (e) => {
