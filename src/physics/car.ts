@@ -68,7 +68,7 @@ const ENGINE_FORCE = 9000 // N, rear-wheel drive total
 const BRAKE_FORCE = 16000 // N, all wheels total
 const REVERSE_FORCE = 6000 // N, rear-wheel drive total
 const STOPPED = 0.5 // m/s — below this, brake input becomes reverse and throttle drives forward
-const HANDBRAKE_FORCE = 1500 // N, rear wheels total
+const HANDBRAKE_FORCE = 3000 // N, rear wheels total
 const MAX_STEER = 0.5 // rad
 const STEER_RATE = 4 // rad/s
 const DRAG = 0.45
@@ -86,7 +86,9 @@ const YAW_ASSIST_MIN_SPEED = 5 // m/s
 // Speed drift, Trackmania-style: at 90 km/h a handbrake tap with steer puts the car into a short
 // slide it keeps its speed through, and a longer press never spins it. Road grip only (ice, dirt
 // and grass keep their own slide), forward travel only, off on a loop. Grip cornering slips 3-7°,
-// below every gate here, so row 1 asphalt grip is untouched.
+// below every gate here, so row 1 asphalt grip is untouched. Only the entry kick needs the handbrake:
+// the spin guard and the carry act on any road slide past their angle (a wall glance, a yawed
+// landing), so those straighten out instead of spinning.
 // Entry: on the handbrake, a yaw torque (1/s² per unit steer) rotates the car in until the body
 // slips DRIFT_KICK_SLIP_HI degrees, so a 0.25 s tap already slides (the steer alone takes ~0.1 s to build).
 const DRIFT_KICK = 6
@@ -412,8 +414,8 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   // the latter from this tick's horizontal force across the velocity. Off on a loop, where a torque
   // about world y would roll the car off the road instead of damping its yaw.
   const v2 = flatVel.x * flatVel.x + flatVel.z * flatVel.z
+  const fwdFlat = Math.hypot(fwdBody.x, fwdBody.z)
   if (grounded && !onLoop && !input.handbrake && v2 > YAW_ASSIST_MIN_SPEED ** 2) {
-    const fwdFlat = Math.hypot(fwdBody.x, fwdBody.z)
     const cosSlip = fwdFlat > 1e-6 ? (fwdBody.x * flatVel.x + fwdBody.z * flatVel.z) / (fwdFlat * Math.sqrt(v2)) : 1
     const slipDeg = (Math.acos(clamp(cosSlip, -1, 1)) * 180) / Math.PI
     const gate = clamp((YAW_ASSIST_SLIP_HI - slipDeg) / (YAW_ASSIST_SLIP_HI - YAW_ASSIST_SLIP_LO), 0, 1)
@@ -425,7 +427,6 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
 
   // Speed drift (see DRIFT_KICK). beta = signed body slip, nose angle minus travel angle (+ = nose
   // turned toward +x); the path's turn rate is the yaw assist's, from this tick's force.
-  const fwdFlat = Math.hypot(fwdBody.x, fwdBody.z)
   const drift = contacts > 0 ? clamp((gripSum / contacts - DRIFT_GRIP_LO) / (DRIFT_GRIP_HI - DRIFT_GRIP_LO), 0, 1) : 0
   if (grounded && !onLoop && drift > 0 && speed > STOPPED && v2 > YAW_ASSIST_MIN_SPEED ** 2 && fwdFlat > 1e-6) {
     const vFlat = Math.sqrt(v2)
@@ -441,7 +442,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     }
     const carry = clamp((betaDeg - DRIFT_CARRY_SLIP_LO) / (DRIFT_CARRY_SLIP_HI - DRIFT_CARRY_SLIP_LO), 0, 1)
     if (carry > 0) {
-      // Across the travel toward the nose: (vz, 0, -vx) turns the velocity toward +beta.
+      // Across the travel, toward the nose: (vz, 0, -vx) raises the travel angle, so pushing along it by sign(beta) shrinks |beta|.
       const push = Math.sign(beta) * carry * drift * Math.min(DRIFT_CARRY * Math.abs(beta) * MASS * vFlat, DRIFT_CARRY_MAX_G * GRAVITY * MASS)
       force = add(force, v3((flatVel.z / vFlat) * push, 0, (-flatVel.x / vFlat) * push))
     }
