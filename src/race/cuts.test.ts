@@ -7,8 +7,11 @@ import { FixedStepper, forwardOf, MATERIALS, materialUnder, NO_INPUT, step, TICK
 import { exitPose, gateLine, poses, type Pose, type Segment, type Track } from '../track/schema'
 import { advanceRace, COUNTDOWN_TICKS, crosses, LapLoop } from './lap'
 import { autopilot, loadTrack, racingLine, type Sample } from './autopilot.test-driver'
+import { STYLES } from '../track/catalogue'
 
 const CORNER = new Set(['curve', 'hairpin', 'banked'])
+// Style tracks S01-S05 (src/track/catalogue.ts STYLES).
+const STYLE_TRACKS = STYLES.map((l) => l.track)
 // Each case drives up to ~15 full-physics runs over a leg; well past vitest's 5 s default under load.
 const CUT_TIMEOUT = 30_000
 const LOOKAHEAD = 0.5 // s
@@ -24,7 +27,7 @@ function roadRun(track: Track): CarState[] {
   const loop = new LapLoop(track, () => true)
   const surface = trackSurface(track)
   const sim = new FixedStepper(loop.spawn(), surface)
-  const drive = autopilot(racingLine(track), LOOKAHEAD)
+  const drive = autopilot(racingLine(track, STYLE_TRACKS.includes(track.name)), LOOKAHEAD)
   let respawns = 0
   loop.on({ respawn: () => respawns++ })
   loop.start(sim.state.tick)
@@ -34,10 +37,10 @@ function roadRun(track: Track): CarState[] {
     advanceRace(loop, sim, 1 / TICK_HZ, drive(sim.state))
     states.push(sim.state)
   }
-  expect(loop.phase).toBe('finished')
+  expect(loop.phase, `${track.name}: the road line finishes`).toBe('finished')
   expect(respawns).toBe(0)
   const offroad = states.filter((st) => materialUnder(st, surface) === 'offroad').length
-  expect(offroad, 'the road line stays on the asphalt').toBeLessThan(0.02 * states.length)
+  expect(offroad, `${track.name}: the road line stays on the asphalt`).toBeLessThan(0.02 * states.length)
   return states
 }
 
@@ -95,10 +98,11 @@ function legs(track: Track): { name: string; from: Pose; to: Pose }[] {
   return out
 }
 
-describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap'])('%s grass cuts', (name) => {
+describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', ...STYLE_TRACKS])('%s grass cuts', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
+  let grassLegs = 0 // legs whose search had at least one run really reach the grass
 
   it.each(legs(track))('$name: no straight cut across the grass beats the road line', ({ from, to }) => {
     const a = from === track.start ? 0 : crossingTick(road, from, 0)
@@ -114,8 +118,15 @@ describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap']
     const onGrass = (r: Run) => r.grass >= GRASS_SHARE * r.ticks
     const roadBest = Math.min(b - a, ...runs.filter((r) => !onGrass(r)).map((r) => r.ticks))
     const cutBest = Math.min(...runs.filter(onGrass).map((r) => r.ticks))
+    if (runs.some(onGrass)) grassLegs++
     expect(cutBest, `best grass cut ${cutBest} ticks vs road ${roadBest}`).toBeGreaterThan(roadBest)
   }, CUT_TIMEOUT)
+  // Math.min over no grass runs is Infinity, which passes every leg: the search as a whole must
+  // reach the grass, unless walls line every corner so no run can (a walled channel, e.g. glacier).
+  it('the search really reaches the grass, or walls line every corner', () => {
+    const walled = track.segments.every((seg, k) => !CORNER.has(seg.type) || (track.barriers ?? []).some((b) => 'segment' in b && b.segment === k && 'turn' in seg && b.side === seg.turn))
+    expect(grassLegs > 0 || walled, `${name}: ${grassLegs} of ${legs(track).length} legs reached the grass`).toBe(true)
+  })
 })
 
 // A skilled grass line through one corner piece: brake on the road, then a tighter arc across the
@@ -159,7 +170,7 @@ function follow(start: CarState, samples: Sample[], target: Pose, surface: Surfa
   return { ticks: Infinity, grass }
 }
 
-describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap'])('%s skilled grass lines', (name) => {
+describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', ...STYLE_TRACKS])('%s skilled grass lines', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -178,8 +189,14 @@ describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap']
       inside: d,
       ...follow(road[a], insideLine(from, seg, inner - d), to, surface, 2 * (b - a)),
     }))
-    const best = runs.reduce((m, r) => (r.ticks < m.ticks ? r : m), { inside: 0, ticks: Infinity, grass: 0 })
-    expect(best.ticks, `${name} corner ${i}: ${best.inside} m inside took ${best.ticks} ticks vs road ${b - a}`).toBeGreaterThan(b - a)
+    // Beside a corner with an inner wall the inside line rides the wall on the road: there a run
+    // counts as a cut by its off-road share (as the straight cuts above), and a run that stays on
+    // the road raises the bar instead. Every other corner keeps the plain rule: no inside run wins.
+    const innerWall = (track.barriers ?? []).some((bar) => 'segment' in bar && bar.segment === i && bar.side === seg.turn)
+    const isCut = (r: Run) => !innerWall || r.grass >= GRASS_SHARE * Math.min(r.ticks, 2 * (b - a))
+    const roadBest = Math.min(b - a, ...runs.filter((r) => !isCut(r)).map((r) => r.ticks))
+    const best = runs.filter(isCut).reduce((m, r) => (r.ticks < m.ticks ? r : m), { inside: 0, ticks: Infinity, grass: 0 })
+    expect(best.ticks, `${name} corner ${i}: ${best.inside} m inside took ${best.ticks} ticks vs road ${roadBest}`).toBeGreaterThan(roadBest)
   }, CUT_TIMEOUT)
 })
 
@@ -262,7 +279,7 @@ function dropRun(start: CarState, approach: Point, target: Pose, surface: Surfac
   return { ticks: Infinity, grass }
 }
 
-describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap'])('%s deck drop-offs', (name) => {
+describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap', 'flatout'])('%s deck drop-offs', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)

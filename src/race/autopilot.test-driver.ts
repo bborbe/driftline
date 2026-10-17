@@ -1,10 +1,14 @@
 // Pure-pursuit autopilot along a track's centreline, shared by the end-to-end lap tests
-// (full-lap.test.ts, conservative `centreline` speeds) and the grass-cut test (cuts.test.ts,
-// the faster `racingLine`).
+// (full-lap.test.ts, conservative `centreline` speeds; the style tracks S01–S05 drive the
+// surface-aware `surfaceLine`) and the grass-cut test (cuts.test.ts, the faster `racingLine`,
+// surface-aware for the style tracks).
 import { readFileSync } from 'node:fs'
-import { dot, forwardOf, type CarInput, type CarState } from '../physics'
+import { dot, forwardOf, MATERIALS, type CarInput, type CarState, type Material } from '../physics'
 import { resolveTrack } from '../track/kit'
-import { partialPose, poses, type Pose, type Segment, type Track } from '../track/schema'
+import { partialPose, poses, segmentLength, type Pose, type Segment, type Track } from '../track/schema'
+
+/** A human laps ~0.67x the conservative autopilot's time (operator's first lap2 run: 36.05 s vs 53.7 s). */
+export const HUMAN_PACE = 0.67
 
 export const loadTrack = (name: string) =>
   resolveTrack(JSON.parse(readFileSync(new URL(`../../assets/track/${name}.json`, import.meta.url), 'utf8'))) as Track
@@ -36,6 +40,53 @@ export function centreline(track: Track): Sample[] {
       out.push({ pose: partialPose(entries[i], seg, f), speed })
     }
   })
+  return out
+}
+
+// Surface-aware variant of centreline() for the style tracks (S01–S05), whose tight kit corners
+// (r 10 m) and dirt and ice corners the per-type pace above takes too fast: corners are capped at
+// √(CORNER_LATERAL · grip · radius), and the line brakes in time at AUTO_BRAKING scaled by grip. The original tracks keep centreline(), so their laps and medals are unchanged.
+const CORNER_LATERAL = 12.3 // m/s²
+const AUTO_BRAKING = 8 // m/s² on asphalt
+const SAMPLE_SPACING = 5 // m
+const CORNER = new Set<Segment['type']>(['curve', 'hairpin', 'banked'])
+
+/** Surface grip at fraction `f` of segment `i` (1 = asphalt): dirt, ice and grass zones lower it. */
+const gripAt = (track: Track, i: number, f: number): number =>
+  Math.min(
+    1,
+    ...(track.zones ?? []).filter((z) => z.segment === i && f >= z.from && f <= z.to && z.kind in MATERIALS).map((z) => MATERIALS[z.kind as Material].grip),
+  )
+
+/** Target speed at fraction `f` of segment `i`: its type's pace, capped in corners by grip and radius. */
+const targetSpeed = (track: Track, i: number, f: number): number => {
+  const seg = track.segments[i]
+  const pace = TARGET_SPEED[seg.type]
+  return CORNER.has(seg.type) && 'radius' in seg ? Math.min(pace, Math.sqrt(CORNER_LATERAL * gripAt(track, i, f) * seg.radius)) : pace
+}
+
+export function surfaceLine(track: Track): Sample[] {
+  const entries = poses(track)
+  const out: (Sample & { grip: number })[] = []
+  track.segments.forEach((seg, i) => {
+    const next = (i + 1) % track.segments.length
+    // At least 20 samples, and one every SAMPLE_SPACING: on a long arc the pure-pursuit aim point
+    // (four samples ahead) would otherwise cut the inside of the turn.
+    const n = Math.max(20, Math.ceil(segmentLength(seg) / SAMPLE_SPACING))
+    for (let k = 0; k < n; k++) {
+      const f = k / n
+      const speed = f > 0.6 ? Math.min(targetSpeed(track, i, f), targetSpeed(track, next, 0)) : targetSpeed(track, i, f)
+      out.push({ pose: partialPose(entries[i], seg, f), speed, grip: gripAt(track, i, f) })
+    }
+  })
+  // Brake in time: never arrive faster than the next sample allows at AUTO_BRAKING scaled by the
+  // surface's grip, which is weak on dirt and ice (two passes: the line wraps).
+  for (let n = 2 * out.length - 1; n >= 0; n--) {
+    const a = out[n % out.length]
+    const b = out[(n + 1) % out.length]
+    const d = Math.hypot(b.pose.x - a.pose.x, b.pose.z - a.pose.z)
+    a.speed = Math.min(a.speed, Math.sqrt(b.speed ** 2 + 2 * AUTO_BRAKING * a.grip * d))
+  }
   return out
 }
 
@@ -92,18 +143,29 @@ const pieceLimit = (seg: Segment): number => {
   }
 }
 
-export function racingLine(track: Track): Sample[] {
+// A corner's speed limit scales with √grip (v = √(LATERAL · grip · r)); straights keep theirs.
+const cornerGrip = (seg: Segment, grip: number): number => (CORNER.has(seg.type) ? Math.sqrt(grip) : 1)
+
+// `surfaceAware` (the style tracks S01–S05): corner limits and braking scale with the surface's
+// grip, so the line stays on dirt and ice. Off by default, so the original tracks' cut baselines
+// are unchanged.
+export function racingLine(track: Track, surfaceAware = false): Sample[] {
   const entries = poses(track)
-  const out: Sample[] = []
+  const out: (Sample & { grip: number })[] = []
   track.segments.forEach((seg, i) => {
-    for (let k = 0; k < 20; k++) out.push({ pose: partialPose(entries[i], seg, k / 20), speed: pieceLimit(seg) })
+    // Surface-aware lines also sample every SAMPLE_SPACING, like surfaceLine(), for the long r 80 m banks.
+    const n = surfaceAware ? Math.max(20, Math.ceil(segmentLength(seg) / SAMPLE_SPACING)) : 20
+    for (let k = 0; k < n; k++) {
+      const grip = surfaceAware ? gripAt(track, i, k / n) : 1
+      out.push({ pose: partialPose(entries[i], seg, k / n), speed: pieceLimit(seg) * cornerGrip(seg, grip), grip })
+    }
   })
   // Backward pass over two laps (the line wraps): never arrive faster than the next sample allows.
   for (let n = 2 * out.length - 1; n >= 0; n--) {
     const a = out[n % out.length]
     const b = out[(n + 1) % out.length]
     const d = Math.hypot(b.pose.x - a.pose.x, b.pose.z - a.pose.z)
-    a.speed = Math.min(a.speed, Math.sqrt(b.speed ** 2 + 2 * BRAKING * d))
+    a.speed = Math.min(a.speed, Math.sqrt(b.speed ** 2 + 2 * BRAKING * a.grip * d))
   }
   return out
 }

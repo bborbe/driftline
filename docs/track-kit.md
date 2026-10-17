@@ -28,7 +28,15 @@ Trackmania-style drivable pieces that snap on a grid (`src/track/kit.ts`). A tra
 }
 ```
 
-The lap must close back onto its start connector; `compileKit()` throws naming the piece otherwise. `test-kit` is the demo, `test-kit-all` uses every piece once. The campaign levels A03 `plunge`, A04 `knot` and A05 `leap` are kit tracks too.
+The lap must close back onto its start connector; `compileKit()` throws naming the piece otherwise. `test-kit` is the demo, `test-kit-all` uses every piece once except `bank-180-wide`, which is too wide for its compact loop and shows on S02 `flatout`. The campaign levels A03 `plunge`, A04 `knot` and A05 `leap` and the style tracks S01–S05 are kit tracks too.
+
+### Walls on any piece
+
+`"walls": "both"` (or `"left"` / `"right"`) on a placement lines that piece with barriers that follow the road — straights, curves, hairpins and banks alike — flush with the road edge. Use it where a cut across the grass pays: dirt and ice slow the road enough that a straight line across the grass (10 m/s cap) beats a winding dirt or ice lap — measured on `dustbowl` and `glacier` before they were walled — and on ice the grass (grip 0.45) even out-grips the road (0.18), so a grass verge inside a wall would still pay. Ground level only, like `walled` (barriers stand on y = 0), and never on a gate (`start`, `checkpoint`: their pillars stand there) or on `walled`; a banked piece gets its inner wall only, because its outer edge rises above a ground-standing wall and running wide off a bank is never a shortcut. S03 `dustbowl` and S04 `glacier` are walled this way.
+
+```json
+{ "piece": "bank-90", "turn": "left", "surface": "ice", "walls": "both" }
+```
 
 ![test-kit-all from above](track-kit-overview.png)
 
@@ -51,6 +59,7 @@ Screenshots: live site, `?track=test-kit-all&cam=fly&freeze=1&renderer=webgl2` p
 | `bump` | slope | (2, 0, 0, 0) | `ramp` 10 m +1 m, `drop` 10 m −1 m | road, dirt, ice, grass | Unloads the suspension at speed. | [`x=14&y=12&z=48&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=14&y=12&z=48&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![bump](track-kit/bump.png) |
 | `bank-90` | bank | (2, ±2, 0, ±1) | `banked` 90°, r 20 m, 0.26 rad | road, dirt, ice, grass | Bank eases in and out inside the piece, so both connectors are flat. | [`x=12.1&y=15&z=140.1&yaw=57.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=12.1&y=15&z=140.1&yaw=57.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![bank-90](track-kit/bank-90.png) |
 | `bank-180` | bank | (0, ±4, 0, ±2) | `banked` 180°, r 20 m, 0.26 rad | road, dirt, ice, grass | Closes the lap back onto the start straight. | [`x=6&y=11&z=-118&yaw=147.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=6&y=11&z=-118&yaw=147.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![bank-180](track-kit/bank-180.png) |
+| `bank-180-wide` | bank | (0, ±16, 0, ±2) | `banked` 180°, r 80 m, 0.45 rad | road, dirt, ice, grass | Flat-out 180: holds a full-throttle, no-brake car near its 40 m/s top speed (tighter banks need braking whatever their angle). Too wide for test-kit-all; see S02 `flatout`. | [`track=flatout&x=-40&y=40&z=140&yaw=60&pitch=-18`](https://bborbe.github.io/driftline/?track=flatout&x=-40&y=40&z=140&yaw=60&pitch=-18&cam=fly&freeze=1&renderer=webgl2) | ![bank-180-wide](track-kit/bank-180-wide.png) |
 | `gap-jump` | slope | (10, 0, −2, 0) | `ramp` 10 m +1 m, `gap` 10 m −1.8 m, `drop` 80 m −7.2 m | road | crossover's jump on the grid: a 5.7° lip, open air, then a landing slope that continues the line from the lip, long enough for a flat-out flight (`jump-landing.test.ts` on leap). Two levels down. | [`x=72&y=18&z=-30&yaw=-95&pitch=-18`](https://bborbe.github.io/driftline/?track=test-kit-all&x=72&y=18&z=-30&yaw=-95&pitch=-18&cam=fly&freeze=1&renderer=webgl2) | ![gap-jump](track-kit/gap-jump.png) |
 | `turbo` | effect | (1, 0, 0, 0) | `straight` 10 m + `turbo` zone 0.25–0.75 | road | Yellow pad; direction from `padForward()`. | [`x=14&y=11&z=3&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=14&y=11&z=3&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![turbo](track-kit/turbo.png) |
 | `turbo-red` | effect | (1, 0, 0, 0) | `straight` 10 m + `turbo-red` zone 0.25–0.75 | road | Red pad: stronger boost. | [`x=14&y=11&z=13&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=14&y=11&z=13&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![turbo-red](track-kit/turbo-red.png) |
