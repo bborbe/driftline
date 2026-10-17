@@ -172,6 +172,9 @@ describe('raised bodies', () => {
         if (r + 1 < rows && plan.kinds[r + 1] === 'fill') {
           const b = a + body.perRow
           expect(tris.has([a, a + 1, b].join()) && tris.has([a + 2, b + 2, a + 3].join()), `${at}: walls to the next row`).toBe(true)
+          expect(tris.has([a + 4, b + 4, a + 5].join()), `${at}: lid to the next row`).toBe(true)
+          // The lid closes the body just under the road edges, never above the road.
+          for (const k of [4, 5]) expect(vertex(body, a + k)[1], at).toBeLessThan(Math.max(lt[1], rt[1]))
         }
       })
     })
