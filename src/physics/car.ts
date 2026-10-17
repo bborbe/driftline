@@ -68,7 +68,7 @@ const ENGINE_FORCE = 9000 // N, rear-wheel drive total
 const BRAKE_FORCE = 16000 // N, all wheels total
 const REVERSE_FORCE = 6000 // N, rear-wheel drive total
 const STOPPED = 0.5 // m/s — below this, brake input becomes reverse and throttle drives forward
-const HANDBRAKE_FORCE = 3000 // N, rear wheels total
+const HANDBRAKE_FORCE = 1500 // N, rear wheels total
 const MAX_STEER = 0.5 // rad
 const STEER_RATE = 4 // rad/s
 const DRAG = 0.45
@@ -83,6 +83,31 @@ const YAW_ASSIST = 12
 const YAW_ASSIST_SLIP_LO = 8
 const YAW_ASSIST_SLIP_HI = 15
 const YAW_ASSIST_MIN_SPEED = 5 // m/s
+// Speed drift, Trackmania-style: at 90 km/h a handbrake tap with steer puts the car into a short
+// slide it keeps its speed through, and a longer press never spins it. Road grip only (ice, dirt
+// and grass keep their own slide), forward travel only, off on a loop. Grip cornering slips 3-7°,
+// below every gate here, so row 1 asphalt grip is untouched.
+// Entry: on the handbrake, a yaw torque (1/s² per unit steer) rotates the car in until the body
+// slips DRIFT_KICK_SLIP_HI degrees, so a 0.25 s tap already slides (the steer alone takes ~0.1 s to build).
+const DRIFT_KICK = 6
+const DRIFT_KICK_SLIP_LO = 20
+const DRIFT_KICK_SLIP_HI = 30
+// Spin guard: past DRIFT_LIMIT degrees of body slip, damp the yaw that would grow it, fully from
+// DRIFT_LIMIT + DRIFT_LIMIT_BAND, at this rate (1/s). Holds a 2 s press at ~43°.
+const DRIFT_LIMIT = 35
+const DRIFT_LIMIT_BAND = 10
+const DRIFT_LIMIT_RATE = 25
+// Carry: while the body slips past DRIFT_CARRY_SLIP_LO degrees (full from _HI), a force across the
+// travel turns the velocity toward the nose at DRIFT_CARRY (1/s per rad of slip), capped at
+// DRIFT_CARRY_MAX_G. The slide turns the car's path instead of scrubbing its speed, and ends
+// itself in ~1-1.5 s once the velocity catches up with the nose.
+const DRIFT_CARRY = 4
+const DRIFT_CARRY_MAX_G = 2
+const DRIFT_CARRY_SLIP_LO = 10
+const DRIFT_CARRY_SLIP_HI = 15
+// Material grip at which the drift fades out (dirt 0.6) and is full (road 1).
+const DRIFT_GRIP_LO = 0.6
+const DRIFT_GRIP_HI = 1
 
 // Per-material handling. `grip` scales the tyre friction coefficient; `drag` is extra rolling
 // resistance as a fraction of wheel load, always on (grass and dirt bog the car down).
@@ -270,6 +295,9 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   let grounded = false
   // A wheel on a loop: world y is no longer the car's yaw axis there (src/physics/surface.ts).
   let onLoop = false
+  // Mean material grip of the touching wheels, for the speed drift (see DRIFT_KICK).
+  let gripSum = 0
+  let contacts = 0
   // Direction of travel on the ground plane; at a standstill, where the car points.
   const flatVel = v3(s.velocity.x, 0, s.velocity.z)
   const travel = length(flatVel) > STOPPED ? normalize(flatVel) : normalize(v3(fwdBody.x, 0, fwdBody.z))
@@ -285,6 +313,8 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     if (hit.loop) onLoop = true
     const material = hit.material ?? 'road'
     const handling = MATERIALS[material]
+    gripSum += handling.grip
+    contacts++
     if ((material === 'turbo' || material === 'turbo-red') && hit.padForward && dot(travel, hit.padForward) >= TURBO_ALIGN) {
       // A stronger pad overrides a weaker running boost; the same pad refreshes it.
       const pad = TURBO[material]
@@ -390,6 +420,30 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     if (gate > 0) {
       const pathRate = (flatVel.z * force.x - flatVel.x * force.z) / (MASS * v2)
       torque = add(torque, v3(0, -YAW_ASSIST * gate * INERTIA.y * (s.angularVelocity.y - pathRate), 0))
+    }
+  }
+
+  // Speed drift (see DRIFT_KICK). beta = signed body slip, nose angle minus travel angle (+ = nose
+  // turned toward +x); the path's turn rate is the yaw assist's, from this tick's force.
+  const fwdFlat = Math.hypot(fwdBody.x, fwdBody.z)
+  const drift = contacts > 0 ? clamp((gripSum / contacts - DRIFT_GRIP_LO) / (DRIFT_GRIP_HI - DRIFT_GRIP_LO), 0, 1) : 0
+  if (grounded && !onLoop && drift > 0 && speed > STOPPED && v2 > YAW_ASSIST_MIN_SPEED ** 2 && fwdFlat > 1e-6) {
+    const vFlat = Math.sqrt(v2)
+    const beta = Math.atan2(flatVel.z * fwdBody.x - flatVel.x * fwdBody.z, flatVel.x * fwdBody.x + flatVel.z * fwdBody.z)
+    const betaDeg = (Math.abs(beta) * 180) / Math.PI
+    const growth = s.angularVelocity.y - (flatVel.z * force.x - flatVel.x * force.z) / (MASS * v2)
+    const limit = clamp((betaDeg - DRIFT_LIMIT) / DRIFT_LIMIT_BAND, 0, 1)
+    if (limit > 0 && beta * growth > 0) torque = add(torque, v3(0, -DRIFT_LIMIT_RATE * limit * drift * INERTIA.y * growth, 0))
+    if (input.handbrake) {
+      const kick = clamp((DRIFT_KICK_SLIP_HI - betaDeg) / (DRIFT_KICK_SLIP_HI - DRIFT_KICK_SLIP_LO), 0, 1)
+      // Positive steer = right = yaw toward -x, so a negative torque about y.
+      torque = add(torque, v3(0, -DRIFT_KICK * kick * drift * INERTIA.y * clamp(input.steer, -1, 1), 0))
+    }
+    const carry = clamp((betaDeg - DRIFT_CARRY_SLIP_LO) / (DRIFT_CARRY_SLIP_HI - DRIFT_CARRY_SLIP_LO), 0, 1)
+    if (carry > 0) {
+      // Across the travel toward the nose: (vz, 0, -vx) turns the velocity toward +beta.
+      const push = Math.sign(beta) * carry * drift * Math.min(DRIFT_CARRY * Math.abs(beta) * MASS * vFlat, DRIFT_CARRY_MAX_G * GRAVITY * MASS)
+      force = add(force, v3((flatVel.z / vFlat) * push, 0, (-flatVel.x / vFlat) * push))
     }
   }
 
