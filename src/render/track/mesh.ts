@@ -191,10 +191,13 @@ export const createRampSupports = (track: Track): THREE.Group => {
     }
     const deck = buildDeck(ps[i], seg, plan?.kinds ?? null)
     if (deck) {
-      // A bridge deck (DECK_SECTION) or a loop's shell (left top, left foot, right top, right foot).
+      // A bridge deck (DECK_SECTION), a loop's shell (left top, left foot, right top, right foot) or
+      // a wallride's wall (its face, then its back; the back is the darker concrete).
+      const wall = seg.type === 'wallride'
       const feet = seg.type === 'loop' ? [1, 3] : DECK_FOOT_COLUMNS
-      const mesh = concreteMesh(deck, (v) => feet.includes(v % deck.perRow), 'deck', seg.type !== 'loop')
-      group.add(seg.type === 'loop' ? noCollide(mesh, 'loop-shell') : mesh)
+      const foot = wall ? (v: number) => v % deck.perRow >= deck.perRow / 2 : (v: number) => feet.includes(v % deck.perRow)
+      const mesh = concreteMesh(deck, foot, 'deck', seg.type !== 'loop' && !wall)
+      group.add(seg.type === 'loop' ? noCollide(mesh, 'loop-shell') : wall ? noCollide(mesh, 'wallride-shell') : mesh)
     }
   })
   for (const p of planDeckPillars(track)) {

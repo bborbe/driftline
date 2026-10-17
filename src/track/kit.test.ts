@@ -214,12 +214,13 @@ describe('kit level format', () => {
     for (const spline of ['test1', 'test2', 'crossover', 'tower']) expect(isKitTrack(read(spline)), spline).toBe(false)
   })
 
-  // The r 80 m bank-180-wide does not fit test-kit-all's compact loop; flatout (S02) shows it.
-  it('test-kit-all.json uses every kit piece type but the wide bank, which flatout.json uses, and the loop, which test-loop.json uses (the docs/track-kit.md catalogue)', () => {
+  // The r 80 m bank-180-wide does not fit test-kit-all's compact loop; flatout (S02) shows it. The
+  // loop, the spiral and the wallride each have their own single-feature test track.
+  const OWN_TRACK: Record<string, string> = { 'bank-180-wide': 'flatout', loop: 'test-loop', spiral: 'test-spiral', wallride: 'test-wallride' }
+  it('test-kit-all.json uses every kit piece type but the wide bank, the loop, the spiral and the wallride, which their own tracks use (the docs/track-kit.md catalogue)', () => {
     const used = new Set((read('test-kit-all') as KitTrack).kit.pieces.map((p) => p.piece))
-    expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).filter((id) => id !== 'bank-180-wide' && id !== 'loop').sort())
-    expect((read('flatout') as KitTrack).kit.pieces.map((p) => p.piece)).toContain('bank-180-wide')
-    expect((read('test-loop') as KitTrack).kit.pieces.map((p) => p.piece)).toContain('loop')
+    expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).filter((id) => !(id in OWN_TRACK)).sort())
+    for (const [piece, track] of Object.entries(OWN_TRACK)) expect((read(track) as KitTrack).kit.pieces.map((p) => p.piece), track).toContain(piece)
   })
 
   it('walls follow the road on any ground-level piece: both sides, inner side only on a bank', () => {

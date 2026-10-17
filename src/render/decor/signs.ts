@@ -151,6 +151,8 @@ export const createSigns = (track: Track, accent: string = SIGN_YELLOW): THREE.G
       parts.push(prepared(post, white, placement(x, top / 2, z, s.heading, [POST.size, top, POST.size]), () => FRAME_UV))
     }
   }
+  // A track with no turn signed and no turbo pad (test-wallride: its turns carry walls) has no board.
+  if (parts.length === 0) return group
   // One draw call for every board. A little self-lit so boards in shadow still read.
   const atlas = atlasTexture(accent)
   group.add(noCollide(structural(merged(parts, new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 })), 'sign'), 'roadside-sign'))

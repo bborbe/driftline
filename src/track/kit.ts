@@ -32,7 +32,7 @@ export interface Connector {
 }
 
 /** Families follow the Trackmania Stadium block families (see docs/track-kit.md). */
-export type PieceFamily = 'road' | 'curve' | 'slope' | 'bank' | 'effect' | 'gate' | 'wall' | 'loop'
+export type PieceFamily = 'road' | 'curve' | 'slope' | 'bank' | 'effect' | 'gate' | 'wall' | 'loop' | 'wallride'
 
 /** A piece's contents, relative to its first segment. */
 export interface Expansion {
@@ -72,6 +72,12 @@ export const KIT_BANK_WIDE = 0.45
  * on through the top from 12.1 m/s at the entry (≈ √(g·r), the apex's own need) up to 40 m/s.
  */
 export const KIT_LOOP_RADIUS = 15
+
+/** Spiral loop exit offset (cells): the car comes out of the loop on a parallel line this far to the turn side. */
+export const KIT_SPIRAL_SHIFT = 2
+
+/** Wallride turn radius (m): a 180° velodrome turn whose outer edge rises into the wall. */
+export const KIT_WALLRIDE_RADIUS = 3 * CELL
 
 const curve = (id: string, cells: number): PieceDef => ({
   id,
@@ -175,6 +181,36 @@ export const KIT_PIECES: readonly PieceDef[] = [
         ],
         { gates: [{ kind: 'checkpoint', segment: 1, at: 0.5 }] },
       ),
+  },
+  {
+    // Spiral (corkscrew) loop: the kit loop with its road drifting KIT_SPIRAL_SHIFT cells to the turn
+    // side on the way round, so the car comes out on a parallel line beside the one it came in on.
+    // The same checkpoint at the top as the loop: a straight cut across the grass to the exit line
+    // otherwise beats driving it (cuts.test.ts, velodrome).
+    id: 'spiral',
+    family: 'loop',
+    surfaces: ROAD_ONLY,
+    turns: true,
+    out: road(3, KIT_SPIRAL_SHIFT, 0, 0),
+    expand: (turn) =>
+      plain(
+        [
+          { type: 'straight', length: KIT_LOOP_RADIUS },
+          { type: 'loop', turn, radius: KIT_LOOP_RADIUS, shift: KIT_SPIRAL_SHIFT * CELL },
+          { type: 'straight', length: KIT_LOOP_RADIUS },
+        ],
+        { gates: [{ kind: 'checkpoint', segment: 1, at: 0.5 }] },
+      ),
+  },
+  {
+    // Velodrome 180: a flat turn whose outer edge curves up into a near-vertical wall the car rides
+    // at speed (src/track/pose.ts wallPoint). Road only, ground level only (the wall stands on y = 0).
+    id: 'wallride',
+    family: 'wallride',
+    surfaces: ROAD_ONLY,
+    turns: true,
+    out: road(0, 6, 0, 2),
+    expand: (turn) => plain([{ type: 'wallride', turn, radius: KIT_WALLRIDE_RADIUS, angle: 180 }]),
   },
   flat('turbo', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.25, to: 0.75 }] }),
   flat('turbo-red', 'effect', { zones: [{ kind: 'turbo-red', segment: 0, from: 0.25, to: 0.75 }] }),
@@ -305,7 +341,8 @@ export function compileKit(kt: KitTrack): CompiledKit {
       // (bank 0.26 lifts it 1.3 m, the wall is 1.2 m), and running wide off a bank is never a shortcut.
       ex.segments.forEach((seg, k) =>
         sides.forEach((side) => {
-          if (seg.type === 'banked' && side !== seg.turn) return
+          // A wallride's outer side is its wall: only the inner side takes a barrier.
+          if ((seg.type === 'banked' || seg.type === 'wallride') && side !== seg.turn) return
           barriers.push({ segment: base + k, side, gap: 0 })
         }),
       )

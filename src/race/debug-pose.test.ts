@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createCarAt, forwardOf } from '../physics'
-import { debugPose, frozen, poseQuery, yawDeg } from './debug-pose'
+import { createCarAt, forwardOf, rotate, v3 } from '../physics'
+import { debugPose, debugRoll, frozen, poseQuery, yawDeg, yawRoll } from './debug-pose'
 
 describe('debugPose', () => {
   it('parses x, y, z and yaw in degrees', () => {
@@ -13,6 +13,24 @@ describe('debugPose', () => {
     expect(debugPose('?x=1&y=0&z=2')).toBeNull()
     expect(debugPose('?x=1&y=&z=2&yaw=0')).toBeNull()
     expect(debugPose('?x=a&y=0&z=2&yaw=0')).toBeNull()
+  })
+
+  it('roll leans the car about its nose: + puts its top to its left, 0 is createCarAt', () => {
+    expect(debugRoll('?roll=75')).toBe(75)
+    expect(debugRoll('')).toBe(0)
+    expect(debugRoll('?roll=x')).toBe(0)
+    for (const yaw of [0, 90, -135]) {
+      const h = (yaw * Math.PI) / 180
+      const plain = createCarAt({ x: 0, y: 0, z: 0, heading: h }).orientation
+      const q0 = yawRoll(h, 0)
+      for (const k of ['x', 'y', 'z', 'w'] as const) expect(q0[k]).toBeCloseTo(plain[k], 12)
+      const q = yawRoll(h, 90)
+      const up = rotate(q, v3(0, 1, 0))
+      const fwd = rotate(q, v3(0, 0, 1))
+      // Left of heading h is (+cos h, 0, -sin h); the nose still points along h.
+      expect([up.x, up.y, up.z].map((n) => +n.toFixed(9))).toEqual([Math.cos(h), 0, -Math.sin(h)].map((n) => +n.toFixed(9)))
+      expect([fwd.x, fwd.y, fwd.z].map((n) => +n.toFixed(9))).toEqual([Math.sin(h), 0, Math.cos(h)].map((n) => +n.toFixed(9)))
+    }
   })
 
   it('freeze only on freeze=1', () => {

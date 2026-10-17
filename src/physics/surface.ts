@@ -2,7 +2,7 @@
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
 import { barrierPillars, barrierPosts, gateLegs, gatePillars, isPad, padForward, poses, ROAD_WIDTH, turnCentre, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
 import { bodyBoxes, parapetBoxes, pillarBoxes } from '../track/bodies'
-import { loopShift, type LoopSegment } from '../track/pose'
+import { loopShift, wallFrame, wallTop, WALL_RADIUS, type LoopSegment, type WallrideSegment } from '../track/pose'
 import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
 import { normalize, v3, type Vec3 } from './vec'
 
@@ -17,7 +17,7 @@ export type RayHit = {
   normal: Vec3 // unit, pointing up out of the surface
   material?: Material // omitted = 'road'
   padForward?: Vec3 // turbo pads only: unit horizontal direction of the arrow
-  loop?: true // the inside of a loop, where the road is not under the car (src/track/pose.ts)
+  loop?: true // the inside of a loop or a wallride's wall, where the road is not under the car (src/track/pose.ts)
 }
 
 export interface Surface {
@@ -112,6 +112,9 @@ const piece = (p: Pose, seg: Segment, width: number): Piece => {
       return sector(p, seg.turn === 'left', seg.radius, Math.PI, 0, width)
     case 'banked':
       return sector(p, seg.turn === 'left', seg.radius, (seg.angle * Math.PI) / 180, seg.bank, width)
+    case 'wallride':
+      // The flat road; its wall is raycast by wallRaycast below.
+      return sector(p, seg.turn === 'left', seg.radius, (seg.angle * Math.PI) / 180, 0, width)
     case 'loop':
       return () => null // not a height field: raycast by loopRaycast below
   }
@@ -149,6 +152,60 @@ const loopRaycast = (p: Pose, seg: LoopSegment, width: number): Surface['raycast
     if (theta < 0) theta += TWO_PI
     if (Math.abs(ol + distance * (dir.x * fz - dir.z * fx) - loopShift(seg, theta)) > width / 2) return null
     return { distance, normal: v3((-hf / r) * fx, -hu / r, (-hf / r) * fz), loop: true }
+  }
+}
+
+// Ray march step (m) and bisection rounds for a ray leaving a wallride's pipe.
+const WALL_STEP = 0.25
+const WALL_BISECT = 24
+
+/**
+ * A wallride's wall (src/track/pose.ts wallPoint): the inner face of the torus swept by a circle of
+ * WALL_RADIUS centred WALL_RADIUS above the road's outer edge, round the turn centre, between pipe
+ * angle 0 (the road edge) and wallTop(t). Rays are taken in any direction, from inside the pipe,
+ * where the wall faces them. Gravity stays world −y: the car stays up only while v²/r presses it in.
+ */
+const wallRaycast = (p: Pose, seg: WallrideSegment): Surface['raycast'] => {
+  const { cx, cz, edge, y } = wallFrame(p, seg)
+  const yc = y + WALL_RADIUS
+  const s = seg.turn === 'left' ? 1 : -1
+  const angle = (seg.angle * Math.PI) / 180
+  const r2 = WALL_RADIUS * WALL_RADIUS
+  // > 0 inside the pipe's circle, in the plane through the turn axis.
+  const inside = (x: number, py: number, z: number) => r2 - (Math.hypot(x - cx, z - cz) - edge) ** 2 - (py - yc) ** 2
+  return (origin, dir, maxDistance) => {
+    if (inside(origin.x, origin.y, origin.z) <= 0) return null
+    const at = (d: number) => inside(origin.x + dir.x * d, origin.y + dir.y * d, origin.z + dir.z * d)
+    let lo = 0
+    let hi = -1
+    for (let d = WALL_STEP; d < maxDistance + WALL_STEP; d += WALL_STEP) {
+      const dd = Math.min(d, maxDistance)
+      if (at(dd) <= 0) {
+        hi = dd
+        break
+      }
+      lo = dd
+    }
+    if (hi < 0) return null
+    for (let k = 0; k < WALL_BISECT; k++) {
+      const mid = (lo + hi) / 2
+      if (at(mid) > 0) lo = mid
+      else hi = mid
+    }
+    const distance = hi
+    const hx = origin.x + dir.x * distance - cx
+    const hy = origin.y + dir.y * distance - yc
+    const hz = origin.z + dir.z * distance - cz
+    const rho = Math.hypot(hx, hz)
+    const phi = Math.atan2(rho - edge, -hy)
+    // Sweep round the turn, as sector() measures it.
+    let theta = s * (Math.atan2(s * hz, -s * hx) - p.heading)
+    theta = ((theta % TWO_PI) + TWO_PI) % TWO_PI
+    if (theta > angle) return null
+    if (phi < 0 || phi > wallTop(theta / angle)) return null
+    const ex = hx / rho
+    const ez = hz / rho
+    return { distance, normal: v3(-ex * Math.sin(phi), Math.cos(phi), -ez * Math.sin(phi)), loop: true }
   }
 }
 
@@ -214,8 +271,10 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
     const material = zones[zi].kind
     return isPad(material) ? { distance: t, normal, material, padForward: padDirs[zi] } : { distance: t, normal, material }
   }
-  const loops = track.segments.flatMap((seg, i) => (seg.type === 'loop' ? [loopRaycast(entries[i], seg, width)] : []))
-  // A track without a loop keeps the height field's raycast itself, so it drives bit-identically.
+  const loops = track.segments.flatMap((seg, i) =>
+    seg.type === 'loop' ? [loopRaycast(entries[i], seg, width)] : seg.type === 'wallride' ? [wallRaycast(entries[i], seg)] : [],
+  )
+  // A track without a loop or a wallride keeps the height field's raycast itself, so it drives bit-identically.
   const raycast: Surface['raycast'] =
     loops.length === 0
       ? fieldRaycast

@@ -20,11 +20,13 @@ export type StructuralKind = (typeof STRUCTURAL_KINDS)[number]
  */
 /**
  * `loop-shell`: the back of a loop's own road, which the car drives on from inside.
+ * `wallride-shell`: a wallride's wall, which the car drives on from inside (its wheels raycast the face,
+ * src/physics/surface.ts); from outside it stands past the turn's outer edge on the open ground.
  * `backdrop`: the stadium ring, STADIUM_GAP outside the lap and past the trees, out of reach of the open ground.
  * `roadside-sign`: turn and turbo boards on the grass shoulder 1.5 m past the road edge, where the shipped
  * autopilot lines on plunge and knot run wide; a collider there would change the racing line.
  */
-export const NO_COLLIDE_REASONS = ['loop-shell', 'backdrop', 'roadside-sign'] as const
+export const NO_COLLIDE_REASONS = ['loop-shell', 'wallride-shell', 'backdrop', 'roadside-sign'] as const
 export type NoCollideReason = (typeof NO_COLLIDE_REASONS)[number]
 
 /** Mark `obj` (and every mesh under it) solid-looking but deliberately not collided with, and say why. */

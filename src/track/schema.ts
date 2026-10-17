@@ -36,13 +36,19 @@ export type Segment =
   | { type: 'gap'; length: number; fall?: number }
   /**
    * A full vertical loop of `radius` that starts and ends level with its entry; its exit sits
-   * LOOP_SHIFT to the `turn` side so the climb and the exit never share road (src/track/pose.ts).
+   * `shift` metres (default LOOP_SHIFT) to the `turn` side so the climb and the exit never share
+   * road (src/track/pose.ts). A shift of several road widths is the spiral (corkscrew) loop.
    */
-  | { type: 'loop'; turn: Turn; radius: number }
+  | { type: 'loop'; turn: Turn; radius: number; shift?: number }
+  /**
+   * A flat turn like `curve` whose outer edge curves up into a near-vertical quarter-pipe the car
+   * rides at speed, velodrome-style (src/track/pose.ts wallPoint): v²/r presses it into the wall.
+   */
+  | { type: 'wallride'; turn: Turn; radius: number; angle: 90 | 180 }
 
 export type SegmentType = Segment['type']
 
-export const SEGMENT_TYPES: readonly SegmentType[] = ['straight', 'curve', 'hairpin', 'ramp', 'drop', 'banked', 'gap', 'loop']
+export const SEGMENT_TYPES: readonly SegmentType[] = ['straight', 'curve', 'hairpin', 'ramp', 'drop', 'banked', 'gap', 'loop', 'wallride']
 
 export type GateKind = 'start-finish' | 'checkpoint'
 

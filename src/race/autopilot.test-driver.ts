@@ -27,6 +27,7 @@ const TARGET_SPEED: Record<Segment['type'], number> = {
   banked: 14,
   gap: 26,
   loop: 40, // full throttle round the loop: it needs speed, never braking
+  wallride: 30, // the wall holds the car through the turn at speed
 }
 
 export function centreline(track: Track): Sample[] {

@@ -33,6 +33,7 @@ export const STYLES: readonly CampaignLevel[] = [
   { id: 'S04', track: 'glacier', tier: 'red' }, // Ice: a banked ice channel
   { id: 'S05', track: 'washboard', tier: 'white' }, // LOL: a red turbo into five bumps
   { id: 'S06', track: 'looping', tier: 'green' }, // Loop: a turbo into one full vertical loop, then a banked turn and two climbs
+  { id: 'S07', track: 'velodrome', tier: 'blue' }, // Wallride: two velodrome walls, a left-right spiral pair between them
 ]
 
 /** Test-track order; any other `test*` track follows these. */
@@ -47,6 +48,8 @@ export const TEST_TRACKS: readonly string[] = [
   'test-effects',
   'test-checkpoint',
   'test-loop',
+  'test-wallride',
+  'test-spiral',
 ]
 
 /** Old track names that still resolve, so shared `?track=lap1` links keep working. */
