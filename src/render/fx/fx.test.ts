@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createCar, dot, forwardOf, NO_INPUT, step, TICK_HZ, type CarInput, type CarState } from '../../physics'
+import { createCar, dot, flatSurface, forwardOf, NO_INPUT, step, TICK_HZ, type CarInput, type CarState } from '../../physics'
+import { DECAL_LIFT } from '../track/curbs'
 import { parseFx, pipelinePasses } from './flags'
 import { SkidTrail } from './skid'
 import { MAX_SMOKE, smokeIntensity, SmokePool } from './smoke'
@@ -54,6 +55,16 @@ describe('skid marks', () => {
     const trail = new SkidTrail()
     run(atSpeed(15), 2 * TICK_HZ, { ...NO_INPUT, steer: 1, handbrake: true }, (s) => trail.update(s))
     expect(trail.count).toBeGreaterThan(0)
+  })
+
+  it('persist after the drift and sit on the road as decals (road top + 3 mm)', () => {
+    const trail = new SkidTrail(flatSurface(0))
+    const after = run(atSpeed(15), 2 * TICK_HZ, { ...NO_INPUT, steer: 1, handbrake: true }, (s) => trail.update(s))
+    const laid = trail.marks.map((m) => ({ ...m }))
+    expect(laid.length).toBeGreaterThan(0)
+    run(after, 200, NO_INPUT, (s) => trail.update(s)) // rolling on: every mark already laid is still there, unmoved
+    expect(trail.marks.slice(0, laid.length)).toEqual(laid)
+    for (const m of trail.marks) expect(m.y).toBeCloseTo(DECAL_LIFT, 6)
   })
 })
 
