@@ -34,10 +34,15 @@ export type Segment =
   | { type: 'banked'; turn: Turn; radius: number; angle: 90 | 180; bank: number }
   /** No road: a jump across `length` metres of air, landing `fall` metres lower (default 0). */
   | { type: 'gap'; length: number; fall?: number }
+  /**
+   * A full vertical loop of `radius` that starts and ends level with its entry; its exit sits
+   * LOOP_SHIFT to the `turn` side so the climb and the exit never share road (src/track/pose.ts).
+   */
+  | { type: 'loop'; turn: Turn; radius: number }
 
 export type SegmentType = Segment['type']
 
-export const SEGMENT_TYPES: readonly SegmentType[] = ['straight', 'curve', 'hairpin', 'ramp', 'drop', 'banked', 'gap']
+export const SEGMENT_TYPES: readonly SegmentType[] = ['straight', 'curve', 'hairpin', 'ramp', 'drop', 'banked', 'gap', 'loop']
 
 export type GateKind = 'start-finish' | 'checkpoint'
 

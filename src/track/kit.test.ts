@@ -4,6 +4,7 @@ import { trackSurface } from '../physics'
 import { buildDeck, DECK_MIN_HEIGHT, lateralPoint, planDeckPillars, PROFILE, sampleSegment } from '../render/track/geometry'
 import { compileKit, connectorPose, isKitTrack, KIT_PIECES, LEVEL, onGrid, outConnector, resolveTrack, type KitTrack, type PieceDef } from './kit'
 import { CELL, exitPose, partialPose, poses, turnSign, validate, type Pose, type Turn } from './schema'
+import { loopPoint } from './pose'
 
 const EPS = 1e-6
 const turnsOf = (def: PieceDef): Turn[] => (def.turns ? ['left', 'right'] : ['left'])
@@ -104,6 +105,19 @@ describe('track piece kit', () => {
             p = exitPose(p, seg)
             continue
           }
+          if (seg.type === 'loop') {
+            // Not a height field: cast along the loop's own normal, from 2 m inside the road at loopPoint.
+            for (const theta of [0.01, Math.PI / 2, Math.PI, (3 * Math.PI) / 2, 2 * Math.PI - 0.01]) {
+              for (const u of offsets) {
+                const q = loopPoint(p, seg, theta, u)
+                const hit = surface.raycast({ x: q.x + 2 * q.nx, y: q.y + 2 * q.ny, z: q.z + 2 * q.nz }, { x: -q.nx, y: -q.ny, z: -q.nz }, 10)
+                expect(hit, `${def.id} ${turn} θ=${theta} u=${u}: no physics surface`).not.toBeNull()
+                expect(Math.abs(hit!.distance - 2), `${def.id} ${turn} θ=${theta} u=${u}`).toBeLessThan(1e-3)
+              }
+            }
+            p = exitPose(p, seg)
+            continue
+          }
           for (const t of [0, 0.25, 0.5, 0.75, 1]) {
             // Ends nudged inside the piece: exactly on the joint an arc's sweep test can wrap to 2π.
             const s = sampleSegment(p, seg, Math.min(1 - 1e-7, Math.max(1e-7, t)))
@@ -176,7 +190,7 @@ describe('compileKit', () => {
   })
 
   it('refuses unknown pieces, surfaces a piece lacks, and walls above ground', () => {
-    expect(() => compileKit(loop([{ piece: 'loop' }]))).toThrow(/unknown piece/)
+    expect(() => compileKit(loop([{ piece: 'corkscrew' }]))).toThrow(/unknown piece/)
     expect(() => compileKit(loop([{ piece: 'gap-jump', surface: 'ice' }]))).toThrow(/no ice variant/)
     expect(() => compileKit(loop([{ piece: 'slope-up' }, { piece: 'walled' }]))).toThrow(/ground only/)
   })
@@ -201,10 +215,11 @@ describe('kit level format', () => {
   })
 
   // The r 80 m bank-180-wide does not fit test-kit-all's compact loop; flatout (S02) shows it.
-  it('test-kit-all.json uses every kit piece type but the wide bank, which flatout.json uses (the docs/track-kit.md catalogue)', () => {
+  it('test-kit-all.json uses every kit piece type but the wide bank, which flatout.json uses, and the loop, which test-loop.json uses (the docs/track-kit.md catalogue)', () => {
     const used = new Set((read('test-kit-all') as KitTrack).kit.pieces.map((p) => p.piece))
-    expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).filter((id) => id !== 'bank-180-wide').sort())
+    expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).filter((id) => id !== 'bank-180-wide' && id !== 'loop').sort())
     expect((read('flatout') as KitTrack).kit.pieces.map((p) => p.piece)).toContain('bank-180-wide')
+    expect((read('test-loop') as KitTrack).kit.pieces.map((p) => p.piece)).toContain('loop')
   })
 
   it('walls follow the road on any ground-level piece: both sides, inner side only on a bank', () => {

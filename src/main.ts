@@ -12,6 +12,8 @@ import { lapCount } from './race/lap'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 import { debugPose, frozen, poseQuery, yawDeg } from './race/debug-pose'
 import { centreline } from './track/centreline'
+import { loopTubes } from './track/pose'
+import { rotate, v3 } from './physics/vec'
 import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
 import { effectiveFxQuery, loadSettings, saveSettings } from './menu/settings'
@@ -42,6 +44,8 @@ const input = new KeyboardInput()
 const audio = new GameAudio()
 const laps = lapCount(location.search, settings.laps)
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
+// Inside a loop the overlay adds the car's up.y (−1 = upside down at the apex), so a shot can show it.
+const inLoop = loopTubes(track)
 const ghostRecorder = new GhostRecorder()
 const ghostCar = await createGhostCar()
 view.scene.add(ghostCar.object)
@@ -148,7 +152,7 @@ view.renderer.setAnimationLoop(() => {
   debug.setText(
     f
       ? `${backend}  ${track.name}  FLY${cam.orbiting ? ' ORBIT' : ''}  x ${f.position.x.toFixed(1)}  y ${f.position.y.toFixed(1)}  z ${f.position.z.toFixed(1)}  yaw ${wrapDeg((f.yaw * 180) / Math.PI).toFixed(0)}  pitch ${((f.pitch * 180) / Math.PI).toFixed(0)}  ·  WASD move  drag look  E/Q up/down  Shift fast  O orbit  C exit`
-      : `${backend}  ${track.name}  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`,
+      : `${backend}  ${track.name}  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${inLoop(s.position) ? `  up ${rotate(s.orientation, v3(0, 1, 0)).y.toFixed(2)}` : ''}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`,
   )
   view.frame(s, elapsed, material)
 })

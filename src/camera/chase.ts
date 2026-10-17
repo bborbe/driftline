@@ -7,7 +7,10 @@ export const FOV_MAX = 90
 export const MAX_DISTANCE = 8
 const STIFFNESS = 10 // 1/s
 
-export type ChaseCamera = { position: Vec3; fov: number }
+/** `up` is the camera's up vector: world up, except while it rolls with the car through a loop. */
+export type ChaseCamera = { position: Vec3; fov: number; up: Vec3 }
+
+const WORLD_UP = v3(0, 1, 0)
 
 /** Camera rig: how far behind and above the car it sits, and how far it may lag. */
 export type ChaseRig = { back: number; height: number; maxDistance: number }
@@ -20,9 +23,13 @@ export const fovForSpeed = (speed: number): number =>
 export const createChase = (target: Vec3, forward: Vec3, rig: ChaseRig = CLOSE_RIG): ChaseCamera => ({
   position: desired(target, forward, rig),
   fov: FOV_REST,
+  up: WORLD_UP,
 })
 
-const desired = (target: Vec3, forward: Vec3, rig: ChaseRig): Vec3 => {
+// Behind and above the car: along its heading on the ground plane and world up, or — inside a
+// loop, where the heading points up the wall — along the car's own forward and up.
+const desired = (target: Vec3, forward: Vec3, rig: ChaseRig, carUp?: Vec3): Vec3 => {
+  if (carUp) return add(add(target, scale(forward, -rig.back)), scale(carUp, rig.height))
   const flat = normalize(v3(forward.x, 0, forward.z))
   return add(add(target, scale(flat, -rig.back)), v3(0, rig.height, 0))
 }
@@ -34,15 +41,18 @@ export const updateChase = (
   speed: number,
   dt: number,
   rig: ChaseRig = CLOSE_RIG,
+  carUp?: Vec3,
 ): ChaseCamera => {
-  const want = desired(target, forward, rig)
+  const want = desired(target, forward, rig, carUp)
   const k = 1 - Math.exp(-STIFFNESS * dt)
+  // Rolls with the car while `carUp` is given (inside a loop), back to world up after; exactly world up on any other road.
+  const up = normalize(add(cam.up, scale(sub(carUp ?? WORLD_UP, cam.up), k)))
   let position = add(cam.position, scale(sub(want, cam.position), k))
   const offset = sub(position, target)
   const d = length(offset)
   const limit = rig.maxDistance - 1e-6
   if (d > limit) position = add(target, scale(offset, limit / d))
-  return { position, fov: fovForSpeed(speed) }
+  return { position, fov: fovForSpeed(speed), up }
 }
 
 // In-car view: eye at the driver's head in the body frame, rigidly attached.

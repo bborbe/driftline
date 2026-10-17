@@ -1,7 +1,7 @@
 // Track mesh generation from the shared schema. Pure TypeScript (no three) so it
 // is unit-testable in Node; src/render/track/mesh.ts wraps the arrays for three.js.
 import { bankRise } from '../../track/bank'
-import { poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, type Sample } from '../../track/pose'
+import { loopPoint, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, type LoopSegment, type Sample } from '../../track/pose'
 import type { Pose, Segment, Track } from '../../track/schema'
 
 export { sampleSegment, segmentLength, type Sample } from '../../track/pose'
@@ -63,8 +63,21 @@ export const PROFILE: readonly [number, number, Band][] = [
 /** Index of the centreline column in PROFILE. */
 export const CENTRE_COLUMN = PROFILE.findIndex(([u]) => u === 0)
 
+// Road point on a loop: loopPoint (the shape physics raycasts), lifted `h` along its inward normal.
+const loopVertex = (entry: Pose, seg: LoopSegment, row: number, rows: number, u: number, h: number): [number, number, number] => {
+  const q = loopPoint(entry, seg, (2 * Math.PI * row) / (rows - 1), u)
+  return [q.x + q.nx * h, q.y + q.ny * h, q.z + q.nz * h]
+}
+
 export const buildSegment = (entry: Pose, seg: Segment): SegmentGeometry => {
   const rows = rowCount(seg)
+  if (seg.type === 'loop') {
+    // The same cross-section and winding as below, wrapped round the loop: it faces the loop's axis.
+    const perRow = PROFILE.length
+    const positions = new Float32Array(rows * perRow * 3)
+    for (let r = 0; r < rows; r++) PROFILE.forEach(([u, h], c) => positions.set(loopVertex(entry, seg, r, rows, u, SURFACE_LIFT + h), (r * perRow + c) * 3))
+    return { positions, indices: gridIndices(rows, perRow), rows, perRow }
+  }
   const s = turnSign(seg)
   const perRow = PROFILE.length
   const positions = new Float32Array(rows * perRow * 3)
@@ -76,14 +89,19 @@ export const buildSegment = (entry: Pose, seg: Segment): SegmentGeometry => {
     })
   }
 
+  return { positions, indices: gridIndices(rows, perRow), rows, perRow }
+}
+
+// Triangles of a rows × perRow road grid, counter-clockwise from above (from the axis, on a loop).
+const gridIndices = (rows: number, perRow: number): Uint32Array => {
   const idx: number[] = []
-  const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, b, d, c) // counter-clockwise from above
+  const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, b, d, c)
   for (let r = 0; r < rows - 1; r++) {
     const a = r * perRow
     const b = (r + 1) * perRow
     for (let c = 0; c < perRow - 1; c++) quad(a + c, a + c + 1, b + c, b + c + 1)
   }
-  return { positions, indices: new Uint32Array(idx), rows, perRow }
+  return new Uint32Array(idx)
 }
 
 /** Geometry for every segment of a track, each placed at its poses() entry. */
@@ -177,6 +195,7 @@ export const DECK_DEPTH = 1
  * right top, right foot.
  */
 export const buildDeck = (entry: Pose, seg: Segment): SegmentGeometry | null => {
+  if (seg.type === 'loop') return buildLoopShell(entry, seg)
   if (seg.type === 'ramp' || seg.type === 'drop' || seg.type === 'gap' || entry.y < DECK_MIN_HEIGHT) return null
   const rows = rowCount(seg)
   const s = turnSign(seg)
@@ -198,6 +217,33 @@ export const buildDeck = (entry: Pose, seg: Segment): SegmentGeometry | null => 
     idx.push(a, a + 1, b, a + 1, b + 1, b) // left skirt
     idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3) // right skirt
     idx.push(a + 1, b + 1, a + 3, a + 3, b + 1, b + 3) // soffit, wound to face down so it lights from below
+  }
+  return { positions, indices: new Uint32Array(idx), rows, perRow }
+}
+
+/**
+ * A loop's outside: the same box section as buildDeck — a skirt DECK_DEPTH deep from each road edge
+ * and a shell joining them — wrapped round the loop, so from beside or below it reads as a solid
+ * ribbon and not as the back of a road. Rows: left top, left foot, right top, right foot.
+ */
+const buildLoopShell = (entry: Pose, seg: LoopSegment): SegmentGeometry => {
+  const rows = rowCount(seg)
+  const half = TRACK_WIDTH / 2
+  const perRow = 4
+  const positions = new Float32Array(rows * perRow * 3)
+  for (let r = 0; r < rows; r++) {
+    for (const [k, u] of [[0, half], [2, -half]]) {
+      positions.set(loopVertex(entry, seg, r, rows, u, SURFACE_LIFT), (r * perRow + k) * 3)
+      positions.set(loopVertex(entry, seg, r, rows, u, SURFACE_LIFT - DECK_DEPTH), (r * perRow + k + 1) * 3)
+    }
+  }
+  const idx: number[] = []
+  for (let r = 0; r < rows - 1; r++) {
+    const a = r * perRow
+    const b = (r + 1) * perRow
+    idx.push(a, a + 1, b, a + 1, b + 1, b)
+    idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3)
+    idx.push(a + 1, b + 1, a + 3, a + 3, b + 1, b + 3) // shell, facing away from the axis
   }
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }
@@ -224,7 +270,7 @@ export const planDeckPillars = (track: Track): DeckPillar[] => {
   })
   const out: DeckPillar[] = []
   track.segments.forEach((seg, i) => {
-    if (!buildDeck(ps[i], seg)) return
+    if (seg.type === 'loop' || !buildDeck(ps[i], seg)) return // a loop stands on its own foot
     const len = segmentLength(seg)
     for (let d = DECK_PILLAR_STEP / 2; d < len; d += DECK_PILLAR_STEP) {
       const p = sampleSegment(ps[i], seg, d / len)

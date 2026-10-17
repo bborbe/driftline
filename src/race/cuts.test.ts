@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { FixedStepper, forwardOf, MATERIALS, materialUnder, NO_INPUT, step, TICK_HZ, TRACK_WIDTH, trackSurface, type CarInput, type CarState, type Surface } from '../physics'
 import { exitPose, gateLine, poses, type Pose, type Segment, type Track } from '../track/schema'
 import { advanceRace, COUNTDOWN_TICKS, crosses, LapLoop } from './lap'
-import { autopilot, loadTrack, racingLine, type Sample } from './autopilot.test-driver'
+import { autopilot, hasLoop, loadTrack, racingLine, type Sample } from './autopilot.test-driver'
 import { STYLES } from '../track/catalogue'
 
 const CORNER = new Set(['curve', 'hairpin', 'banked'])
@@ -27,7 +27,7 @@ function roadRun(track: Track): CarState[] {
   const loop = new LapLoop(track, () => true)
   const surface = trackSurface(track)
   const sim = new FixedStepper(loop.spawn(), surface)
-  const drive = autopilot(racingLine(track, STYLE_TRACKS.includes(track.name)), LOOKAHEAD)
+  const drive = autopilot(racingLine(track, STYLE_TRACKS.includes(track.name)), LOOKAHEAD, hasLoop(track))
   let respawns = 0
   loop.on({ respawn: () => respawns++ })
   loop.start(sim.state.tick)

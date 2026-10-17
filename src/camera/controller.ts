@@ -2,8 +2,9 @@
 // The math lives in chase.ts, fly.ts and views.ts; this module owns the mode state and drives the three.js camera.
 import type { PerspectiveCamera } from 'three'
 import { forwardOf, type CarState } from '../physics'
-import { add, v3, type Vec3 } from '../physics/vec'
+import { add, rotate, v3, type Vec3 } from '../physics/vec'
 import type { Pose, Track } from '../track/schema'
+import { loopTubes } from '../track/pose'
 import { cockpitPose, COCKPIT_FOV, createChase, FAR_RIG, CLOSE_RIG, updateChase } from './chase'
 import { CAMERA_EVENT, loadView, saveView, viewForKey, type ViewMode } from './views'
 import {
@@ -81,6 +82,7 @@ export function createCameraController(o: CameraOptions): CameraController {
   let fly: FlyCam | null = null
   let orbitAngle: number | null = null
   const orbit = orbitFor(track)
+  const inLoop = loopTubes(track)
   const enterFly = (cam: FlyCam) => {
     fly = cam
     o.onFly(true)
@@ -180,8 +182,10 @@ export function createCameraController(o: CameraOptions): CameraController {
         const c = cockpitPose(s.position, s.orientation)
         place(c.eye, c.up, COCKPIT_FOV, c.look)
       } else {
-        chase = updateChase(chase, s.position, forwardOf(s), Math.abs(speed), elapsed, rigFor())
-        place(chase.position, UP, chase.fov, v3(s.position.x, s.position.y + 0.8, s.position.z))
+        const carUp = inLoop(s.position) ? rotate(s.orientation, UP) : undefined
+        chase = updateChase(chase, s.position, forwardOf(s), Math.abs(speed), elapsed, rigFor(), carUp)
+        const u = chase.up
+        place(chase.position, u, chase.fov, v3(s.position.x + 0.8 * u.x, s.position.y + 0.8 * u.y, s.position.z + 0.8 * u.z))
       }
     },
   }

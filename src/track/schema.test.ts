@@ -68,7 +68,7 @@ describe('validate', () => {
   })
 
   it('rejects an unknown segment type', () => {
-    expect(validate({ ...ok, segments: [{ type: 'loop' }] })).toContain('segments[0]: unknown segment type loop')
+    expect(validate({ ...ok, segments: [{ type: 'corkscrew' }] })).toContain('segments[0]: unknown segment type corkscrew')
   })
 
   it('rejects a banked turn without a bank angle', () => {

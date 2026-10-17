@@ -51,6 +51,10 @@ const WHEEL_RADIUS = 0.35
 const RAY_LIFT = 1.0
 // Compression cap: bounds the spring force when the car is pressed deep into a surface.
 const MAX_COMPRESSION = REST_LENGTH + RAY_LIFT
+// Bump stop on a loop only: past LOOP_BUMP of compression a stiff spring takes over, so the 5-15 g
+// of a loop taken flat out (v²/r) cannot press the body through the road. Never on other pieces.
+const LOOP_BUMP = 0.35
+const LOOP_BUMP_SPRING = 300000
 // Floor for dot(body-up, surface normal) in the compression rate (car tilted < ~72°).
 const MIN_UP_DOT = 0.3
 const GRIP = 1.6 // front friction coefficient (arcade)
@@ -264,6 +268,8 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   let turbo = Math.max(0, s.turbo - 1)
   let turboForce = turbo > 0 ? s.turboForce : 0
   let grounded = false
+  // A wheel on a loop: world y is no longer the car's yaw axis there (src/physics/surface.ts).
+  let onLoop = false
   // Direction of travel on the ground plane; at a standstill, where the car points.
   const flatVel = v3(s.velocity.x, 0, s.velocity.z)
   const travel = length(flatVel) > STOPPED ? normalize(flatVel) : normalize(v3(fwdBody.x, 0, fwdBody.z))
@@ -276,6 +282,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     if (!contact) continue
     const { hit, compression } = contact
     grounded = true
+    if (hit.loop) onLoop = true
     const material = hit.material ?? 'road'
     const handling = MATERIALS[material]
     if ((material === 'turbo' || material === 'turbo-red') && hit.padForward && dot(travel, hit.padForward) >= TURBO_ALIGN) {
@@ -294,7 +301,8 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     // the surface normal, not body-up: on a tilted landing the forward speed has a large
     // body-up component that would otherwise read as the spring extending and cancel it.
     const springVel = -dot(contactVel, hit.normal) / Math.max(dot(up, hit.normal), MIN_UP_DOT)
-    const normalForce = Math.max(0, SPRING * compression + DAMPER * springVel)
+    const bump = hit.loop && compression > LOOP_BUMP ? LOOP_BUMP_SPRING * (compression - LOOP_BUMP) : 0
+    const normalForce = Math.max(0, SPRING * compression + DAMPER * springVel + bump)
 
     // Tire frame projected onto the contact plane.
     const wheelYaw = wheel.front ? steerAngle : 0
@@ -371,9 +379,10 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   force = sub(force, scale(s.velocity, DRAG * v))
 
   // Yaw stability assist (see YAW_ASSIST): damp yaw rate beyond the path's turn rate,
-  // the latter from this tick's horizontal force across the velocity.
+  // the latter from this tick's horizontal force across the velocity. Off on a loop, where a torque
+  // about world y would roll the car off the road instead of damping its yaw.
   const v2 = flatVel.x * flatVel.x + flatVel.z * flatVel.z
-  if (grounded && !input.handbrake && v2 > YAW_ASSIST_MIN_SPEED ** 2) {
+  if (grounded && !onLoop && !input.handbrake && v2 > YAW_ASSIST_MIN_SPEED ** 2) {
     const fwdFlat = Math.hypot(fwdBody.x, fwdBody.z)
     const cosSlip = fwdFlat > 1e-6 ? (fwdBody.x * flatVel.x + fwdBody.z * flatVel.z) / (fwdFlat * Math.sqrt(v2)) : 1
     const slipDeg = (Math.acos(clamp(cosSlip, -1, 1)) * 180) / Math.PI

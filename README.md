@@ -72,6 +72,7 @@ Debug
 - [S03 dustbowl](https://bborbe.github.io/driftline/?track=dustbowl) - Dirt: sweepers to slide through
 - [S04 glacier](https://bborbe.github.io/driftline/?track=glacier) - Ice: a walled ice channel
 - [S05 washboard](https://bborbe.github.io/driftline/?track=washboard) - LOL: a red turbo straight into five bumps
+- [S06 looping](https://bborbe.github.io/driftline/?track=looping) - Loop: a turbo straight into a full vertical loop
 
 **Test**, short tracks that check one thing:
 
@@ -84,6 +85,7 @@ Debug
 - [test-turbo](https://bborbe.github.io/driftline/?track=test-turbo) - yellow and red turbo pads
 - [test-effects](https://bborbe.github.io/driftline/?track=test-effects) - every effect pad in a row
 - [test-checkpoint](https://bborbe.github.io/driftline/?track=test-checkpoint) - four checkpoints: splits and respawn
+- [test-loop](https://bborbe.github.io/driftline/?track=test-loop) - one full vertical loop
 - [test-kit](https://bborbe.github.io/driftline/?track=test-kit) - a lap of track kit pieces
 - [test-kit-all](https://bborbe.github.io/driftline/?track=test-kit-all) - every track kit piece in one lap
 

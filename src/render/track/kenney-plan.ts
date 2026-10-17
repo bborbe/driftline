@@ -46,6 +46,7 @@ const planSegment = (entry: Pose, seg: Segment, startLine: boolean): Placement[]
       return [] // nothing to draw: the jump is the absence of road
     case 'ramp':
     case 'drop':
+    case 'loop':
       // Procedural: the Kenney ramp's curved profile matched neither the physics strip
       // (linear) nor the support walls, leaving a step at the foot and walls poking out.
       return null
