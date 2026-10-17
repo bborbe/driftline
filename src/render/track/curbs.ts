@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu'
 import { poses, turnSign, type Segment, type Track } from '../../track/schema'
 import { CURB_RED, CURB_WHITE } from '../look'
+import { glowMaterial } from '../glow'
 import { flat } from '../tags'
 import { lateralPoint, PROFILE, roadScale, sampleSegment, segmentLength } from './geometry'
 
@@ -56,11 +57,13 @@ class RibbonBuilder {
 
 /**
  * Curb blocks and edge lines for every segment: `red` holds the red blocks, `white` the white
- * blocks plus both edge lines. Blocks alternate continuously across segment joints.
+ * blocks, `edge` both edge lines (their own glowing mesh, createEdgeLines). Blocks alternate
+ * continuously across segment joints.
  */
-export const curbDecals = (track: Track): { red: Ribbons; white: Ribbons } => {
+export const curbDecals = (track: Track): { red: Ribbons; white: Ribbons; edge: Ribbons } => {
   const red = new RibbonBuilder()
   const white = new RibbonBuilder()
+  const edge = new RibbonBuilder()
   const ps = poses(track)
   let parity = 0
   track.segments.forEach((seg, i) => {
@@ -73,10 +76,10 @@ export const curbDecals = (track: Track): { red: Ribbons; white: Ribbons } => {
     parity = (parity + n) % 2
     for (const side of [1, -1]) {
       const outer = CURB_INNER - EDGE_LINE.inset
-      white.add(ps[i], seg, side * (outer - EDGE_LINE.width), side * outer, ROAD_TOP + DECAL_LIFT, 0, 1)
+      edge.add(ps[i], seg, side * (outer - EDGE_LINE.width), side * outer, ROAD_TOP + DECAL_LIFT, 0, 1)
     }
   })
-  return { red: red.build(), white: white.build() }
+  return { red: red.build(), white: white.build(), edge: edge.build() }
 }
 
 const DECAL = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, depthWrite: false, side: THREE.DoubleSide } as const
@@ -104,5 +107,20 @@ export const createCurbs = (track: Track, accent: THREE.Color = CURB_RED): THREE
   flat(mesh, 'curb')
   mesh.receiveShadow = true
   mesh.renderOrder = 1 // after the road (decals write no depth); surface patches and pads draw over it
+  return mesh
+}
+
+/** The two edge lines of every segment as one self-lit neon ribbon mesh (glow.ts 'edge-line'). */
+export const createEdgeLines = (track: Track): THREE.Mesh => {
+  const { edge } = curbDecals(track)
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(edge.positions, 3))
+  geo.setIndex(new THREE.BufferAttribute(edge.indices, 1))
+  geo.computeVertexNormals()
+  const mesh = new THREE.Mesh(geo, glowMaterial('edge-line', { ...DECAL, roughness: 0.55 }))
+  mesh.name = 'edge-lines'
+  flat(mesh, 'curb')
+  mesh.receiveShadow = true
+  mesh.renderOrder = 1 // same slot as the curbs: over the road, under surface patches and pads
   return mesh
 }

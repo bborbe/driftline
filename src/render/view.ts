@@ -7,6 +7,7 @@ import { dot, forwardOf, type CarState, type Material } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
 import { parseFx } from './fx/flags'
+import { bloomFor } from './glow'
 import { createSkidMarks } from './fx/skid'
 import { createDust } from './fx/dust'
 import { createSmoke } from './fx/smoke'
@@ -26,8 +27,8 @@ export type View = {
   car: THREE.Object3D
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
-  /** Pose the car from physics state and draw one frame; dt in seconds; `material` is the surface under the car. */
-  frame: (state: CarState, dt: number, material?: Material) => void
+  /** Pose the car from physics state and draw one frame; dt in seconds; `material` is the surface under the car; `braking` lights the tail lights. */
+  frame: (state: CarState, dt: number, material?: Material, braking?: boolean) => void
 }
 
 export const createView = async (track: Track, fxQuery: string = location.search): Promise<View> => {
@@ -55,13 +56,15 @@ export const createView = async (track: Track, fxQuery: string = location.search
   window.addEventListener('resize', resize)
   watchFullscreen(resize)
 
-  // Effects behind ?fx=bloom,speedlines,skid,smoke; all read car state only.
+  // Effects behind ?fx=speedlines,skid,smoke; all read car state only. Bloom (the glow pass,
+  // glow.ts) is on by default: ?bloom=0 turns it off, ?time=night picks the stronger night preset.
   const fx = parseFx(fxQuery)
   let draw = () => renderer.render(scene, camera)
-  if (fx.has('bloom')) {
+  const glow = bloomFor(location.search)
+  if (glow) {
     const pipeline = new THREE.RenderPipeline(renderer)
     const scenePass = pass(scene, camera)
-    pipeline.outputNode = scenePass.add(bloom(scenePass, 0.3, 0.4, 0.9))
+    pipeline.outputNode = scenePass.add(bloom(scenePass, glow.strength, glow.radius, glow.threshold))
     draw = () => pipeline.render()
   }
   const speedLines = fx.has('speedlines') ? createSpeedLines() : null
@@ -90,8 +93,8 @@ export const createView = async (track: Track, fxQuery: string = location.search
   const topCam = topCamRequested(location.search)
   if (topCam) scene.fog = null // the camera sits hundreds of metres up, inside the fog range
 
-  const frame = (s: CarState, dt: number, material: Material = 'road') => {
-    car.update(s, dt)
+  const frame = (s: CarState, dt: number, material: Material = 'road', braking = false) => {
+    car.update(s, dt, braking)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     speedLines?.update(dot(s.velocity, forwardOf(s)), dt)
     skid?.update(s)

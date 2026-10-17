@@ -34,8 +34,8 @@ describe('curbDecals', () => {
   })
 
   it('draws a white edge line on the asphalt just inside each curb', () => {
-    const { white } = curbDecals(straight(20))
-    const lines = vertices(white.positions).filter(([, y]) => y < CURB_TOP)
+    const { edge } = curbDecals(straight(20))
+    const lines = vertices(edge.positions).filter(([, y]) => y < CURB_TOP)
     expect(lines.length).toBeGreaterThan(0)
     const outer = CURB_INNER - EDGE_LINE.inset
     for (const [x] of lines) {
@@ -46,14 +46,14 @@ describe('curbDecals', () => {
 
   it('leaves a gap (a jump with no road) bare', () => {
     const track: Track = { ...straight(10), segments: [{ type: 'straight', length: 10 }, { type: 'gap', length: 10 }, { type: 'straight', length: 10 }] }
-    const { red, white } = curbDecals(track)
-    for (const r of [red, white]) for (const [, , z] of vertices(r.positions)) expect(z <= 10 + 1e-6 || z >= 20 - 1e-6).toBe(true)
+    const { red, white, edge } = curbDecals(track)
+    for (const r of [red, white, edge]) for (const [, , z] of vertices(r.positions)) expect(z <= 10 + 1e-6 || z >= 20 - 1e-6).toBe(true)
   })
 
   for (const name of LAP_NAMES) {
     it(`${name}: covers every segment with finite, indexed geometry`, () => {
-      const { red, white } = curbDecals(loadLap(name))
-      for (const r of [red, white]) {
+      const { red, white, edge } = curbDecals(loadLap(name))
+      for (const r of [red, white, edge]) {
         expect(r.indices.length % 3).toBe(0)
         expect(Math.max(...r.indices)).toBeLessThan(r.positions.length / 3)
         expect(r.positions.every(Number.isFinite)).toBe(true)
