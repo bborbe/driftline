@@ -35,6 +35,8 @@ export type EnvironmentLook = {
   clouds: CloudLook | null
   /** Floodlights on the stadium light posts and a glowing road edge. */
   night: boolean
+  /** Neon Night (render/neon/): neon tubes, skyline, sparks, pink rims, the road reflection and the neon bloom and grade. */
+  neon: boolean
   /** Falling streaks around the camera and a wet road. */
   rain: boolean
   /** Drifting flakes around the camera (the haze is already in `fog`). */
@@ -51,7 +53,7 @@ export const sunOffset = (elevation: number, azimuth: number): [number, number, 
   SUN_DISTANCE * Math.cos(elevation) * Math.cos(azimuth),
 ]
 
-type TimeLook = Omit<EnvironmentLook, 'clouds' | 'night' | 'rain' | 'snow'> & {
+type TimeLook = Omit<EnvironmentLook, 'clouds' | 'night' | 'neon' | 'rain' | 'snow'> & {
   /** How much daylight the weather's grey has to work with (fog and cloud tint). */
   daylight: number
   cloud: string
@@ -118,6 +120,22 @@ export const TIME_LOOKS: Record<TimeOfDay, TimeLook> = {
     daylight: 0.18,
     cloud: '#2b3446',
   },
+  // Neon Night: a black stadium sky with no city glow (the dome all but off), a deep purple haze, and a
+  // dim violet key light; the track is lit by its own neon (render/neon/), so the floodlights stay off.
+  neon: {
+    sky: 'night',
+    skyBrightness: SKY_BRIGHTNESS.night * 0.1,
+    skyLight: 0.03,
+    exposure: 0.85,
+    fog: '#14052a',
+    fogNear: 90,
+    fogFar: 750,
+    sun: '#b07cff',
+    sunIntensity: 0.3,
+    sunOffset: sunOffset(60 * deg, -40 * deg),
+    daylight: 0.1,
+    cloud: '#2a1238',
+  },
 }
 
 type WeatherLook = {
@@ -174,7 +192,7 @@ export function environmentLook(theme: ResolvedTheme, env: Environment, trackDef
   const t = TIME_LOOKS[env.time]
   const w = WEATHER_LOOKS[env.weather]
   const clouds = w.cover > 0 ? { cover: w.cover, color: scaleColour(t.cloud, w.shade) } : null
-  const extras = { sunOffset: t.sunOffset, clouds, night: env.time === 'night', rain: env.weather === 'rain', snow: env.weather === 'snow' }
+  const extras = { sunOffset: t.sunOffset, clouds, night: env.time === 'night', neon: env.time === 'neon', rain: env.weather === 'rain', snow: env.weather === 'snow' }
   const white = scaleColour(SNOW_HAZE, t.daylight)
   if (same(env, trackDefault)) {
     const { sky, skyLight, exposure, fog, fogNear, fogFar, sun, sunIntensity } = theme

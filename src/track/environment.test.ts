@@ -3,8 +3,10 @@ import {
   DEFAULT_ENVIRONMENT,
   environmentLabel,
   MAX_SEED,
+  RANDOM_TIMES,
   randomEnvironment,
   resolveEnvironment,
+  TIME_CHOICES,
   TIMES,
   trackEnvironment,
   validateEnvironment,
@@ -84,14 +86,26 @@ describe('resolveEnvironment', () => {
     expect(resolveEnvironment('?time=dawn&weather=hail', sunsetTrack, 'fixed', 5)).toEqual({ time: 'sunset', weather: 'cloudy', source: 'track' })
   })
 
-  it('random reaches every time and every weather', () => {
+  it('random reaches every random time and every weather, and never neon', () => {
     const seen = new Set<string>()
     for (let seed = 0; seed < 400; seed++) {
       const e = randomEnvironment(seed)
       seen.add(e.time)
       seen.add(e.weather)
     }
-    expect([...seen].sort()).toEqual([...TIMES, ...WEATHERS].sort())
+    expect([...seen].sort()).toEqual([...RANDOM_TIMES, ...WEATHERS].sort())
+    expect(seen.has('neon')).toBe(false)
+  })
+
+  it('offers neon as a time: valid in a track file, a choice in Settings, and a ?time= override', () => {
+    expect(TIMES).toContain('neon')
+    expect(RANDOM_TIMES).toEqual(TIMES.filter((t) => t !== 'neon'))
+    expect(TIME_CHOICES).toContain('neon')
+    expect(validateEnvironment({ time: 'neon' })).toEqual([])
+    const env = resolveEnvironment('?time=neon', {}, 'fixed', 5)
+    expect(env).toEqual({ time: 'neon', weather: 'sunny', source: 'url' })
+    expect(environmentLabel(env)).toBe('neon sunny url')
+    expect(resolveEnvironment('', {}, { time: 'neon', weather: 'default' }, 5)).toMatchObject({ time: 'neon', source: 'setting' })
   })
 })
 

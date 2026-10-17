@@ -17,9 +17,11 @@ export interface SettingsHooks {
 }
 
 const VIEW_LABELS: Record<ViewMode, string> = { close: 'Close chase', far: 'Far chase', cockpit: 'In-car' }
+/** Choices whose label is more than the capitalised id. */
+const CHOICE_LABELS: Record<string, string> = { neon: 'Neon Night' }
 /** Option label; "Track default" names what it resolves to on the track when that is known: `Track default (snow)`. */
 export const choiceLabel = (c: string, trackDefault?: string): string =>
-  c === 'default' ? `Track default${trackDefault ? ` (${trackDefault})` : ''}` : c[0].toUpperCase() + c.slice(1)
+  c === 'default' ? `Track default${trackDefault ? ` (${trackDefault})` : ''}` : (CHOICE_LABELS[c] ?? c[0].toUpperCase() + c.slice(1))
 
 /** Rename the "Track default" Time and Weather options under `root` for the track whose environment is `env`. */
 export function labelTrackDefault(root: ParentNode, env: Environment): void {
@@ -64,6 +66,12 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     window.dispatchEvent(new CustomEvent(CAMERA_EVENT, { detail: cam.value }))
   })
   add('camera', label('Camera (1/2/3)'), cam)
+  const refl = Object.assign(document.createElement('input'), { type: 'checkbox', checked: s.reflections, id: 'setting-reflections' })
+  refl.addEventListener('change', () => {
+    s.reflections = refl.checked
+    commit()
+  })
+  add('reflections', label('Reflections (Neon Night)'), refl)
   const laps = document.createElement('select')
   laps.id = 'setting-laps'
   for (let n = 1; n <= MAX_LAPS; n++) laps.append(new Option(String(n), String(n), false, n === s.laps))

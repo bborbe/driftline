@@ -53,7 +53,7 @@ const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 let env = resolveEnvironment(location.search, track, settings, Date.now())
-const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery)
+const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, settings.reflections)
 const { camera, backend } = view
 
 // Debug overlay (pose, fps, build label) in the corners; backtick or ?debug=0 hides it, P copies the debug-spawn URL
@@ -148,6 +148,7 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
     ghostCar.setLivery(ghostLivery(livery))
   }
   if (change.fx) view.setFx(change.fx)
+  if (change.reflections !== undefined) view.setReflections(change.reflections)
   if (change.volume !== undefined) audio.setVolume(change.volume)
   if (change.laps !== undefined) race.setLaps(change.laps)
   if (change.environment) {

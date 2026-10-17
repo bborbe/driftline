@@ -4,8 +4,14 @@
 // so records, ghosts and golden replays never see it. Pure TypeScript and tested; the look each
 // preset maps to lives in src/render/environment.ts.
 
-export const TIMES = ['morning', 'noon', 'sunset', 'night'] as const
+export const TIMES = ['morning', 'noon', 'sunset', 'night', 'neon'] as const
 export type TimeOfDay = (typeof TIMES)[number]
+
+/**
+ * The times a seeded random pick draws from. Neon Night is a mood you choose, not a time of day the
+ * stadium drifts into, and leaving it out keeps every existing `?seed=` link on the preset it named.
+ */
+export const RANDOM_TIMES: readonly TimeOfDay[] = ['morning', 'noon', 'sunset', 'night']
 
 export const WEATHERS = ['sunny', 'cloudy', 'overcast', 'rain', 'snow'] as const
 export type Weather = (typeof WEATHERS)[number]
@@ -73,7 +79,7 @@ export const trackEnvironment = (track: { environment?: EnvironmentDefault }): E
 /** Largest seed a random pick draws; `?seed=` takes any non-negative integer. */
 export const MAX_SEED = 99999
 
-/** One of the 20 presets from a seed: same seed, same preset (mulberry32, as the scenery planner). */
+/** One of the 20 random presets (RANDOM_TIMES × WEATHERS) from a seed: same seed, same preset (mulberry32, as the scenery planner). */
 export const randomEnvironment = (seed: number): Environment => {
   let s = seed | 0
   const next = () => {
@@ -82,7 +88,7 @@ export const randomEnvironment = (seed: number): Environment => {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
-  return { time: TIMES[Math.floor(next() * TIMES.length)], weather: WEATHERS[Math.floor(next() * WEATHERS.length)] }
+  return { time: RANDOM_TIMES[Math.floor(next() * RANDOM_TIMES.length)], weather: WEATHERS[Math.floor(next() * WEATHERS.length)] }
 }
 
 /**
