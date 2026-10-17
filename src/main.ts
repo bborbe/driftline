@@ -7,7 +7,7 @@ import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
-import { beginAllowed, GameAudio, mountAudioControls } from './audio'
+import { beginAllowed, GameAudio, KerbProbe, mountAudioControls, mountUiSounds } from './audio'
 import { initRace } from './race'
 import { lapCount } from './race/lap'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
@@ -36,6 +36,21 @@ let shownView: ViewMode = viewFromUrl(location.search, loadView(localStorage))
 saveSettings(localStorage, shown)
 saveView(localStorage, shownView)
 window.addEventListener(SETTINGS_EVENT, (e) => (shown = (e as CustomEvent<Settings>).detail))
+// Audio exists before the start screen so its menu clicks sound (a click may create the context: src/audio/ui-sounds.ts).
+// ?audiolog=1 keeps an event trace on window.__driftlineAudio for automated checks (squeal, kerb, impact, ui, one-shots).
+const audio = new GameAudio()
+const applyVolumes = (s: Settings) => {
+  audio.setVolume(s.volume)
+  audio.setSfxVolume(s.sfxVolume)
+  audio.setUiVolume(s.uiVolume)
+}
+applyVolumes(shown)
+window.addEventListener(SETTINGS_EVENT, (e) => applyVolumes((e as CustomEvent<Settings>).detail))
+if (new URLSearchParams(location.search).get('audiolog') === '1') {
+  audio.enableTrace()
+  ;(window as unknown as { __driftlineAudio: GameAudio['trace'] }).__driftlineAudio = audio.trace
+}
+mountUiSounds((sound, detail) => audio.playUi(sound, detail))
 window.addEventListener(CAMERA_EVENT, (e) => (shownView = (e as CustomEvent<ViewMode>).detail))
 // A bare URL opens the start screen; ?track= and debug-spawn links go straight in (shared links, `make shots`).
 const fromMenu = !skipMenu(location.search)
@@ -75,7 +90,7 @@ const tuning = devMode(location.search) ? mountTuningPanel(localStorage) : null
 const taint = new RunTaint()
 taint.runStart(isTuned())
 const input = new KeyboardInput()
-const audio = new GameAudio()
+const kerbs = new KerbProbe(track)
 const laps = lapCount(location.search, settings.laps)
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
 // Inside a loop the overlay adds the car's up.y (−1 = upside down at the apex), so a shot can show it.
@@ -95,7 +110,10 @@ const race = initRace(sim, track, {
       lapFinish: (_t, _ms, lap) => {
         if (lap < race.laps) audio.onCheckpoint()
       },
-      raceFinish: () => audio.onFinish(),
+      raceFinish: (_t, _ms, isNewBest) => {
+        audio.onFinish()
+        if (isNewBest) audio.onNewRecord()
+      },
       respawn: () => audio.onRespawn(),
       restart: () => audio.onRestart(),
     },
@@ -148,7 +166,6 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
     ghostCar.setLivery(ghostLivery(livery))
   }
   if (change.fx) view.setFx(change.fx)
-  if (change.volume !== undefined) audio.setVolume(change.volume)
   if (change.laps !== undefined) race.setLaps(change.laps)
   if (change.environment) {
     env = resolveEnvironment('', track, next, Date.now())
@@ -159,7 +176,6 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
 mountAudioControls(audio, () => race.start(), () => beginAllowed(race.paused, cam.fly !== null), settings.volume, (volume) =>
   saveSettings(localStorage, { ...loadSettings(localStorage), volume }),
 )
-audio.setVolume(settings.volume)
 // The card pick is the start gesture: skip the Begin overlay and go straight into the countdown.
 if (fromMenu) document.getElementById('begin')?.click()
 // Debug spawn for screenshots (docs/development.md § Debug screenshots): ?x&y&z&yaw places the car, freeze=1 holds it.
@@ -216,7 +232,7 @@ view.renderer.setAnimationLoop(() => {
   }
   const s = sim.render()
   const material = materialUnder(s, sim.surface)
-  if (!fly) audio.update(s, carInput, material)
+  if (!fly) audio.update(s, carInput, material, kerbs.onKerb(s.position))
   const speed = dot(s.velocity, forwardOf(s))
 
   view.car.visible = fly !== null || cam.viewMode !== 'cockpit'

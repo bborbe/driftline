@@ -64,7 +64,43 @@ export const turboGain = (turboTicks: number, turboForce: number): number =>
 // Master output gain: 0 when muted, otherwise the clamped volume slider value.
 export const masterGain = (muted: boolean, volume: number): number => (muted ? 0 : clamp01(volume))
 
-export type AudioEvent = 'checkpoint' | 'finish' | 'respawn' | 'countdown' | 'go'
+// Bus gain under the master (the SFX and UI sliders): the clamped slider value, so 0 silences only that bus.
+export const busGain = (volume: number): number => clamp01(volume)
+
+// Tyre squeal: a tonal whine on grippy surfaces once the slip passes the skid threshold, louder and higher with slip.
+export const SQUEAL_MAX_GAIN = 0.12
+// Slip (deg past SKID_SLIP_DEG) at which the squeal is fully loud.
+const SQUEAL_SPAN_DEG = 30
+const squealSlip = (slipDeg: number): number => Math.min(slipDeg, 180 - slipDeg) - SKID_SLIP_DEG
+
+// Squeal gain from slip angle (deg, 0..180) and ground speed (m/s); 0 at or under the skid threshold.
+export const squealGain = (slipDeg: number, speed: number): number => {
+  const over = squealSlip(slipDeg)
+  if (over <= 0 || Math.abs(speed) <= SKID_MIN_SPEED) return 0
+  return SQUEAL_MAX_GAIN * clamp01(over / SQUEAL_SPAN_DEG)
+}
+
+// Squeal pitch (Hz): rises from 900 Hz at the threshold to 1500 Hz at full slip.
+export const squealFreq = (slipDeg: number): number => 900 + 600 * clamp01(squealSlip(slipDeg) / SQUEAL_SPAN_DEG)
+
+// Surfaces that squeal: hard road (every pad is road underfoot). Loose ground rumbles and ice hisses instead.
+export const squeals = (material: Material): boolean => SURFACE_SOUND[material].rumbleMax === 0
+
+// Impact thump from the velocity change (m/s) in one frame: silent under the floor (braking, bumps), full at IMPACT_FULL.
+export const IMPACT_FLOOR = 3
+export const IMPACT_FULL = 15
+export const IMPACT_MAX_GAIN = 0.6
+export const impactGain = (dv: number): number => (dv <= IMPACT_FLOOR ? 0 : IMPACT_MAX_GAIN * clamp01((dv - IMPACT_FLOOR) / (IMPACT_FULL - IMPACT_FLOOR)))
+
+// Kerb rumble: a low buzz while a wheel rides the curb band, louder with speed; its pitch follows the stripe rate.
+export const KERB_MAX_GAIN = 0.3
+export const KERB_MIN_SPEED = 2
+export const kerbGain = (onKerb: boolean, speed: number): number =>
+  onKerb && Math.abs(speed) > KERB_MIN_SPEED ? KERB_MAX_GAIN * clamp01(0.3 + Math.abs(speed) / MAX_SPEED) : 0
+// One bump per 0.5 m of curb: 20 m/s → 40 Hz, clamped to an audible-rumble band.
+export const kerbFreq = (speed: number): number => Math.min(90, Math.max(25, Math.abs(speed) * 2))
+
+export type AudioEvent = 'checkpoint' | 'finish' | 'respawn' | 'countdown' | 'go' | 'newRecord'
 
 export type OneShot = {
   freqs: readonly number[] // played in sequence
@@ -80,4 +116,15 @@ export const ONE_SHOTS: Readonly<Record<AudioEvent, OneShot>> = {
   // Trackmania-style start: three short low beeps (3, 2, 1), then a higher, longer one on GO.
   countdown: { freqs: [440], duration: 0.15, type: 'triangle' },
   go: { freqs: [880], duration: 0.6, type: 'triangle' },
+  // New best: a rising major arpeggio an octave above the finish fanfare.
+  newRecord: { freqs: [1047, 1319, 1568, 2093], duration: 0.11, type: 'sine' },
+}
+
+// UI sounds: short and quiet, so menus feel responsive without competing with the car.
+export const UI_MAX_GAIN = 0.12
+export type UiSound = 'click' | 'confirm'
+export type UiShot = { freqs: readonly number[]; duration: number; gain: number }
+export const UI_SHOTS: Readonly<Record<UiSound, UiShot>> = {
+  click: { freqs: [1800], duration: 0.025, gain: 0.06 },
+  confirm: { freqs: [990, 1480], duration: 0.05, gain: 0.1 },
 }
