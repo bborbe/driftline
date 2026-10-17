@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TIMES, WEATHERS } from '../track/environment'
-import { cloudPixels, environmentLook, mixColour, TIME_LOOKS } from './environment'
+import { cloudPixels, environmentLook, mixColour, SNOW_HAZE, TIME_LOOKS } from './environment'
 import { DEFAULT_THEME, resolveTheme, SKY_BRIGHTNESS } from './theme'
 import { loadLap } from '../track/registry'
 import { isColour } from '../track/schema'
@@ -31,10 +31,11 @@ describe('environmentLook', () => {
       clouds: null,
       night: false,
       rain: false,
+      snow: false,
     })
   })
 
-  it('gives all 16 presets valid, distinct lighting', () => {
+  it('gives all 20 presets valid, distinct lighting', () => {
     const seen = new Set<string>()
     for (const time of TIMES)
       for (const weather of WEATHERS) {
@@ -44,7 +45,7 @@ describe('environmentLook', () => {
         for (const v of [l.skyBrightness, l.skyLight, l.exposure, l.sunIntensity]) expect(v).toBeGreaterThan(0)
         seen.add(JSON.stringify(l))
       }
-    expect(seen.size).toBe(16)
+    expect(seen.size).toBe(TIMES.length * WEATHERS.length)
   })
 
   it('low sun at morning and sunset casts longer shadows than noon', () => {
@@ -55,7 +56,7 @@ describe('environmentLook', () => {
 
   it('weather dims the sun and pulls the haze in, rain most', () => {
     const at = (weather: (typeof WEATHERS)[number]) => environmentLook(DEFAULT_THEME, { time: 'noon', weather }, { time: 'night', weather: 'sunny' })
-    const [sunny, cloudy, overcast, rain] = WEATHERS.map(at)
+    const [sunny, cloudy, overcast, rain, snow] = WEATHERS.map(at)
     expect(cloudy.sunIntensity).toBeLessThan(sunny.sunIntensity)
     expect(overcast.sunIntensity).toBeLessThan(cloudy.sunIntensity)
     expect(rain.sunIntensity).toBeLessThan(overcast.sunIntensity)
@@ -63,7 +64,28 @@ describe('environmentLook', () => {
     expect(sunny.clouds).toBeNull()
     expect(cloudy.clouds!.cover).toBeLessThan(overcast.clouds!.cover)
     expect(overcast.sky).toBe('overcast')
-    expect([sunny.rain, cloudy.rain, overcast.rain, rain.rain]).toEqual([false, false, false, true])
+    expect([sunny.rain, cloudy.rain, overcast.rain, rain.rain, snow.rain]).toEqual([false, false, false, true, false])
+    expect([sunny.snow, cloudy.snow, overcast.snow, rain.snow, snow.snow]).toEqual([false, false, false, false, true])
+  })
+
+  it('snow hazes white, softer than rain and not as close', () => {
+    const at = (weather: (typeof WEATHERS)[number]) => environmentLook(DEFAULT_THEME, { time: 'noon', weather }, noonSunny)
+    const lum = (c: string) => [1, 3, 5].reduce((s, i) => s + parseInt(c.slice(i, i + 2), 16), 0)
+    const [rain, snow] = [at('rain'), at('snow')]
+    expect(lum(snow.fog)).toBeGreaterThan(lum(rain.fog))
+    expect(lum(snow.fog)).toBeGreaterThan(lum('#c8c8c8'))
+    expect(snow.fogFar).toBeGreaterThan(rain.fogFar)
+    expect(snow.sunIntensity).toBeLessThan(at('sunny').sunIntensity)
+  })
+
+  it("keeps glacier's theme light for its snow default, with the white haze over it", () => {
+    const glacier = loadLap('glacier')
+    const theme = resolveTheme(glacier)
+    const snow = { time: 'noon', weather: 'snow' } as const
+    const look = environmentLook(theme, snow, snow)
+    expect(look).toMatchObject({ sky: theme.sky, sun: theme.sun, sunIntensity: theme.sunIntensity, exposure: theme.exposure, snow: true, rain: false })
+    expect(look.fog).toBe(mixColour(theme.fog, SNOW_HAZE, 0.7))
+    expect(look.fogFar).toBeLessThan(theme.fogFar)
   })
 
   it('switches the night extras on only at night', () => {

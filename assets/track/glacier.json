@@ -31,5 +31,5 @@
   },
   "medals": { "author": 28000, "gold": 30000, "silver": 34000, "bronze": 40000 },
   "theme": {"sky": "overcast", "skyLight": 0.55, "fog": "#dfe9ef", "fogNear": 150, "fogFar": 800, "sun": "#e6f2ff", "sunIntensity": 1.6, "ground": "#e8f1f5", "curb": "#00a3e0", "sign": "#ffffff", "screen": "#0b3d5c", "scenery": ["tree_cone", "stone_tallC", "rock_largeC"]},
-  "environment": {"time": "noon", "weather": "overcast"}
+  "environment": {"time": "noon", "weather": "snow"}
 }

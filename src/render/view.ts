@@ -15,6 +15,7 @@ import { createSmoke } from './fx/smoke'
 import { createBoostStreaks } from './fx/boost-streaks'
 import { createSpeedLines } from './fx/speedlines'
 import { createRain } from './fx/rain'
+import { createSnow } from './fx/snow'
 import { FrameStats } from './fx/stats'
 import { watchFullscreen } from '../fullscreen'
 import { createScene } from './scene'
@@ -83,9 +84,9 @@ export const createView = async (
   const [{ scene, look, follow, frame: sky }, trackMesh, car] = await Promise.all([createScene(track, env, seed), createPieceTrack(track), createCarView(undefined, livery)])
   renderer.toneMappingExposure = look.exposure
   scene.add(trackMesh, car.object)
-  // Night lights the road edges; rain wets the road and falls around the camera (render/environment.ts).
+  // Night lights the road edges; rain wets the road and falls around the camera, snow drifts around it (render/environment.ts).
   if (look.rain) wetRoad(trackMesh)
-  const rain = look.rain ? createRain(seed) : null
+  const rain = look.rain ? createRain(seed) : look.snow ? createSnow(seed) : null
   if (rain) scene.add(rain.object)
   const start = createStartDressing(track)
   if (start) scene.add(start.object)

@@ -1,10 +1,11 @@
 // The look of each time-of-day × weather preset (src/track/environment.ts): sun direction, colour
-// and intensity, sky dome and image light, fog, exposure, cloud cover, and the night and rain
-// extras scene.ts and view.ts add. Visual only: nothing here reaches physics.
+// and intensity, sky dome and image light, fog, exposure, cloud cover, and the night, rain and
+// snow extras scene.ts and view.ts add. Visual only: nothing here reaches physics.
 //
 // A track's own default preset keeps its theme's lighting exactly (theme.ts), so the default look
 // of every track is the one it already had; any other preset swaps the theme's lighting for the
-// preset's while keeping its ground, curb, sign, screen and scenery. The cloud field is a pure,
+// preset's while keeping its ground, curb, sign, screen and scenery. Snow is the one exception:
+// its white haze is applied over a track's own default too (glacier), since the haze is the snow. The cloud field is a pure,
 // seeded, horizontally tiling value-noise texture, unit-tested like the planners.
 import type { Environment, TimeOfDay, Weather } from '../track/environment'
 import type { Sky } from '../track/schema'
@@ -36,6 +37,8 @@ export type EnvironmentLook = {
   night: boolean
   /** Falling streaks around the camera and a wet road. */
   rain: boolean
+  /** Drifting flakes around the camera (the haze is already in `fog`). */
+  snow: boolean
 }
 
 /** Distance from the car to the sun (and the shadow camera); the noon offset is today's (40, 80, 30). */
@@ -48,7 +51,7 @@ export const sunOffset = (elevation: number, azimuth: number): [number, number, 
   SUN_DISTANCE * Math.cos(elevation) * Math.cos(azimuth),
 ]
 
-type TimeLook = Omit<EnvironmentLook, 'clouds' | 'night' | 'rain'> & {
+type TimeLook = Omit<EnvironmentLook, 'clouds' | 'night' | 'rain' | 'snow'> & {
   /** How much daylight the weather's grey has to work with (fog and cloud tint). */
   daylight: number
   cloud: string
@@ -134,14 +137,22 @@ type WeatherLook = {
   overcastSky: boolean
   /** Cloud tint factor. */
   shade: number
+  /** Share of SNOW_HAZE mixed into the fog after the grey: snow's cold white haze. */
+  white: number
 }
 
 export const WEATHER_LOOKS: Record<Weather, WeatherLook> = {
-  sunny: { cover: 0, sun: 1, dome: 1, skyLight: 1, exposure: 1, grey: 0, fog: 1, overcastSky: false, shade: 1 },
-  cloudy: { cover: 0.5, sun: 0.65, dome: 0.9, skyLight: 1, exposure: 1, grey: 0.25, fog: 0.85, overcastSky: false, shade: 1 },
-  overcast: { cover: 0.85, sun: 0.3, dome: 0.8, skyLight: 1.15, exposure: 0.95, grey: 0.6, fog: 0.6, overcastSky: true, shade: 0.75 },
-  rain: { cover: 1, sun: 0.2, dome: 0.6, skyLight: 1.1, exposure: 0.9, grey: 0.75, fog: 0.4, overcastSky: true, shade: 0.5 },
+  sunny: { cover: 0, sun: 1, dome: 1, skyLight: 1, exposure: 1, grey: 0, fog: 1, overcastSky: false, shade: 1, white: 0 },
+  cloudy: { cover: 0.5, sun: 0.65, dome: 0.9, skyLight: 1, exposure: 1, grey: 0.25, fog: 0.85, overcastSky: false, shade: 1, white: 0 },
+  overcast: { cover: 0.85, sun: 0.3, dome: 0.8, skyLight: 1.15, exposure: 0.95, grey: 0.6, fog: 0.6, overcastSky: true, shade: 0.75, white: 0 },
+  rain: { cover: 1, sun: 0.2, dome: 0.6, skyLight: 1.1, exposure: 0.9, grey: 0.75, fog: 0.4, overcastSky: true, shade: 0.5, white: 0 },
+  // Snow: a bright, even sky (soft light, little shadow) and a cold white haze that stays further
+  // out than rain's, so the road ahead reads at speed.
+  snow: { cover: 0.95, sun: 0.35, dome: 0.9, skyLight: 1.25, exposure: 1, grey: 0.2, fog: 0.55, overcastSky: true, shade: 0.95, white: 0.7 },
 }
+
+/** The cold white snow mixes into the fog (scaled by daylight, so night snow stays dark). */
+export const SNOW_HAZE = '#e6edf2'
 
 /** The grey a cloudy sky turns the fog toward, before the time of day's daylight scales it. */
 const WEATHER_GREY = '#9aa1a8'
@@ -163,10 +174,13 @@ export function environmentLook(theme: ResolvedTheme, env: Environment, trackDef
   const t = TIME_LOOKS[env.time]
   const w = WEATHER_LOOKS[env.weather]
   const clouds = w.cover > 0 ? { cover: w.cover, color: scaleColour(t.cloud, w.shade) } : null
-  const extras = { sunOffset: t.sunOffset, clouds, night: env.time === 'night', rain: env.weather === 'rain' }
+  const extras = { sunOffset: t.sunOffset, clouds, night: env.time === 'night', rain: env.weather === 'rain', snow: env.weather === 'snow' }
+  const white = scaleColour(SNOW_HAZE, t.daylight)
   if (same(env, trackDefault)) {
     const { sky, skyLight, exposure, fog, fogNear, fogFar, sun, sunIntensity } = theme
-    return { sky, skyBrightness: SKY_BRIGHTNESS[sky], skyLight, exposure, fog, fogNear, fogFar, sun, sunIntensity, ...extras }
+    const look = { sky, skyBrightness: SKY_BRIGHTNESS[sky], skyLight, exposure, fog, fogNear, fogFar, sun, sunIntensity, ...extras }
+    // The theme keeps its light; snow still pulls its white haze in over it.
+    return w.white > 0 ? { ...look, fog: mixColour(fog, white, w.white), fogNear: fogNear * w.fog, fogFar: fogFar * w.fog } : look
   }
   const swap = w.overcastSky && (env.time === 'morning' || env.time === 'noon')
   const grey = scaleColour(WEATHER_GREY, t.daylight)
@@ -175,7 +189,7 @@ export function environmentLook(theme: ResolvedTheme, env: Environment, trackDef
     skyBrightness: (swap ? SKY_BRIGHTNESS.overcast * t.daylight : t.skyBrightness) * w.dome,
     skyLight: t.skyLight * w.skyLight,
     exposure: t.exposure * w.exposure,
-    fog: mixColour(t.fog, grey, w.grey),
+    fog: mixColour(mixColour(t.fog, grey, w.grey), white, w.white),
     fogNear: t.fogNear * w.fog,
     fogFar: t.fogFar * w.fog,
     sun: t.sun,
