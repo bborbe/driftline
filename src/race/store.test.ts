@@ -138,3 +138,20 @@ describe('RaceStore splits and medal', () => {
   })
 
 })
+
+describe('RaceStore locked (dev-tuned run)', () => {
+  it('records no best, splits, medal or board entry while locked', () => {
+    const mem = memory()
+    let locked = true
+    const store = new RaceStore(mem, 'test-flat', 'abc', 1, () => locked)
+    expect(store.recordLap(30000)).toBe(false)
+    store.recordSplits([1000, 2000])
+    expect(store.recordMedal('gold')).toBe(false)
+    expect(store.qualifies(30000)).toBe(false)
+    expect(store.addToLeaderboard('dev', 30000)).toEqual([])
+    expect(mem.data.size).toBe(0)
+    locked = false
+    expect(store.recordLap(30000)).toBe(true)
+    expect(store.best()).toBe(30000)
+  })
+})

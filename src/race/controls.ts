@@ -51,6 +51,7 @@ export const CONTROLS: ControlGroup[] = [
     bindings: [
       { keys: '`', action: 'Debug overlay on / off (?debug=0 starts it off)' },
       { keys: 'P', action: 'Copy this view as a URL' },
+      { keys: 'F2', action: 'Handling tuning panel (?dev=1 only)' },
     ],
   },
 ]

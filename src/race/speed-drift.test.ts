@@ -1,6 +1,8 @@
 // Speed drift on a real track (test-flat): a 0.4 s handbrake tap at 90 km/h on the 10 m straight
 // slides the car sideways off the road. On the offroad ground the slide must still not spin
 // (live run at 8f52e10: the spin guard was road-only and the car spun to 178° and stopped).
+// Run without the edge rails, which now hold the slide on the road: the car still reaches the
+// offroad ground where a rail steps aside (beside a loop) and off a jump, and the guard must hold there.
 import { describe, expect, it } from 'vitest'
 import { createCarAt, dot, forwardOf, materialUnder, NO_INPUT, slipAngleDeg, step, TICK_HZ, trackSurface, type CarState } from '../physics'
 import { poses } from '../track/schema'
@@ -9,7 +11,7 @@ import { loadTrack } from './autopilot.test-driver'
 describe('speed drift on test-flat', () => {
   it('a 0.4 s tap that slides off the road does not spin, and the car straightens up', () => {
     const track = loadTrack('test-flat')
-    const surface = trackSurface(track)
+    const surface = trackSurface(track, { rails: false })
     let s: CarState = createCarAt(poses(track)[0])
     for (let t = 0; t < TICK_HZ; t++) s = step(s, NO_INPUT, surface)
     while (dot(s.velocity, forwardOf(s)) < 25) s = step(s, { ...NO_INPUT, throttle: 1 }, surface)
