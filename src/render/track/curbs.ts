@@ -3,7 +3,7 @@
 // the road the track already draws (Kenney pieces and procedural segments share PROFILE), placed
 // with the same sampleSegment()/lateralPoint() the road mesh uses — banked turns included.
 import * as THREE from 'three/webgpu'
-import { poses, turnSign, type Segment, type Track } from '../../track/schema'
+import { poses, SURFACE_KINDS, turnSign, type Segment, type SurfaceKind, type Track } from '../../track/schema'
 import { CURB_RED, CURB_WHITE } from '../look'
 import { flat } from '../tags'
 import { lateralPoint, PROFILE, roadScale, sampleSegment, segmentLength } from './geometry'
@@ -49,6 +49,9 @@ class RibbonBuilder {
       this.idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
     }
   }
+  get indexCount(): number {
+    return this.idx.length
+  }
   build(): Ribbons {
     return { positions: new Float32Array(this.pos), indices: new Uint32Array(this.idx) }
   }
@@ -79,6 +82,50 @@ export const curbDecals = (track: Track): { red: Ribbons; white: Ribbons } => {
   return { red: red.build(), white: white.build() }
 }
 
+/** Dashed centre line: DASH.length of white, then DASH.gap of asphalt, continuous across segment joints. */
+export const DASH = { length: 3, gap: 3, width: 0.15 } as const
+/** Trim strip across the asphalt where a surface patch (dirt, ice, grass) begins or ends: `length` along the road. */
+export const TRIM = { length: 0.4 } as const
+/** Half-width of the trim strips: the asphalt between the edge lines. */
+export const TRIM_HALF_WIDTH = CURB_INNER - EDGE_LINE.inset - EDGE_LINE.width
+
+/** `dashIndices`: the first that many indices are the dashes, the rest the trim strips. */
+export type Markings = Ribbons & { dashes: number; strips: number; dashIndices: number }
+
+/** Centre dashes on every road segment and a trim strip at each surface patch's start and end, as one set of white ribbons. */
+export const roadMarkings = (track: Track): Markings => {
+  const out = new RibbonBuilder()
+  const ps = poses(track)
+  const period = DASH.length + DASH.gap
+  let along = 0 // metres of road laid so far, so the dash pattern runs on across joints
+  let dashes = 0
+  track.segments.forEach((seg, i) => {
+    const len = segmentLength(seg)
+    if (seg.type !== 'gap' && seg.type !== 'loop') {
+      for (let d = Math.ceil(along / period) * period - period; d < along + len; d += period) {
+        const t0 = Math.max(0, (d - along) / len)
+        const t1 = Math.min(1, (d + DASH.length - along) / len)
+        if (t1 - t0 < 0.05 / len) continue
+        out.add(ps[i], seg, -DASH.width / 2, DASH.width / 2, ROAD_TOP + DECAL_LIFT, t0, t1)
+        dashes++
+      }
+    }
+    along += len
+  })
+  const dashIndices = out.indexCount
+  let strips = 0
+  for (const zone of track.zones ?? []) {
+    if (!(SURFACE_KINDS as readonly string[]).includes(zone.kind as SurfaceKind)) continue
+    const seg = track.segments[zone.segment]
+    const half = TRIM.length / 2 / segmentLength(seg)
+    for (const t of [zone.from, zone.to]) {
+      out.add(ps[zone.segment], seg, -TRIM_HALF_WIDTH, TRIM_HALF_WIDTH, ROAD_TOP + DECAL_LIFT, Math.max(0, t - half), Math.min(1, t + half))
+      strips++
+    }
+  }
+  return { ...out.build(), dashes, strips, dashIndices }
+}
+
 const DECAL = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, depthWrite: false, side: THREE.DoubleSide } as const
 
 /** Red (or the theme's accent) and white ribbons as one vertex-coloured mesh: one draw call for every curb on the lap. */
@@ -104,5 +151,27 @@ export const createCurbs = (track: Track, accent: THREE.Color = CURB_RED): THREE
   flat(mesh, 'curb')
   mesh.receiveShadow = true
   mesh.renderOrder = 1 // after the road (decals write no depth); surface patches and pads draw over it
+  return mesh
+}
+
+/**
+ * Centre dashes and trim strips (roadMarkings) as one white decal mesh in two groups. The dashes are
+ * opaque, so they draw before the (transparent) surface patches and a patch of dirt or ice covers
+ * them; the trims are transparent at full opacity and draw after the patches, over their fade.
+ */
+export const createMarkings = (track: Track): THREE.Mesh => {
+  const { positions, indices, dashIndices } = roadMarkings(track)
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geo.setIndex(new THREE.BufferAttribute(indices, 1))
+  geo.addGroup(0, dashIndices, 0)
+  geo.addGroup(dashIndices, indices.length - dashIndices, 1)
+  geo.computeVertexNormals()
+  const paint = { ...DECAL, color: CURB_WHITE, roughness: 0.55 }
+  const mesh = new THREE.Mesh(geo, [new THREE.MeshStandardMaterial(paint), new THREE.MeshStandardMaterial({ ...paint, transparent: true })])
+  mesh.name = 'markings'
+  flat(mesh, 'road')
+  mesh.receiveShadow = true
+  mesh.renderOrder = 1.5 // trims after the surface patches (1), under the turbo pads (2)
   return mesh
 }
