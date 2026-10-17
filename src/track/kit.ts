@@ -341,7 +341,8 @@ export function compileKit(kt: KitTrack): CompiledKit {
       // (bank 0.26 lifts it 1.3 m, the wall is 1.2 m), and running wide off a bank is never a shortcut.
       ex.segments.forEach((seg, k) =>
         sides.forEach((side) => {
-          if (seg.type === 'banked' && side !== seg.turn) return
+          // A wallride's outer side is its wall: only the inner side takes a barrier.
+          if ((seg.type === 'banked' || seg.type === 'wallride') && side !== seg.turn) return
           barriers.push({ segment: base + k, side, gap: 0 })
         }),
       )
