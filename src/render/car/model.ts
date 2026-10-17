@@ -58,5 +58,6 @@ export const createCarView = async (id: string = CAR_ID, livery?: Livery): Promi
     car = view(await resolveCar(FALLBACK_CAR).build())
   }
   if (livery) car.setLivery(livery)
+  car.object.traverse((o) => (o.castShadow = true)) // the livery meshes are new
   return car
 }

@@ -142,6 +142,8 @@ const splitPaint = (mesh: THREE.Mesh, toRoot: THREE.Matrix4, box: THREE.Box3, ma
   mesh.geometry = keep.length > 0 ? pick(geo, keep) : new THREE.BufferGeometry()
   const child = new THREE.Mesh(painted, material)
   child.name = 'livery'
+  child.castShadow = mesh.castShadow
+  child.receiveShadow = mesh.receiveShadow
   return child
 }
 
