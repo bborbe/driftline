@@ -15,6 +15,19 @@ export { isColour, SKIES, validateTheme, type Sky, type Theme } from './theme'
 /** Kit grid cell size in metres (the 10 m Kenney piece). Every piece's footprint is a multiple of it; road width is per segment (widthAt). */
 export const CELL = 10
 
+/**
+ * The three standard corner radii (m), one driving style each on the 14 m road: tight needs
+ * braking (grip limit ~64 km/h), medium is the 90 km/h drift corner (grip limit ~85 km/h, so a
+ * 90 km/h entry needs a short speed drift), wide is flat out near top speed (~146 km/h). Measured
+ * in src/race/corner-radii.test.ts. Multiples of CELL, so the 90° kit pieces sit on the grid. The
+ * kit's corner-* pieces and a free-form `curve` segment's named `radius` both read this one table.
+ */
+export const CORNER_RADII = { tight: 20, medium: 40, wide: 150 } as const
+
+export type CornerSize = keyof typeof CORNER_RADII
+
+export const CORNER_SIZES = Object.keys(CORNER_RADII) as CornerSize[]
+
 /** World pose at a piece connection edge: bottom-center, heading in radians (0 = +z, CCW positive). */
 export interface Pose {
   x: number

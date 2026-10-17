@@ -14,7 +14,7 @@
     {
       "type": "curve",
       "turn": "right",
-      "radius": 150,
+      "radius": "wide",
       "angle": 45
     },
     {
@@ -24,7 +24,7 @@
     {
       "type": "curve",
       "turn": "left",
-      "radius": 150,
+      "radius": "wide",
       "angle": 45
     },
     {
@@ -38,27 +38,27 @@
     },
     {
       "type": "straight",
-      "length": 120
+      "length": 340
     },
     {
       "type": "curve",
       "turn": "right",
-      "radius": 150,
-      "angle": 45
+      "radius": "medium",
+      "angle": 90
     },
     {
       "type": "straight",
-      "length": 40
+      "length": 36.152237
     },
     {
       "type": "curve",
       "turn": "left",
-      "radius": 150,
-      "angle": 45
+      "radius": "medium",
+      "angle": 90
     },
     {
       "type": "straight",
-      "length": 90
+      "length": 30.416306
     },
     {
       "type": "hairpin",
