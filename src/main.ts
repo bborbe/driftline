@@ -1,7 +1,8 @@
 import './style.css'
 import { createCarAt, dot, FixedStepper, forwardOf, materialUnder, trackSurface } from './physics'
 import { createCameraController } from './camera/controller'
-import { flyQuery, flyRequested, wrapDeg } from './camera/fly'
+import { flyQuery, flyRequested, wrapDeg, type FlyCam } from './camera/fly'
+import { CAMERA_EVENT, loadView, saveView, type ViewMode } from './camera/views'
 import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
@@ -18,6 +19,7 @@ import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
 import { effectiveFxQuery, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './menu/settings'
 import { settingsChange } from './menu/live'
+import { settingsFromUrl, startUrlSync, viewFromUrl, type Screen } from './menu/url-state'
 import { clampLivery, ghostLivery } from './render/car/livery'
 import { settingsPanel } from './menu/settings-panel'
 import { environmentLabel, resolveEnvironment } from './track/environment'
@@ -25,9 +27,25 @@ import { devMode, RunTaint } from './debug/tuning'
 import { mountTuningPanel } from './debug/tuning-panel'
 import { isTuned } from './physics/handling'
 
+// URL state (src/menu/url-state.ts): settings and the view named in the query beat the stored ones and are stored,
+// so every panel shows them; from here on the address bar follows the screen, every setting, the view and the fly
+// pose (replaceState, 4 Hz), so CMD+R lands on the same screen with the same setup. A race reload starts on the grid.
+// The sync reads this tab's own state, never localStorage, which another tab may rewrite under it.
+let shown = settingsFromUrl(location.search, loadSettings(localStorage))
+let shownView: ViewMode = viewFromUrl(location.search, loadView(localStorage))
+saveSettings(localStorage, shown)
+saveView(localStorage, shownView)
+window.addEventListener(SETTINGS_EVENT, (e) => (shown = (e as CustomEvent<Settings>).detail))
+window.addEventListener(CAMERA_EVENT, (e) => (shownView = (e as CustomEvent<ViewMode>).detail))
 // A bare URL opens the start screen; ?track= and debug-spawn links go straight in (shared links, `make shots`).
 const fromMenu = !skipMenu(location.search)
-const trackName = fromMenu ? await chooseTrack(LAP_NAMES) : lapName(location.search)
+const sel = new URLSearchParams(location.search).get('sel')
+let screen: Screen = fromMenu ? { sel } : { track: lapName(location.search) }
+let flying = (): FlyCam | null | undefined => undefined
+let viewNow = (): ViewMode => shownView
+startUrlSync(() => ({ settings: shown, view: viewNow(), screen, fly: flying() }))
+const trackName = fromMenu ? await chooseTrack(LAP_NAMES, { focus: sel, onFocus: (track) => (screen = { sel: track }) }) : lapName(location.search)
+screen = { track: trackName }
 const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
@@ -107,7 +125,7 @@ const race = initRace(sim, track, {
   ],
   onPause: (paused) => void audio.setPaused(paused),
   menu: {
-    backToMenu: () => location.assign(location.pathname),
+    backToMenu: () => location.assign(`${location.pathname}?sel=${trackName}`),
     nextTrack: () => location.assign(`${location.pathname}?track=${nextLap(track.name)}`),
     settings: () => settingsPanel({ onVolume: (v) => audio.setVolume(v) }),
   },
@@ -115,7 +133,7 @@ const race = initRace(sim, track, {
   recordsLocked: () => taint.locked,
 })
 // Every Settings change applies to the running race at once (src/menu/live.ts): livery, effects, volume, time and
-// weather now, laps from the next restart. A live time/weather pick ignores ?time=/?weather=, which only seed the load.
+// weather now, laps from the next restart. The URL follows each change (startUrlSync above).
 let applied: Settings = settings
 window.addEventListener(SETTINGS_EVENT, (e) => {
   const next = (e as CustomEvent<Settings>).detail
@@ -128,7 +146,7 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
   }
   if (change.fx) view.setFx(change.fx)
   if (change.volume !== undefined) audio.setVolume(change.volume)
-  if (change.laps !== undefined && !new URLSearchParams(location.search).has('laps')) race.setLaps(change.laps)
+  if (change.laps !== undefined) race.setLaps(change.laps)
   if (change.environment) {
     env = resolveEnvironment('', track, next, Date.now())
     void view.setEnvironment(env, env.seed ?? 1)
@@ -167,6 +185,8 @@ const cam = createCameraController({
   search: location.search,
   store: localStorage,
 })
+flying = () => cam.fly
+viewNow = () => cam.viewMode
 // The one keydown dispatch for the shell; race keys are handled inside src/race.
 window.addEventListener('keydown', (e) => {
   debug.onKeyDown(e)
