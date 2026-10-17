@@ -2,7 +2,8 @@
 import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camera/views'
 import { FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
-import { loadSettings, saveSettings, type Settings } from './settings'
+import { LIVERY_EVENT, loadSettings, saveSettings, type Settings } from './settings'
+import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import type { EnvironmentMode } from '../track/environment'
 
 export interface SettingsHooks {
@@ -58,6 +59,35 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     saveSettings(localStorage, s)
   })
   box.append(label('Time and weather'), env)
+  // Livery: applies at once to the car (and its ghost) through LIVERY_EVENT.
+  const repaint = () => {
+    s.livery = clampLivery(s.livery)
+    saveSettings(localStorage, s)
+    window.dispatchEvent(new CustomEvent(LIVERY_EVENT, { detail: s.livery }))
+  }
+  const pattern = document.createElement('select')
+  pattern.id = 'setting-livery'
+  for (const p of PATTERNS) pattern.append(new Option(p, p, false, p === s.livery.pattern))
+  pattern.addEventListener('change', () => {
+    s.livery = { ...s.livery, pattern: pattern.value as Settings['livery']['pattern'] }
+    repaint()
+  })
+  box.append(label('Livery'), pattern)
+  const paint = document.createElement('select')
+  paint.id = 'setting-paint'
+  for (const p of PAINT_IDS) paint.append(new Option(p, p, false, p === s.livery.paint))
+  paint.addEventListener('change', () => {
+    s.livery = { ...s.livery, paint: paint.value as Settings['livery']['paint'] }
+    repaint()
+  })
+  box.append(label('Colour'), paint)
+  const num = Object.assign(document.createElement('input'), { type: 'number', min: '1', max: String(MAX_NUMBER), value: String(s.livery.number), id: 'setting-number' })
+  num.addEventListener('change', () => {
+    s.livery = { ...s.livery, number: Number(num.value) }
+    repaint()
+    num.value = String(s.livery.number)
+  })
+  box.append(label('Race number'), num)
   box.append(Object.assign(label('Effects, laps, time and weather apply on the next race'), { className: 'menu-hint' }))
   return box
 }

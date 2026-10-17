@@ -1,6 +1,8 @@
-// Ghost car: the same registry model as the player (build-time VITE_CAR), rendered translucent.
+// Ghost car: the same registry model as the player (build-time VITE_CAR), rendered translucent, in
+// the contrasting livery ghostLivery() picks for the player's (render/car/livery.ts).
 import * as THREE from 'three/webgpu'
 import { createCarView, type CarView } from '../render/car/model'
+import type { Livery } from '../render/car/livery'
 
 export const GHOST_OPACITY = 0.35
 
@@ -22,8 +24,8 @@ export const ghostify = (root: THREE.Object3D): void => {
 }
 
 /** Hidden until a best run exists; pose it each frame with `update(state, dt)`. */
-export const createGhostCar = async (id?: string): Promise<CarView> => {
-  const car = await createCarView(id)
+export const createGhostCar = async (id?: string, livery?: Livery): Promise<CarView> => {
+  const car = await createCarView(id, livery)
   ghostify(car.object)
   car.object.visible = false
   return car

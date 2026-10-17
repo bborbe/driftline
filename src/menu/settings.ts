@@ -2,6 +2,7 @@
 import { FX, type Fx } from '../render/fx/flags'
 import { clampLaps } from '../race/lap'
 import { ENVIRONMENT_MODES, type EnvironmentMode } from '../track/environment'
+import { clampLivery, DEFAULT_LIVERY, type Livery } from '../render/car/livery'
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -12,10 +13,14 @@ export interface Settings {
   laps: number
   /** Time of day and weather: the track's own default, or a random preset per race (`?time=` / `?weather=` / `?seed=` override it). */
   environment: EnvironmentMode
+  /** Player car paint, pattern and race number; the ghost takes ghostLivery() of it. */
+  livery: Livery
 }
 
 const KEY = 'driftline-settings'
-export const DEFAULT_SETTINGS: Settings = { volume: 0.7, fx: [], laps: 1, environment: 'fixed' }
+export const DEFAULT_SETTINGS: Settings = { volume: 0.7, fx: [], laps: 1, environment: 'fixed', livery: DEFAULT_LIVERY }
+/** Window event the settings panel fires when the livery changes; detail is the Livery. */
+export const LIVERY_EVENT = 'driftline:livery'
 
 export function loadSettings(storage: KeyValueStore): Settings {
   try {
@@ -24,7 +29,7 @@ export function loadSettings(storage: KeyValueStore): Settings {
     const volume = Number.isFinite(raw.volume) ? Math.min(1, Math.max(0, raw.volume)) : DEFAULT_SETTINGS.volume
     const fx = Array.isArray(raw.fx) ? FX.filter((f) => raw.fx.includes(f)) : []
     const environment = (ENVIRONMENT_MODES as readonly unknown[]).includes(raw.environment) ? (raw.environment as EnvironmentMode) : DEFAULT_SETTINGS.environment
-    return { volume, fx, laps: clampLaps(raw.laps), environment }
+    return { volume, fx, laps: clampLaps(raw.laps), environment, livery: clampLivery(raw.livery) }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
