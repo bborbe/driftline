@@ -7,6 +7,10 @@ import { autopilot, centreline, hasLoop, HUMAN_PACE, loadTrack as load, surfaceL
 import { STYLES, TEST_TRACKS } from '../track/catalogue'
 import type { Track } from '../track/schema'
 
+// A whole simulated lap (a 3-lap run on the longest tracks) takes ~5 s on a CI runner, past vitest's
+// 5 s default: give every lap test an explicit budget so slow runners do not flake.
+const LAP_TIMEOUT = 30_000
+
 // Lap-time window per track (ms) for this conservative autopilot. A human drives ~0.67x the
 // autopilot's time (HUMAN_PACE; operator's first lap2 run: 36.05 s vs 53.7 s), so lap2's 67-90 s
 // window is a ~45-60 s human lap; the floor also catches the track being shortened again.
@@ -69,7 +73,7 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = ce
     expect(lapTime).toBeGreaterThan(minMs)
     expect(lapTime).toBeLessThan(maxMs)
     console.log(`${track.name} autopilot lap time: ${(lapTime / 1000).toFixed(2)} s`)
-  })
+  }, LAP_TIMEOUT)
 
   it('an autopilot completes a 3-lap run: LAP 1/3 → 3/3 with no respawn, total = sum of laps', () => {
     const loop = new LapLoop(track, () => true, 3)
@@ -97,7 +101,7 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = ce
     expect(times).toHaveLength(3)
     for (const ms of times) expect(ms).toBeLessThan(maxMs)
     expect(total).toBeCloseTo(times[0] + times[1] + times[2], 6)
-  })
+  }, LAP_TIMEOUT)
 })
 
 // The conservative autopilot slows to jump speed before every ramp; a human floors it. At full
@@ -126,7 +130,7 @@ describe.each(['crossover', 'leap', 'test-kit-all'])('%s gap jump at full thrott
     const cps = track.gates.filter((g) => g.kind === 'checkpoint').map((_, i) => `cp${i + 1}`)
     expect(events).toEqual([...cps, 'finish'])
     expect(peak).toBeGreaterThan(30) // it really was flat out, not the 18 m/s jump speed
-  })
+  }, LAP_TIMEOUT)
 })
 
 // Fullspeed (S02 flatout): throttle held and the brake never touched from GO to the finish. The
@@ -157,5 +161,5 @@ describe('flatout at full throttle, no brake', () => {
     expect(events).toEqual([...cps, 'finish'])
     expect(offroad / ticks).toBeLessThan(0.05)
     expect(peak).toBeGreaterThan(35) // really flat out, near the 40 m/s top speed
-  })
+  }, LAP_TIMEOUT)
 })
