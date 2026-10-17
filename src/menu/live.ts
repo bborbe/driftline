@@ -6,6 +6,8 @@ import { LIVE_FX, type Fx } from '../render/fx/flags'
 /** The parts of the running race a settings change touches; absent keys are unchanged. */
 export interface SettingsChange {
   volume?: number
+  sfxVolume?: number
+  uiVolume?: number
   /** The live effects now on. */
   fx?: Set<Fx>
   /** Laps for the next restart. */
@@ -23,6 +25,8 @@ export const liveFx = (s: Pick<Settings, 'fx'>): Set<Fx> => new Set(LIVE_FX.filt
 export function settingsChange(prev: Settings, next: Settings): SettingsChange {
   const out: SettingsChange = {}
   if (prev.volume !== next.volume) out.volume = next.volume
+  if (prev.sfxVolume !== next.sfxVolume) out.sfxVolume = next.sfxVolume
+  if (prev.uiVolume !== next.uiVolume) out.uiVolume = next.uiVolume
   const a = liveFx(prev)
   const b = liveFx(next)
   if (a.size !== b.size || [...a].some((f) => !b.has(f))) out.fx = b

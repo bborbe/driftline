@@ -5,6 +5,9 @@ import { screenQuery, settingsFromUrl, stateQuery, viewFromUrl, type UrlState } 
 
 const custom: Settings = {
   volume: 0.25,
+  // Not in the URL, so the defaults a fresh tab would load.
+  sfxVolume: 1,
+  uiVolume: 1,
   fx: ['speedlines'],
   laps: 3,
   time: 'night',

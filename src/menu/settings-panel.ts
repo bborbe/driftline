@@ -48,6 +48,15 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     hooks.onVolume?.(s.volume)
   })
   add('volume', label('Volume'), vol)
+  // The SFX and UI buses under the master: the running race applies them through SETTINGS_EVENT (main.ts).
+  for (const [id, text] of [['sfxVolume', 'Effects (SFX)'], ['uiVolume', 'Menu (UI)']] as const) {
+    const bus = Object.assign(document.createElement('input'), { type: 'range', min: '0', max: '1', step: '0.05', value: String(s[id]), id: `setting-${id}` })
+    bus.addEventListener('input', () => {
+      s[id] = Number(bus.value)
+      commit()
+    })
+    add(id, label(text), bus)
+  }
 
   // Only the effects a toggle changes: bloom and skid marks are always on (glow.ts, view.ts).
   for (const f of LIVE_FX) {
