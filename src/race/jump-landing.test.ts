@@ -79,7 +79,7 @@ const towerDrop = firstOf(tower, 'drop')
 
 const CASES = [
   { name: 'test-ramp at autopilot pace', track: ramp, samples: centreline(ramp), minAir: 0.3, minSpeed: 12 },
-  { name: 'test-ramp flat out from the start', track: ramp, samples: flatOut(ramp, 0, firstOf(ramp, 'drop')), minAir: 0.9, minSpeed: 20 },
+  { name: 'test-ramp flat out from the start', track: ramp, samples: flatOut(ramp, 0, firstOf(ramp, 'drop')), minAir: 1, minSpeed: 35 },
   { name: 'crossover gap at autopilot pace', track: crossover, samples: centreline(crossover), minAir: 0.4, minSpeed: 14 },
   { name: 'crossover gap flat out down the long straight', track: crossover, samples: flatOut(crossover, crossGap - 2, crossGap + 1), minAir: 1, minSpeed: 35 },
   // tower's drop is a crest at the end of a long straight: flat out it is a jump too.
