@@ -15,9 +15,10 @@ function commitSha(): string {
 process.env.VITE_COMMIT_SHA = commitSha()
 const version: string = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
 
-// Served from https://bborbe.github.io/driftline/ (GitHub Pages project site).
+// Served from https://bborbe.github.io/driftline/ (GitHub Pages project site); PR previews build under
+// /driftline/pr-<n>/ by setting VITE_BASE (pages.yml).
 export default defineConfig({
-  base: '/driftline/',
+  base: process.env.VITE_BASE || '/driftline/',
   define: {
     __COMMIT_SHA__: JSON.stringify(process.env.VITE_COMMIT_SHA),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),

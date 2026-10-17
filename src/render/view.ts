@@ -12,6 +12,8 @@ import { BLOOM, bloomFor, glowPreset } from './glow'
 import { createNeon, markReflectable, setNeonGlow } from './neon'
 import { createSkidMarks } from './fx/skid'
 import { createDust } from './fx/dust'
+import { createSparks } from './fx/sparks'
+import { createDriftGlow } from './fx/drift-cue'
 import { createSmoke } from './fx/smoke'
 import { createBoostStreaks } from './fx/boost-streaks'
 import { createSpeedLines } from './fx/speedlines'
@@ -183,6 +185,11 @@ export const createView = async (
   // Dust off dirt and grass is surface feedback, so it is always on.
   const dust = createDust()
   scene.add(dust.object)
+  // Sparks off barrier, rail and pillar contact, and the good-drift glow under the car: contact and drift feedback, always on.
+  const sparks = createSparks(surface.obstacles)
+  scene.add(sparks.object)
+  const driftGlow = createDriftGlow()
+  scene.add(driftGlow.object)
 
   // HUD "1% low": 1st percentile of per-frame fps over the last 60 s, refreshed twice a second.
   const stats = new FrameStats()
@@ -240,6 +247,8 @@ export const createView = async (
     if (rain.object.visible) rain.update(dt, camera)
     if (snow.object.visible) snow.update(dt, camera)
     dust.update(s, material, dt, camera)
+    sparks.update(s, dt)
+    driftGlow.update(s, dt, car.object)
     if (neon.object.visible) {
       // The mirror plane sits on the road under the car (the ray the physics drives on), or a ride height below it.
       const hit = surface.raycast(s.position, down, 50)
