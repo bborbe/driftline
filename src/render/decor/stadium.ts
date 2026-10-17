@@ -35,10 +35,14 @@ const SCREEN_EVERY = 4
 
 export const planStadium = (track: Track): StadiumProp[] => {
   const line = centreline(track, 4)
-  const minX = Math.min(...line.map((p) => p.x)) - STADIUM_GAP
-  const maxX = Math.max(...line.map((p) => p.x)) + STADIUM_GAP
-  const minZ = Math.min(...line.map((p) => p.z)) - STADIUM_GAP
-  const maxZ = Math.max(...line.map((p) => p.z)) + STADIUM_GAP
+  // A free-drive pad rings the stadium round the whole asphalt, not only its lane.
+  const pad = track.pad
+  const xs = [...line.map((p) => p.x), ...(pad ? [pad.centre[0] - pad.size / 2, pad.centre[0] + pad.size / 2] : [])]
+  const zs = [...line.map((p) => p.z), ...(pad ? [pad.centre[1] - pad.size / 2, pad.centre[1] + pad.size / 2] : [])]
+  const minX = Math.min(...xs) - STADIUM_GAP
+  const maxX = Math.max(...xs) + STADIUM_GAP
+  const minZ = Math.min(...zs) - STADIUM_GAP
+  const maxZ = Math.max(...zs) + STADIUM_GAP
   // Four sides, each from one corner to the next, facing inward: heading 0 faces +z.
   const sides = [
     { from: [minX, minZ], to: [maxX, minZ], heading: 0 },

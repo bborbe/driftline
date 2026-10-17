@@ -6,7 +6,7 @@
 import type { Theme } from './theme'
 
 export { constantWidth, exitPose, MAX_ROAD_WIDTH, maxWidth, MIN_ROAD_WIDTH, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, widthAt, type Sample } from './pose'
-export { BARRIER, barrierPillars, barrierPosts, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, gateScale, gateUp, gateWidth, padForward, zoneCorners, type Pillar } from './shapes'
+export { BARRIER, barrierPillars, onPad, padLaneMarks, padWalls, barrierPosts, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, gateScale, gateUp, gateWidth, padForward, zoneCorners, type Pillar } from './shapes'
 export { layoutId } from './layout-id'
 export { validate } from './validate'
 export { isColour, SKIES, validateTheme, type Sky, type Theme } from './theme'
@@ -134,6 +134,20 @@ export type Barrier =
   | { from: [number, number]; to: [number, number] }
   | { segment: number; side: Turn; gap?: number; from?: number; to?: number }
 
+/**
+ * A free-drive test pad: one flat, open asphalt square of `size` metres centred on `centre` [x, z] at
+ * y 0, with painted guides — circles of `circles` radii about `circleCentre` and a straight `lane`
+ * from `from` to `to` with a distance mark every `marks` metres. The pad drives as road (no offroad
+ * inside it) and a track with one is free drive: no finish, no lap (src/race/lap.ts).
+ */
+export interface Pad {
+  centre: [number, number]
+  size: number
+  circleCentre: [number, number]
+  circles: number[]
+  lane: { from: [number, number]; to: [number, number]; marks: number }
+}
+
 export interface Track {
   name: string
   start: Pose
@@ -143,6 +157,8 @@ export interface Track {
   medals?: Medals
   zones?: Zone[]
   barriers?: Barrier[]
+  /** Optional: a free-drive asphalt pad (Pad). */
+  pad?: Pad
   /** Optional per-track look (src/track/theme.ts). Render-only and not part of layoutId. */
   theme?: Theme
 }
