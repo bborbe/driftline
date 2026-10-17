@@ -1,8 +1,8 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
 import { ASPHALT } from '../look'
-import { flat, noCollide, structural, type StructuralKind } from '../tags'
-import { barrierPillars, barrierPosts, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
+import { flat, hangs, noCollide, structural, type StructuralKind } from '../tags'
+import { barrierPillars, barrierPosts, gatePillars, gateUp, poses, type Pillar, type Track } from '../../track/schema'
 import { GATE_LEG_MIN_HEIGHT } from './kenney-plan'
 import { buildApron, buildBody, buildDeck, buildTrack, DECK_FOOT_COLUMNS, DECK_PILLAR_SIZE, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
 
@@ -48,24 +48,32 @@ const toBufferGeometry = (g: SegmentGeometry): THREE.BufferGeometry => {
 
 // Pillars from gatePillars() — the same boxes the physics collides with — plus a beam across. On an
 // elevated deck each pillar runs on down to the ground in the same box and material: one leg, not a leg on a block.
-const gateArch = (kind: 'start-finish' | 'checkpoint', pillars: Pillar[]): THREE.Group => {
+// A hanging gate (up -1, a loop's top) is the same arch upside down: pillars down from the road, beam at their foot, no
+// legs; a clamp across the back of the road, where the car never drives, joins the pillar tops and holds them.
+const gateArch = (kind: 'start-finish' | 'checkpoint', pillars: Pillar[], up: 1 | -1 = 1): THREE.Group => {
   const color = kind === 'start-finish' ? 0xffffff : 0x4cc9f0
   const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6 })
   const arch = new THREE.Group()
   for (const p of pillars) {
-    const base = p.y >= GATE_LEG_MIN_HEIGHT ? 0 : p.y
+    const base = up === 1 && p.y >= GATE_LEG_MIN_HEIGHT ? 0 : p.y
     const height = p.y + p.height - base
     const pillar = structural(new THREE.Mesh(new THREE.BoxGeometry(2 * p.halfWidth, height, 2 * p.halfDepth), mat), 'gate-leg')
     pillar.position.set(p.x, base + height / 2, p.z)
     pillar.rotation.y = p.heading
-    arch.add(pillar)
+    arch.add(up === 1 ? pillar : hangs(pillar))
   }
   const [a, b] = pillars
   const span = Math.hypot(b.x - a.x, b.z - a.z) + 2 * a.halfWidth
   const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 1.2, 2 * a.halfDepth), mat)
-  beam.position.set((a.x + b.x) / 2, a.y + a.height, (a.z + b.z) / 2)
+  beam.position.set((a.x + b.x) / 2, up === 1 ? a.y + a.height : a.y, (a.z + b.z) / 2)
   beam.rotation.y = a.heading
   arch.add(beam)
+  if (up === -1) {
+    const clamp = new THREE.Mesh(new THREE.BoxGeometry(span, 1.2, 2 * a.halfDepth), mat)
+    clamp.position.set((a.x + b.x) / 2, a.y + a.height + 0.6, (a.z + b.z) / 2)
+    clamp.rotation.y = a.heading
+    arch.add(clamp)
+  }
   arch.traverse((o) => (o.castShadow = true))
   return arch
 }
@@ -104,7 +112,7 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
   })
   for (const [i, gate] of track.gates.entries()) {
     if (gates && !gates.includes(i)) continue
-    group.add(gateArch(gate.kind, gatePillars(track, gate)))
+    group.add(gateArch(gate.kind, gatePillars(track, gate), gateUp(track, gate)))
   }
   return group
 }

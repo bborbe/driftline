@@ -23,12 +23,13 @@ export const BARRIER = { halfWidth: 0.5, height: 1.2, gap: 1.5, step: 5, post: 0
 
 /**
  * Where a gate's line actually is — the single source for the lap trigger (src/race) and
- * the arch (src/render). Checkpoints sit on their segment's entry edge; a start/finish gate
- * on a straight sits under the start tile's arch.
+ * the arch (src/render). Checkpoints sit on their segment's entry edge, or `at` of the way along
+ * it (a loop's top); a start/finish gate on a straight sits under the start tile's arch.
  */
 export function gateLine(track: Track, gate: Gate): Pose {
   const entry = poses(track)[gate.segment]
   const seg = track.segments[gate.segment]
+  if (gate.at !== undefined && gate.at > 0) return partialPose(entry, seg, gate.at)
   if (gate.kind !== 'start-finish' || seg.type !== 'straight') return entry
   return exitPose(entry, { type: 'straight', length: tileLength(seg.length) * START_ARCH_FRACTION })
 }
@@ -44,6 +45,16 @@ export const GATE_PILLAR = { offset: 5.735, halfWidth: 0.565, halfDepth: 0.95, h
 /** Lowest gate base whose legs are carried down to the ground (the arch's legs, gateLegs). */
 export const GATE_LEG_MIN_HEIGHT = 1
 
+/**
+ * Which way a gate stands: 1 upright on its road, -1 hanging from it — a gate over the top half of
+ * a loop, where the car drives upside down beneath the road. The single source for the lap
+ * trigger's height window (src/race), the pillar colliders and the arch.
+ */
+export function gateUp(track: Track, gate: Gate): 1 | -1 {
+  const at = gate.at ?? 0
+  return track.segments[gate.segment]?.type === 'loop' && at > 0.25 && at < 0.75 ? -1 : 1
+}
+
 /** A solid gate pillar: an upright box centred on (x, z), standing on y, rotated by heading. */
 export interface Pillar extends Pose {
   halfWidth: number
@@ -54,17 +65,19 @@ export interface Pillar extends Pose {
 /**
  * Both pillars of a gate — the single source for the pillar colliders (src/physics) and the
  * procedural arch (src/render). A start/finish arch stands on its gate line; a checkpoint
- * model's pillars start at the segment's entry edge, so they centre halfDepth past it.
+ * model's pillars start at the segment's entry edge, so they centre halfDepth past it. A
+ * hanging gate (gateUp -1) has its pillars run down from the road, so their box base is below it.
  */
 export function gatePillars(track: Track, gate: Gate): Pillar[] {
   const line = gateLine(track, gate)
   const section = GATE_PILLAR
+  const base = gateUp(track, gate) === 1 ? line.y : line.y - section.height
   const along = gate.kind === 'checkpoint' ? section.halfDepth : 0
   const fx = Math.sin(line.heading)
   const fz = Math.cos(line.heading)
   return [-1, 1].map((side) => ({
     x: line.x + fx * along + fz * side * section.offset,
-    y: line.y,
+    y: base,
     z: line.z + fz * along - fx * side * section.offset,
     heading: line.heading,
     halfWidth: section.halfWidth,
@@ -76,9 +89,11 @@ export function gatePillars(track: Track, gate: Gate): Pillar[] {
 /**
  * The legs under an elevated gate (base GATE_LEG_MIN_HEIGHT or more up): each pillar continued in its
  * own section from the ground to the gate's base, as the arch draws them (render/track/mesh.ts gateArch,
- * kenney.ts createGateLegs). A car driving under the deck hits them like the pillars above.
+ * kenney.ts createGateLegs). A car driving under the deck hits them like the pillars above. A
+ * hanging gate has none: it hangs from the loop's road, and a leg there would stand in the run-in.
  */
 export function gateLegs(track: Track, gate: Gate): Pillar[] {
+  if (gateUp(track, gate) === -1) return []
   return gatePillars(track, gate)
     .filter((p) => p.y >= GATE_LEG_MIN_HEIGHT)
     .map((p) => ({ ...p, y: 0, height: p.y }))
