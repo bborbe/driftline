@@ -7,7 +7,7 @@ import { ROAD_WIDTH } from './pose'
 import type { Theme } from './theme'
 
 export { exitPose, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, type Sample } from './pose'
-export { BARRIER, barrierPillars, barrierPosts, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, padForward, zoneCorners, type Pillar } from './shapes'
+export { BARRIER, barrierPillars, barrierPosts, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, gateUp, padForward, zoneCorners, type Pillar } from './shapes'
 export { layoutId } from './layout-id'
 export { validate } from './validate'
 export { isColour, SKIES, validateTheme, type Sky, type Theme } from './theme'
@@ -46,10 +46,15 @@ export const SEGMENT_TYPES: readonly SegmentType[] = ['straight', 'curve', 'hair
 
 export type GateKind = 'start-finish' | 'checkpoint'
 
-/** A gate sits on the entry edge of segment `segment` (index into Track.segments). */
+/**
+ * A gate sits on the entry edge of segment `segment` (index into Track.segments), or `at` (0..1)
+ * of the way along it. A checkpoint at the top of a loop (`at` 0.5) hangs upside down from the
+ * road there (gateUp), so a loop cannot be skipped by changing lanes at its foot.
+ */
 export interface Gate {
   kind: GateKind
   segment: number
+  at?: number
 }
 
 /** Medal target lap times in ms; author is the fastest. */

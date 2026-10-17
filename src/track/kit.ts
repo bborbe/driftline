@@ -38,7 +38,7 @@ export type PieceFamily = 'road' | 'curve' | 'slope' | 'bank' | 'effect' | 'gate
 export interface Expansion {
   segments: Segment[]
   zones: { kind: ZoneKind; segment: number; from: number; to: number }[]
-  gates: { kind: GateKind; segment: number }[]
+  gates: { kind: GateKind; segment: number; at?: number }[]
   /** Barriers along both sides (ground level only: schema barriers stand on y = 0). */
   walls: boolean
 }
@@ -158,18 +158,23 @@ export const KIT_PIECES: readonly PieceDef[] = [
   },
   {
     // Full vertical loop: a run-in, the loop, a run-out, one cell to the turn side (the climb and
-    // the exit never share road). Road only, so its grip and the measured entry speed hold.
+    // the exit never share road). Road only, so its grip and the measured entry speed hold. A
+    // checkpoint hangs at the top: the exit lane starts beside the foot, so without it a lane
+    // change there would skip the loop.
     id: 'loop',
     family: 'loop',
     surfaces: ROAD_ONLY,
     turns: true,
     out: road(3, 1, 0, 0),
     expand: (turn) =>
-      plain([
-        { type: 'straight', length: KIT_LOOP_RADIUS },
-        { type: 'loop', turn, radius: KIT_LOOP_RADIUS },
-        { type: 'straight', length: KIT_LOOP_RADIUS },
-      ]),
+      plain(
+        [
+          { type: 'straight', length: KIT_LOOP_RADIUS },
+          { type: 'loop', turn, radius: KIT_LOOP_RADIUS },
+          { type: 'straight', length: KIT_LOOP_RADIUS },
+        ],
+        { gates: [{ kind: 'checkpoint', segment: 1, at: 0.5 }] },
+      ),
   },
   flat('turbo', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.25, to: 0.75 }] }),
   flat('turbo-red', 'effect', { zones: [{ kind: 'turbo-red', segment: 0, from: 0.25, to: 0.75 }] }),
@@ -283,7 +288,7 @@ export function compileKit(kt: KitTrack): CompiledKit {
     }
     for (const z of ex.zones) zones.push({ ...z, segment: base + z.segment })
     if (surface !== 'road') ex.segments.forEach((_, k) => zones.push({ kind: surface, segment: base + k, from: 0, to: 1 }))
-    for (const g of ex.gates) gates.push({ kind: g.kind, segment: base + g.segment })
+    for (const g of ex.gates) gates.push({ ...g, segment: base + g.segment })
     if (pl.walls) {
       if (!['both', 'left', 'right'].includes(pl.walls)) throw new Error(`kit piece ${i}: walls must be both, left or right`)
       // A gate's pillars stand where the wall would, and `walled` already carries its own barriers.
