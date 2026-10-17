@@ -53,13 +53,19 @@ describe('thin check', () => {
     expect(offenders(scene(structural(box('thinned-wall', [10, 3, MIN_THICKNESS + 0.05], [0, 1.5, 0]), 'wall')), 'thin')).toEqual([])
   })
 
-  it('fails two lone sheets beside a ramp (pre-#86 walls); passes them once end caps close the body', () => {
-    // A raised road's body: a wall under each edge, 10 m apart. Alone, each wall is a sheet with nothing behind it.
+  it('fails a ramp body whose walls end in the air (pre-#86); passes it once end caps close the body', () => {
+    // A raised road 3 m up and its body: a wall under each edge, 10 m apart. Without caps, each wall's
+    // ends stand free in the air — the sheet shows edge-on as paper.
+    const road = () => {
+      const r = flat(new THREE.Mesh(new THREE.PlaneGeometry(20, 10).rotateX(-Math.PI / 2)), 'road')
+      r.position.y = 3
+      return r
+    }
     const walls = () => [sheet('wall-left', 20, 3, [0, 0, -5]), sheet('wall-right', 20, 3, [0, 0, 5])]
     const open = new THREE.Group()
     open.name = 'ramp-supports'
     open.add(...walls())
-    expect(offenders(scene(structural(open, 'ramp-body')), 'thin').sort()).toEqual(['ramp-supports/wall-left', 'ramp-supports/wall-right'])
+    expect(offenders(scene(road(), structural(open, 'ramp-body')), 'thin').sort()).toEqual(['ramp-supports/wall-left', 'ramp-supports/wall-right'])
 
     const capped = new THREE.Group()
     capped.name = 'ramp-supports'
@@ -69,7 +75,7 @@ describe('thin check', () => {
       return c
     }
     capped.add(...walls(), cap(-10), cap(10))
-    expect(offenders(scene(structural(capped, 'ramp-body')), 'thin')).toEqual([])
+    expect(offenders(scene(road(), structural(capped, 'ramp-body')), 'thin')).toEqual([])
   })
 
   it('exempts a piece tagged flat, and only that piece', () => {

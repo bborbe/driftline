@@ -7,6 +7,7 @@ import { createBarriers, createRampSupports, createTrackMesh, ROAD_ROUGHNESS } f
 import { ASPHALT } from '../look'
 import { planPieces } from './kenney-plan'
 import { createZoneMeshes } from './zones'
+import { flat, type FlatReason } from '../tags'
 
 // Vite bundles each piece and hands back its URL, so the build works under any base path.
 const PIECE_URLS = import.meta.glob('/assets/pieces/*.glb', { query: '?url', import: 'default', eager: true }) as Record<
@@ -44,6 +45,17 @@ export const preparePiece = (root: THREE.Object3D): THREE.Object3D => {
   return root
 }
 
+/** Kenney piece materials as geometry tags (tags.ts): the asphalt and verge are road, the grey kerbs a curb strip. The start piece's arch shares the grey. */
+const PIECE_FLAT: Record<string, FlatReason> = { road: 'road', grass: 'road', grey: 'curb' }
+
+const tagPiece = (root: THREE.Object3D): THREE.Object3D => {
+  root.traverse((o) => {
+    const reason = PIECE_FLAT[((o as THREE.Mesh).material as THREE.Material | undefined)?.name ?? '']
+    if ((o as THREE.Mesh).isMesh && reason) flat(o, reason)
+  })
+  return root
+}
+
 export const createPieceTrack = async (track: Track): Promise<THREE.Group> => {
   const plan = planPieces(track)
   const loader = new GLTFLoader()
@@ -52,7 +64,7 @@ export const createPieceTrack = async (track: Track): Promise<THREE.Group> => {
   await Promise.all(
     names.map(async (n) => {
       const gltf = await loader.loadAsync(urlFor(n))
-      models.set(n, preparePiece(gltf.scene))
+      models.set(n, tagPiece(preparePiece(gltf.scene)))
     }),
   )
 

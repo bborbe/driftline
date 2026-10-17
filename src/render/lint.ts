@@ -247,6 +247,79 @@ export const thickness = (positions: number[], tris: number[]): number => {
   return min
 }
 
+const pt = (v: THREE.Vector3) => `(${fmt(v.x)}, ${fmt(v.y)}, ${fmt(v.z)})`
+
+/** Parts bucketed by the x/z cells their boxes cover, so a point query reads only its neighbours. */
+class SurfaceGrid {
+  private readonly cells = new Map<string, Part[]>()
+  /** Parts too big to bucket (the ground plane): checked on every query. */
+  private readonly big: Part[] = []
+  private static readonly CELL = 8
+
+  constructor(parts: Part[]) {
+    const c = SurfaceGrid.CELL
+    for (const p of parts) {
+      const [x0, x1, z0, z1] = [Math.floor(p.box.min.x / c), Math.floor(p.box.max.x / c), Math.floor(p.box.min.z / c), Math.floor(p.box.max.z / c)]
+      if ((x1 - x0 + 1) * (z1 - z0 + 1) > 64) {
+        this.big.push(p)
+        continue
+      }
+      for (let x = x0; x <= x1; x++) {
+        for (let z = z0; z <= z1; z++) {
+          const key = `${x},${z}`
+          const list = this.cells.get(key) ?? []
+          list.push(p)
+          this.cells.set(key, list)
+        }
+      }
+    }
+  }
+
+  near(v: THREE.Vector3): Part[] {
+    const c = SurfaceGrid.CELL
+    return [...(this.cells.get(`${Math.floor(v.x / c)},${Math.floor(v.z / c)}`) ?? []), ...this.big]
+  }
+}
+
+/** Whether `v` lies within CONTACT_TOLERANCE of one of `part`'s triangles. */
+const touches = (part: Part, v: THREE.Vector3): boolean => {
+  if (part.box.distanceToPoint(v) > CONTACT_TOLERANCE) return false
+  const tri = new THREE.Triangle()
+  const q = new THREE.Vector3()
+  const p = part.positions
+  for (let t = 0; t + 2 < part.tris.length; t += 3) {
+    tri.a.fromArray(p, part.tris[t] * 3)
+    tri.b.fromArray(p, part.tris[t + 1] * 3)
+    tri.c.fromArray(p, part.tris[t + 2] * 3)
+    if (tri.closestPointToPoint(v, q).distanceTo(v) <= CONTACT_TOLERANCE) return true
+  }
+  return false
+}
+
+/** Edges of an open part used by one triangle only, whose middle is neither on the ground nor on another surface. */
+const freeEdges = (part: Part, grid: SurfaceGrid): [THREE.Vector3, THREE.Vector3][] => {
+  const uses = new Map<string, [number, number, number]>()
+  for (let t = 0; t + 2 < part.tris.length; t += 3) {
+    for (const [a, b] of [[part.tris[t], part.tris[t + 1]], [part.tris[t + 1], part.tris[t + 2]], [part.tris[t + 2], part.tris[t]]]) {
+      if (a === b) continue
+      const key = a < b ? `${a},${b}` : `${b},${a}`
+      const e = uses.get(key)
+      uses.set(key, e ? [e[0], e[1], e[2] + 1] : [a, b, 1])
+    }
+  }
+  const out: [THREE.Vector3, THREE.Vector3][] = []
+  for (const [a, b, n] of uses.values()) {
+    if (n !== 1) continue
+    const va = new THREE.Vector3().fromArray(part.positions, a * 3)
+    const vb = new THREE.Vector3().fromArray(part.positions, b * 3)
+    const mid = va.clone().add(vb).multiplyScalar(0.5)
+    if (mid.y <= CONTACT_TOLERANCE) continue // on the ground
+    if (grid.near(mid).some((s) => s !== part && touches(s, mid))) continue
+    out.push([va, vb])
+  }
+  return out
+}
+
 const size = (box: THREE.Box3) => {
   const s = box.getSize(new THREE.Vector3())
   return `${fmt(s.x)}×${fmt(s.y)}×${fmt(s.z)} m at (${fmt(box.min.x)}, ${fmt(box.min.y)}, ${fmt(box.min.z)})`
@@ -261,8 +334,8 @@ export const lintScene = (root: THREE.Object3D): LintResult => {
   const structuralParts: (Part & { kind: StructuralKind })[] = []
   /** Everything a structural part may stand on: every part of every mesh but the `airborne` ones. */
   const surfaces: Part[] = []
-  /** Non-flat parts per parent object: an open sheet is judged together with the parts it touches there. */
-  const scopes = new Map<THREE.Object3D | null, (Part & { label: string })[]>()
+  /** Non-flat parts, judged for thickness once every surface is known. */
+  const judged: (Part & { label: string })[] = []
   let structuralCount = 0
   root.traverse((o) => {
     const mesh = o as THREE.Mesh
@@ -294,54 +367,26 @@ export const lintScene = (root: THREE.Object3D): LintResult => {
     surfaces.push(...parts)
     for (const [k, part] of parts.entries()) {
       const label = parts.length > 1 && part.instance === undefined ? `${name}@${k}` : part.name
-      const scope = scopes.get(mesh.parent) ?? []
-      scope.push({ ...part, label })
-      scopes.set(mesh.parent, scope)
+      judged.push(Object.assign(part, { label }))
       if (kindTag !== undefined) structuralParts.push(Object.assign(part, { name: label, kind: kindTag as StructuralKind }))
     }
   })
 
-  // Thin: a closed part is judged alone, its own thickness. An open sheet is not a solid by itself
-  // (a body's wall, its lid, one material's faces of a rock), so it is judged together with every part
-  // it touches in the same parent: a sheet that closes a volume with its neighbours passes, a lone
-  // sheet (a wall with nothing behind it) is paper-thin.
-  for (const scope of scopes.values()) {
-    const isClosed = scope.map((p) => closed(p.tris))
-    const reach = scope.map((p) => p.box.clone().expandByScalar(CONTACT_TOLERANCE))
-    const root = scope.map((_, i) => i)
-    const find = (a: number): number => {
-      while (root[a] !== a) a = root[a] = root[root[a]]
-      return a
+  // Thin: a closed part is judged by its own thickness. An open sheet has no thickness of its own:
+  // it is a face of something bigger (a body's wall, its lid, one material of a rock) when every edge
+  // it ends in is on the ground or meets another surface. A free edge — a wall's end standing in the
+  // air with no cap, a lone board — is where it shows as paper.
+  const grid = new SurfaceGrid(surfaces)
+  for (const p of judged) {
+    if (closed(p.tris)) {
+      const t = thickness(p.positions, p.tris)
+      if (t < MIN_THICKNESS) offenders.push({ check: 'thin', mesh: p.label, detail: `${fmt(t)} m thick (min ${MIN_THICKNESS}); ${size(p.box)}` })
+      continue
     }
-    for (let i = 0; i < scope.length; i++) {
-      if (isClosed[i]) continue
-      for (let j = 0; j < scope.length; j++) if (j !== i && reach[i].intersectsBox(scope[j].box)) root[find(j)] = find(i)
-    }
-    const groups = new Map<number, number[]>()
-    scope.forEach((_, i) => {
-      const g = groups.get(find(i)) ?? []
-      g.push(i)
-      groups.set(find(i), g)
-    })
-    const judge = (label: string, members: number[]) => {
-      const positions: number[] = []
-      const tris: number[] = []
-      const box = new THREE.Box3()
-      for (const i of members) {
-        const base = positions.length / 3
-        positions.push(...scope[i].positions)
-        tris.push(...scope[i].tris.map((t) => t + base))
-        box.union(scope[i].box)
-      }
-      const t = thickness(positions, tris)
-      if (t < MIN_THICKNESS) offenders.push({ check: 'thin', mesh: label, detail: `${fmt(t)} m thick (min ${MIN_THICKNESS})${members.length > 1 ? `, ${members.length} touching parts` : ''}; ${size(box)}` })
-    }
-    scope.forEach((p, i) => {
-      if (isClosed[i]) judge(p.label, [i])
-    })
-    for (const members of groups.values()) {
-      const open = members.filter((i) => !isClosed[i])
-      if (open.length > 0) judge(scope[open[0]].label, members)
+    const free = freeEdges(p, grid)
+    if (free.length > 0) {
+      const [a, b] = free[0]
+      offenders.push({ check: 'thin', mesh: p.label, detail: `open sheet with ${free.length} free edge${free.length > 1 ? 's' : ''}, e.g. ${pt(a)} → ${pt(b)}; ${size(p.box)}` })
     }
   }
 
