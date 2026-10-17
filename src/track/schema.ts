@@ -7,7 +7,7 @@ import { ROAD_WIDTH } from './pose'
 import type { Theme } from './theme'
 
 export { exitPose, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, type Sample } from './pose'
-export { BARRIER, barrierPillars, barrierPosts, GATE_PILLAR, gateLine, gatePillars, padForward, zoneCorners, type Pillar } from './shapes'
+export { BARRIER, barrierPillars, barrierPosts, CHECKPOINT_PILLAR, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, padForward, zoneCorners, type Pillar } from './shapes'
 export { layoutId } from './layout-id'
 export { validate } from './validate'
 export { isColour, SKIES, validateTheme, type Sky, type Theme } from './theme'

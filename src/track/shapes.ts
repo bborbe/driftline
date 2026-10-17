@@ -34,10 +34,19 @@ export function gateLine(track: Track, gate: Gate): Pose {
 }
 
 /**
- * Gate pillar footprint, measured from the Kenney start/checkpoint models (assets/pieces):
- * each pillar spans 5.17–6.30 m either side of the centreline and 1.9 m along the track.
+ * Gate pillar footprint, measured from the Kenney start model (assets/pieces): each pillar spans
+ * 5.17–6.30 m either side of the centreline and 1.9 m along the track.
  */
 export const GATE_PILLAR = { offset: 5.735, halfWidth: 0.565, halfDepth: 0.95, height: 6.7 } as const
+
+/**
+ * Checkpoint pillar footprint, measured from assets/pieces/checkpoint.glb (render/track/kenney.test.ts):
+ * its legs are wider than the start arch's, 5.0–6.3 m either side of the centreline and 1.9 m along.
+ */
+export const CHECKPOINT_PILLAR = { offset: 5.65, halfWidth: 0.65, halfDepth: 0.95, height: 6.7 } as const
+
+/** Lowest gate base whose legs are carried down to the ground (the arch's legs, gateLegs). */
+export const GATE_LEG_MIN_HEIGHT = 1
 
 /** A solid gate pillar: an upright box centred on (x, z), standing on y, rotated by heading. */
 export interface Pillar extends Pose {
@@ -53,18 +62,30 @@ export interface Pillar extends Pose {
  */
 export function gatePillars(track: Track, gate: Gate): Pillar[] {
   const line = gateLine(track, gate)
-  const along = gate.kind === 'checkpoint' ? GATE_PILLAR.halfDepth : 0
+  const section = gate.kind === 'checkpoint' ? CHECKPOINT_PILLAR : GATE_PILLAR
+  const along = gate.kind === 'checkpoint' ? section.halfDepth : 0
   const fx = Math.sin(line.heading)
   const fz = Math.cos(line.heading)
   return [-1, 1].map((side) => ({
-    x: line.x + fx * along + fz * side * GATE_PILLAR.offset,
+    x: line.x + fx * along + fz * side * section.offset,
     y: line.y,
-    z: line.z + fz * along - fx * side * GATE_PILLAR.offset,
+    z: line.z + fz * along - fx * side * section.offset,
     heading: line.heading,
-    halfWidth: GATE_PILLAR.halfWidth,
-    halfDepth: GATE_PILLAR.halfDepth,
-    height: GATE_PILLAR.height,
+    halfWidth: section.halfWidth,
+    halfDepth: section.halfDepth,
+    height: section.height,
   }))
+}
+
+/**
+ * The legs under an elevated gate (base GATE_LEG_MIN_HEIGHT or more up): each pillar continued in its
+ * own section from the ground to the gate's base, as the arch draws them (render/track/mesh.ts gateArch,
+ * kenney.ts createGateLegs). A car driving under the deck hits them like the pillars above.
+ */
+export function gateLegs(track: Track, gate: Gate): Pillar[] {
+  return gatePillars(track, gate)
+    .filter((p) => p.y >= GATE_LEG_MIN_HEIGHT)
+    .map((p) => ({ ...p, y: 0, height: p.y }))
 }
 
 // Each barrier as the [x, z] points of its wall line: a road-following one is sampled every

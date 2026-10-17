@@ -64,7 +64,7 @@ const tagPiece = (piece: string, root: THREE.Object3D): THREE.Object3D => {
 /**
  * The legs of elevated checkpoints carried down to the ground (planGateLegs), drawn with the
  * checkpoint piece's own material, so each leg is one column above and below the deck line.
- * Visual only: the colliders stay the gate pillars above the deck.
+ * They collide as gateLegs() (src/track/shapes.ts), in the same section.
  */
 export const createGateLegs = (legs: GateLeg[], checkpoint: THREE.Object3D): THREE.Group => {
   const group = new THREE.Group()

@@ -1,7 +1,7 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
 import { ASPHALT } from '../look'
-import { flat, structural, type StructuralKind } from '../tags'
+import { flat, noCollide, structural, type StructuralKind } from '../tags'
 import { barrierPillars, barrierPosts, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
 import { GATE_LEG_MIN_HEIGHT } from './kenney-plan'
 import { buildApron, buildBody, buildDeck, buildTrack, DECK_FOOT_COLUMNS, DECK_PILLAR_SIZE, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
@@ -166,8 +166,8 @@ const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kin
  * Filled embankments down to the ground under low raised rows (ramp and drop ends), an open bridge
  * deck with parapets on pillars where the road is high or another road passes underneath
  * (planBodies). Elevated gates carry their own legs to the ground (gateArch, createGateLegs). The
- * embankments and the pillars collide (bodyBoxes, pillarBoxes in src/track/bodies.ts); the deck and
- * its parapets are visual: the car drives on the road strip above them.
+ * embankments, the pillars and the deck's parapets collide (bodyBoxes, pillarBoxes, parapetBoxes in
+ * src/track/bodies.ts); a loop's shell is the back of its road and does not (noCollide).
  */
 export const createRampSupports = (track: Track): THREE.Group => {
   const group = new THREE.Group()
@@ -185,7 +185,8 @@ export const createRampSupports = (track: Track): THREE.Group => {
     if (deck) {
       // A bridge deck (DECK_SECTION) or a loop's shell (left top, left foot, right top, right foot).
       const feet = seg.type === 'loop' ? [1, 3] : DECK_FOOT_COLUMNS
-      group.add(concreteMesh(deck, (v) => feet.includes(v % deck.perRow), 'deck', seg.type !== 'loop'))
+      const mesh = concreteMesh(deck, (v) => feet.includes(v % deck.perRow), 'deck', seg.type !== 'loop')
+      group.add(seg.type === 'loop' ? noCollide(mesh, 'loop-shell') : mesh)
     }
   })
   for (const p of planDeckPillars(track)) {

@@ -1,5 +1,6 @@
-// Scene geometry lint: walks a built scene graph and reports paper-thin parts and structural parts
-// floating with nothing under them. One generic check for the whole class, instead of one test per
+// Scene geometry lint: walks a built scene graph and reports paper-thin parts, structural parts
+// floating with nothing under them, and (given the track's colliders) structural parts the car would
+// drive through. One generic check for the whole class, instead of one test per
 // piece (gate legs, ramp walls, footings). Driven over every shipped track by geometry-lint.test.ts.
 //
 // A "part" is one connected piece of a mesh: the mesh's triangles, welded at 1 mm in world space and
@@ -7,7 +8,10 @@
 // instance of an InstancedMesh. Tags (tags.ts) sit on the mesh or any ancestor, set at creation.
 import * as THREE from 'three/webgpu'
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js'
-import { FLAT_REASONS, STRUCTURAL_KINDS, type FlatReason, type StructuralKind } from './tags'
+import { RAISED_MIN } from '../track/bodies'
+import type { Pillar } from '../track/schema'
+import { PROFILE } from './track/geometry'
+import { FLAT_REASONS, NO_COLLIDE_REASONS, STRUCTURAL_KINDS, type FlatReason, type NoCollideReason, type StructuralKind } from './tags'
 
 /** A part thinner than this in every direction is paper-thin, unless tagged `flat`. */
 export const MIN_THICKNESS = 0.15
@@ -16,7 +20,17 @@ export const CONTACT_TOLERANCE = 0.05
 /** Structural kinds that must carry themselves down: their own foot touches the ground or a surface below. */
 const LOAD_BEARING: readonly StructuralKind[] = ['wall', 'pillar', 'gate-leg']
 
-export type Offender = { check: 'thin' | 'floating' | 'tag'; mesh: string; detail: string }
+/** A structural vertex counts as covered when it is this close to a collider's footprint. */
+export const COLLIDER_TOLERANCE = 0.05
+/** How far below a box's foot the car still hits it (src/physics/car.ts collide). */
+const COLLIDE_BELOW = 1
+/**
+ * A part no higher than this above the ground at a vertex needs no collider there: a ramp's foot
+ * (RAISED_MIN, which bodyBoxes leaves out) under the road's own curb profile — a step the wheels climb.
+ */
+const STEP = RAISED_MIN + Math.max(...PROFILE.map(([, h]) => h))
+
+export type Offender = { check: 'thin' | 'floating' | 'tag' | 'collider'; mesh: string; detail: string }
 
 export type LintResult = {
   /** Every Mesh / InstancedMesh visited. */
@@ -25,6 +39,8 @@ export type LintResult = {
   structural: number
   /** Meshes tagged `flat`, per reason. */
   flatByReason: Partial<Record<FlatReason, number>>
+  /** Structural meshes tagged `noCollide`, per reason (only when colliders were given). */
+  noCollideByReason: Partial<Record<NoCollideReason, number>>
   offenders: Offender[]
 }
 
@@ -43,7 +59,7 @@ type Part = {
 const fmt = (n: number) => n.toFixed(2)
 
 /** Nearest `key` tag on the object or an ancestor. */
-const tagOf = (o: THREE.Object3D, key: 'flat' | 'kind'): unknown => {
+const tagOf = (o: THREE.Object3D, key: 'flat' | 'kind' | 'noCollide'): unknown => {
   for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.userData[key] !== undefined) return p.userData[key]
   return undefined
 }
@@ -325,11 +341,28 @@ const size = (box: THREE.Box3) => {
   return `${fmt(s.x)}×${fmt(s.y)}×${fmt(s.z)} m at (${fmt(box.min.x)}, ${fmt(box.min.y)}, ${fmt(box.min.z)})`
 }
 
-/** Lint every mesh under `root` (world matrices are updated first). */
-export const lintScene = (root: THREE.Object3D): LintResult => {
+/** Horizontal distance from (x, z) to a collider's footprint, in its own frame: 0 inside it. */
+const footprintGap = (o: Pillar, x: number, z: number): number => {
+  const px = x - o.x
+  const pz = z - o.z
+  const u = px * Math.sin(o.heading) + pz * Math.cos(o.heading)
+  const w = px * Math.cos(o.heading) - pz * Math.sin(o.heading)
+  return Math.hypot(Math.max(0, Math.abs(u) - o.halfDepth), Math.max(0, Math.abs(w) - o.halfWidth))
+}
+
+/**
+ * Lint every mesh under `root` (world matrices are updated first). With `obstacles` (the boxes the
+ * car collides with), every structural part not tagged `noCollide` must be solid: each of its vertices
+ * lies within COLLIDER_TOLERANCE of the footprint of a collider whose height band (as car.ts collide
+ * reads it) overlaps the part's — unless the part stands no higher than STEP there.
+ */
+export const lintScene = (root: THREE.Object3D, obstacles?: readonly Pillar[]): LintResult => {
   root.updateMatrixWorld(true)
   const offenders: Offender[] = []
   const flatByReason: Partial<Record<FlatReason, number>> = {}
+  const noCollideByReason: Partial<Record<NoCollideReason, number>> = {}
+  /** Structural parts that must be covered by a collider. */
+  const solidParts: Part[] = []
   const meshes: THREE.Mesh[] = []
   const structuralParts: (Part & { kind: StructuralKind })[] = []
   /** Everything a structural part may stand on: every part of every mesh but the `airborne` ones. */
@@ -352,6 +385,15 @@ export const lintScene = (root: THREE.Object3D): LintResult => {
       offenders.push({ check: 'tag', mesh: name, detail: `unknown structural kind "${String(kindTag)}"` })
       return
     }
+    const noCollideTag = tagOf(mesh, 'noCollide')
+    if (noCollideTag !== undefined && !NO_COLLIDE_REASONS.includes(noCollideTag as NoCollideReason)) {
+      offenders.push({ check: 'tag', mesh: name, detail: `unknown noCollide reason "${String(noCollideTag)}"` })
+      return
+    }
+    if (noCollideTag !== undefined && kindTag === undefined) {
+      offenders.push({ check: 'tag', mesh: name, detail: `noCollide "${String(noCollideTag)}" on a mesh with no structural kind` })
+      return
+    }
     if (flatTag !== undefined && kindTag !== undefined) {
       offenders.push({ check: 'tag', mesh: name, detail: `tagged both flat "${String(flatTag)}" and kind "${String(kindTag)}"` })
       return
@@ -363,12 +405,17 @@ export const lintScene = (root: THREE.Object3D): LintResult => {
       return // flat: no thickness check, and nothing that must stand
     }
     if (kindTag !== undefined) structuralCount++
+    if (kindTag !== undefined && noCollideTag !== undefined && obstacles) {
+      const r = noCollideTag as NoCollideReason
+      noCollideByReason[r] = (noCollideByReason[r] ?? 0) + 1
+    }
     const parts = (mesh as THREE.InstancedMesh).isInstancedMesh ? instanceParts(mesh as THREE.InstancedMesh, name) : meshParts(mesh, name)
     surfaces.push(...parts)
     for (const [k, part] of parts.entries()) {
       const label = parts.length > 1 && part.instance === undefined ? `${name}@${k}` : part.name
       judged.push(Object.assign(part, { label }))
       if (kindTag !== undefined) structuralParts.push(Object.assign(part, { name: label, kind: kindTag as StructuralKind }))
+      if (kindTag !== undefined && noCollideTag === undefined) solidParts.push(part)
     }
   })
 
@@ -422,5 +469,34 @@ export const lintScene = (root: THREE.Object3D): LintResult => {
   for (const p of structuralParts) {
     if (!standing.has(p)) offenders.push({ check: 'floating', mesh: p.name, detail: `${p.kind}, foot ${fmt(p.box.min.y)} m up with nothing under it; ${size(p.box)}` })
   }
-  return { meshes: meshes.length, structural: structuralCount, flatByReason, offenders }
+
+  // Collider: a structural part the car can drive through is a bug (a new mesh whose collider was
+  // never added). Each vertex must sit in a collider's footprint at the part's height.
+  if (obstacles) {
+    for (const p of solidParts) {
+      const near = obstacles.filter((o) => {
+        const reach = o.halfWidth + o.halfDepth + COLLIDER_TOLERANCE
+        return (
+          o.x + reach >= p.box.min.x && o.x - reach <= p.box.max.x && o.z + reach >= p.box.min.z && o.z - reach <= p.box.max.z &&
+          o.y - COLLIDE_BELOW <= p.box.max.y && o.y + o.height >= p.box.min.y
+        )
+      })
+      // The part's height at each vertex's (x, z): its highest vertex there.
+      const column = new Map<string, number>()
+      const at = (x: number, z: number) => `${Math.round(x * 100)},${Math.round(z * 100)}`
+      const used = [...new Set(p.tris)]
+      for (const i of used) {
+        const key = at(p.positions[i * 3], p.positions[i * 3 + 2])
+        column.set(key, Math.max(column.get(key) ?? -Infinity, p.positions[i * 3 + 1]))
+      }
+      const bare: THREE.Vector3[] = []
+      for (const i of used) {
+        const [x, y, z] = [p.positions[i * 3], p.positions[i * 3 + 1], p.positions[i * 3 + 2]]
+        if (column.get(at(x, z))! <= STEP + COLLIDER_TOLERANCE) continue
+        if (!near.some((o) => footprintGap(o, x, z) <= COLLIDER_TOLERANCE)) bare.push(new THREE.Vector3(x, y, z))
+      }
+      if (bare.length > 0) offenders.push({ check: 'collider', mesh: p.name, detail: `${bare.length} vertices outside every collider, e.g. ${pt(bare[0])}; ${size(p.box)} — add its collider from the plan that builds it, or tag noCollide with a reason` })
+    }
+  }
+  return { meshes: meshes.length, structural: structuralCount, flatByReason, noCollideByReason, offenders }
 }
