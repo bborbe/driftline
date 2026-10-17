@@ -8,6 +8,7 @@ import {
   TIMES,
   trackEnvironment,
   validateEnvironment,
+  WEATHER_CHOICES,
   WEATHERS,
 } from './environment'
 import { LAP_NAMES, loadLap } from './registry'
@@ -107,6 +108,25 @@ describe('snow', () => {
     const seed = Array.from({ length: MAX_SEED + 1 }, (_, s) => s).find((s) => randomEnvironment(s).weather === 'snow')
     expect(seed).toBeDefined()
     expect(resolveEnvironment(`?seed=${seed}`, sunsetTrack, 'fixed', 1).weather).toBe('snow')
+  })
+
+  it('is a Settings weather choice, and choosing it resolves to snow', () => {
+    expect(WEATHER_CHOICES).toContain('snow')
+    expect(resolveEnvironment('', sunsetTrack, { time: 'default', weather: 'snow' }, 5)).toEqual({ time: 'sunset', weather: 'snow', source: 'setting' })
+  })
+})
+
+describe('resolveEnvironment with a Time / Weather choice', () => {
+  it('takes each field from its own choice: track default, a preset, or the seeded pick', () => {
+    expect(resolveEnvironment('', sunsetTrack, { time: 'default', weather: 'default' }, 5)).toEqual({ time: 'sunset', weather: 'cloudy', source: 'track' })
+    expect(resolveEnvironment('', sunsetTrack, { time: 'night', weather: 'default' }, 5)).toEqual({ time: 'night', weather: 'cloudy', source: 'setting' })
+    expect(resolveEnvironment('', sunsetTrack, { time: 'night', weather: 'rain' }, 5)).toEqual({ time: 'night', weather: 'rain', source: 'setting' })
+    const picked = randomEnvironment(1234)
+    expect(resolveEnvironment('', sunsetTrack, { time: 'random', weather: 'rain' }, 1234)).toEqual({ time: picked.time, weather: 'rain', source: 'random', seed: 1234 })
+    expect(resolveEnvironment('', sunsetTrack, { time: 'morning', weather: 'random' }, 1234)).toEqual({ time: 'morning', weather: picked.weather, source: 'random', seed: 1234 })
+  })
+  it('lets the URL override a choice at load, field by field', () => {
+    expect(resolveEnvironment('?weather=sunny', sunsetTrack, { time: 'night', weather: 'rain' }, 5)).toEqual({ time: 'night', weather: 'sunny', source: 'url' })
   })
 })
 

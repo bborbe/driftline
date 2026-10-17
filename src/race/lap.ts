@@ -82,7 +82,11 @@ export class LapLoop {
   lap = 1
   /** Times (ms) of the laps finished so far this run. */
   lapTimes: number[] = []
-  readonly laps: number
+  /** Laps in this run; changes only on restart (Settings → Laps applies from the next restart). */
+  get laps(): number {
+    return this.runLaps
+  }
+  private runLaps: number
 
   /** Fastest lap finished this run (ms), null before the first one; cleared by restart. */
   get runBestMs(): number | null {
@@ -111,7 +115,7 @@ export class LapLoop {
   constructor(track: Track, isNewBest: (totalMs: number) => boolean, laps = 1) {
     this.track = track
     this.isNewBest = isNewBest
-    this.laps = laps
+    this.runLaps = laps
     const entries = poses(track)
     this.checkpoints = track.gates
       .filter((g) => g.kind === 'checkpoint')
@@ -250,8 +254,9 @@ export class LapLoop {
     return car
   }
 
-  /** Back to the full countdown at the start line, lap 1; `tick` is the current tick. */
-  restart(tick: number): CarState {
+  /** Back to the full countdown at the start line, lap 1; `tick` is the current tick; `laps` sets the new run's lap count. */
+  restart(tick: number, laps = this.runLaps): CarState {
+    this.runLaps = laps
     if (this.phase === 'ready') return { ...this.spawn(), tick } // still waiting for Begin
     this.phase = 'countdown'
     this.passed = 0

@@ -36,6 +36,10 @@ export interface RaceOptions {
 
 export interface Race {
   loop: LapLoop
+  /** Laps in the current run. */
+  readonly laps: number
+  /** Settings → Laps: the lap count for the next restart (Backspace / Esc → Restart); the current run is unchanged. */
+  setLaps(laps: number): void
   readonly paused: boolean
   setPaused(paused: boolean): void
   /** Begin clicked: start the countdown. */
@@ -47,11 +51,13 @@ export interface Race {
 }
 
 export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}): Race {
-  const laps = opts.laps ?? 1
-  const store = new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track), laps, opts.recordsLocked)
+  let laps = opts.laps ?? 1
+  let nextLaps = laps
+  const newStore = () => new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track), laps, opts.recordsLocked)
+  let store = newStore()
   const loop = new LapLoop(track, (ms) => store.recordLap(ms), laps)
   // Medal targets are single-lap times.
-  const medals = laps === 1 ? track.medals : undefined
+  let medals = laps === 1 ? track.medals : undefined
   // Splits run over the whole run: each lap's checkpoints, then its line, numbered on from the lap before.
   const perLap = loop.checkpointCount + 1
   let pending: 'respawn' | 'restart' | null = null
@@ -129,6 +135,12 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     get paused() {
       return paused
     },
+    get laps() {
+      return laps
+    },
+    setLaps(n) {
+      nextLaps = n
+    },
     setPaused,
     start() {
       loop.start(sim.state.tick)
@@ -139,7 +151,13 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     frame(elapsedSeconds, input) {
       if (pending === 'respawn' && loop.phase === 'racing') sim.state = loop.respawn(sim.state.tick)
       if (pending === 'restart') {
-        sim.state = loop.restart(sim.state.tick)
+        if (nextLaps !== laps) {
+          laps = nextLaps
+          store = newStore()
+          view.store = store
+          medals = laps === 1 ? track.medals : undefined
+        }
+        sim.state = loop.restart(sim.state.tick, laps)
         view.hideFinish()
         view.showSplit(null)
       }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_LIVERY } from '../render/car/livery'
+import { TIME_CHOICES, WEATHER_CHOICES } from '../track/environment'
 import { DEFAULT_SETTINGS, effectiveFxQuery, loadSettings, saveSettings } from './settings'
 
 const fake = () => {
@@ -16,10 +17,31 @@ describe('settings', () => {
   })
   it('round-trips and drops unknown effects', () => {
     const s = fake()
-    saveSettings(s, { volume: 0.3, fx: ['bloom', 'skid'], laps: 3, environment: 'random', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 } })
-    expect(loadSettings(s)).toEqual({ volume: 0.3, fx: ['bloom', 'skid'], laps: 3, environment: 'random', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 } })
-    s.setItem('driftline-settings', JSON.stringify({ volume: 5, fx: ['bloom', 'x'], laps: 0, environment: 'stormy' }))
-    expect(loadSettings(s)).toEqual({ volume: 1, fx: ['bloom'], laps: 1, environment: 'fixed', livery: DEFAULT_LIVERY })
+    saveSettings(s, { volume: 0.3, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 } })
+    expect(loadSettings(s)).toEqual({ volume: 0.3, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 } })
+    s.setItem('driftline-settings', JSON.stringify({ volume: 5, fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'hail' }))
+    expect(loadSettings(s)).toEqual({ volume: 1, fx: ['bloom'], laps: 1, time: 'default', weather: 'default', livery: DEFAULT_LIVERY })
+  })
+  it('keeps every time and weather choice across a reload', () => {
+    const s = fake()
+    for (const time of TIME_CHOICES) {
+      saveSettings(s, { ...DEFAULT_SETTINGS, time })
+      expect(loadSettings(s).time).toBe(time)
+    }
+    for (const weather of WEATHER_CHOICES) {
+      saveSettings(s, { ...DEFAULT_SETTINGS, weather })
+      expect(loadSettings(s).weather).toBe(weather)
+    }
+  })
+  it('reads the legacy one-setting environment mode as both fields', () => {
+    const s = fake()
+    s.setItem('driftline-settings', JSON.stringify({ environment: 'random' }))
+    expect(loadSettings(s)).toMatchObject({ time: 'random', weather: 'random' })
+    s.setItem('driftline-settings', JSON.stringify({ environment: 'fixed' }))
+    expect(loadSettings(s)).toMatchObject({ time: 'default', weather: 'default' })
+    // A saved Time/Weather pick wins over a stale legacy key.
+    s.setItem('driftline-settings', JSON.stringify({ environment: 'random', time: 'noon', weather: 'cloudy' }))
+    expect(loadSettings(s)).toMatchObject({ time: 'noon', weather: 'cloudy' })
   })
   it('keeps the livery across a reload and repairs a bad one', () => {
     const s = fake()
@@ -29,7 +51,7 @@ describe('settings', () => {
     expect(loadSettings(s).livery).toEqual({ pattern: DEFAULT_LIVERY.pattern, paint: DEFAULT_LIVERY.paint, number: 99 })
   })
   it('url fx wins over saved fx', () => {
-    expect(effectiveFxQuery('?fx=skid', { volume: 1, fx: ['bloom'], laps: 1, environment: 'fixed', livery: DEFAULT_LIVERY })).toBe('?fx=skid')
-    expect(effectiveFxQuery('', { volume: 1, fx: ['bloom', 'skid'], laps: 1, environment: 'fixed', livery: DEFAULT_LIVERY })).toBe('?fx=bloom%2Cskid')
+    expect(effectiveFxQuery('?fx=skid', { ...DEFAULT_SETTINGS, fx: ['bloom'] })).toBe('?fx=skid')
+    expect(effectiveFxQuery('', { ...DEFAULT_SETTINGS, fx: ['bloom', 'skid'] })).toBe('?fx=bloom%2Cskid')
   })
 })

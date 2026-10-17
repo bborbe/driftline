@@ -66,6 +66,8 @@ export type SceneSetup = {
   follow: (x: number, y: number, z: number) => void
   /** Keep camera-centred sky parts (the cloud layer) around the camera; once per frame, after it moved. */
   frame: (camera: THREE.Camera) => void
+  /** Switch time of day and weather in place (Settings): sky, sun, fog, clouds and floodlights; returns the new look. */
+  setEnvironment: (env: Environment, seed?: number) => Promise<EnvironmentLook>
 }
 
 /** Cloud layer: a flattened half-sphere around the camera, inside the far plane (view.ts, 3000 m) and drawn without fog. */
@@ -139,20 +141,44 @@ export const createWorld = async (track: Track, theme: ResolvedTheme = resolveTh
   return world
 }
 
-export const createScene = async (track: Track, env: Environment = DEFAULT_ENVIRONMENT, seed = 1): Promise<SceneSetup> => {
-  const theme = resolveTheme(track)
-  const look = environmentLook(theme, env, trackEnvironment(track))
-  const scene = new THREE.Scene()
-  const sky = new HDRLoader().loadAsync(skyUrl(look.sky))
-  const grass = await new THREE.TextureLoader().loadAsync(grassUrl)
-  const [skyTexture, world] = await Promise.all([sky, createWorld(track, theme, grass)])
-  skyTexture.mapping = THREE.EquirectangularReflectionMapping
-  scene.background = skyTexture
+/**
+ * Point the scene's lights and fog at `look` (the sky texture aside, which scene.setEnvironment loads):
+ * the one place a look reaches the scene, at creation and on every live change.
+ */
+export const applyLighting = (scene: THREE.Scene, sun: THREE.DirectionalLight, look: EnvironmentLook): void => {
   scene.backgroundIntensity = look.skyBrightness // keeps the brighter HDRIs from clipping white (theme.ts)
-  scene.environment = skyTexture // image-based lighting + road reflections
   scene.environmentIntensity = look.skyLight
   // Fog fades distant ground into the sky's horizon instead of a hard edge.
-  scene.fog = new THREE.Fog(look.fog, look.fogNear, look.fogFar)
+  if (scene.fog instanceof THREE.Fog) {
+    scene.fog.color.set(look.fog)
+    scene.fog.near = look.fogNear
+    scene.fog.far = look.fogFar
+  } else scene.fog = new THREE.Fog(look.fog, look.fogNear, look.fogFar)
+  sun.color.set(look.sun)
+  sun.intensity = look.sunIntensity
+}
+
+export const createScene = async (track: Track, env: Environment = DEFAULT_ENVIRONMENT, seed = 1): Promise<SceneSetup> => {
+  const theme = resolveTheme(track)
+  let look = environmentLook(theme, env, trackEnvironment(track))
+  const scene = new THREE.Scene()
+  // One HDRI per sky, loaded on first use: a live switch back to a sky already seen is instant.
+  const skies = new Map<string, Promise<THREE.Texture>>()
+  const skyTexture = (sky: EnvironmentLook['sky']) => {
+    let t = skies.get(sky)
+    if (!t) {
+      t = new HDRLoader().loadAsync(skyUrl(sky)).then((tex) => {
+        tex.mapping = THREE.EquirectangularReflectionMapping
+        return tex
+      })
+      skies.set(sky, t)
+    }
+    return t
+  }
+  const grass = await new THREE.TextureLoader().loadAsync(grassUrl)
+  const [sky, world] = await Promise.all([skyTexture(look.sky), createWorld(track, theme, grass)])
+  scene.background = sky
+  scene.environment = sky // image-based lighting + road reflections
 
   const sun = new THREE.DirectionalLight(look.sun, look.sunIntensity)
   sun.castShadow = true
@@ -164,17 +190,43 @@ export const createScene = async (track: Track, env: Environment = DEFAULT_ENVIR
   sc.near = 1
   sc.far = 200
   scene.add(sun, sun.target, world)
-  const clouds = look.clouds ? createClouds(look.clouds, seed) : null
-  if (clouds) scene.add(clouds)
-  if (look.night) scene.add(createFloodlights((world.getObjectByName('stadium')?.userData.floodlights as THREE.Vector3[] | undefined) ?? []))
+  applyLighting(scene, sun, look)
+  let clouds: THREE.Mesh | null = null
+  const setClouds = (c: CloudLook | null, cloudSeed: number) => {
+    if (clouds) {
+      scene.remove(clouds)
+      ;(clouds.material as THREE.MeshBasicMaterial).map?.dispose()
+      ;(clouds.material as THREE.Material).dispose()
+      clouds.geometry.dispose()
+    }
+    clouds = c ? createClouds(c, cloudSeed) : null
+    if (clouds) scene.add(clouds)
+  }
+  setClouds(look.clouds, seed)
+  const floodlights = createFloodlights((world.getObjectByName('stadium')?.userData.floodlights as THREE.Vector3[] | undefined) ?? [])
+  floodlights.visible = look.night
+  scene.add(floodlights)
 
-  const [ox, oy, oz] = look.sunOffset
+  let lastFollow: [number, number, number] = [0, 0, 0]
   const follow = (x: number, y: number, z: number) => {
+    lastFollow = [x, y, z]
+    const [ox, oy, oz] = look.sunOffset
     sun.position.set(x + ox, y + oy, z + oz)
     sun.target.position.set(x, y, z)
   }
   const frame = (camera: THREE.Camera) => {
     if (clouds) camera.getWorldPosition(clouds.position)
   }
-  return { scene, look, follow, frame }
+  const setEnvironment = async (next: Environment, nextSeed = seed): Promise<EnvironmentLook> => {
+    look = environmentLook(theme, next, trackEnvironment(track))
+    const tex = await skyTexture(look.sky)
+    scene.background = tex
+    scene.environment = tex
+    applyLighting(scene, sun, look)
+    setClouds(look.clouds, nextSeed)
+    floodlights.visible = look.night
+    follow(...lastFollow)
+    return look
+  }
+  return { scene, look, follow, frame, setEnvironment }
 }

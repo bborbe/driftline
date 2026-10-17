@@ -198,6 +198,26 @@ describe('LapLoop', () => {
 })
 
 describe('LapLoop multi-lap', () => {
+  it('changes the lap count only on restart (Settings → Laps), and the next run then needs that many laps', () => {
+    const { loop, car: start } = race(() => true, 1)
+    expect(loop.laps).toBe(1)
+    loop.restart(1000, 2)
+    expect(loop.laps).toBe(2)
+    let t = 1000
+    while (loop.phase !== 'racing') loop.update({ ...loop.spawn(), tick: ++t })
+    let car: CarState = { ...start, tick: t }
+    const lapOnce = () => {
+      for (const g of gatePoses().filter((g) => g.kind === 'checkpoint')) car = passGate(loop, car, g.pose)
+      car = passGate(loop, car, gatePoses().find((g) => g.kind === 'start-finish')!.pose)
+    }
+    lapOnce()
+    expect(loop.phase).toBe('racing') // one lap of two
+    lapOnce()
+    expect(loop.phase).toBe('finished')
+    loop.restart(car.tick + 10)
+    expect(loop.laps).toBe(2) // a plain restart keeps the count
+  })
+
   const lapOf = (loop: LapLoop, car: CarState, drive = 0): CarState => {
     for (const g of gatePoses().filter((g) => g.kind === 'checkpoint')) car = passGate(loop, car, g.pose)
     car = { ...car, tick: car.tick + drive }
