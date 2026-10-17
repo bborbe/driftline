@@ -117,7 +117,7 @@ export class RaceView {
     this.status.append(this.chase, this.lap, this.cp, this.best)
     this.keys.style.setProperty('--hint-delay', `${HINT_MS}ms`)
     applyHudScale(loadSettings(localStorage).hudScale)
-    window.addEventListener(SETTINGS_EVENT, (e) => applyHudScale((e as CustomEvent<Settings>).detail.hudScale))
+    window.addEventListener(SETTINGS_EVENT, this.onSettings)
     for (let i = 0; i < LAMPS; i++) this.lights.append(el('i', ''))
     this.countdown.append(this.lights, this.count)
     this.countdown.hidden = true
@@ -154,6 +154,14 @@ export class RaceView {
     this.help.hidden = true
     this.help.append(el('h2', '', 'CONTROLS'), controlsPanel(), el('p', '', 'H or Esc to close'))
     document.body.append(this.help)
+  }
+
+  /** Live HUD scale from Settings → Graphics. */
+  private readonly onSettings = (e: Event): void => applyHudScale((e as CustomEvent<Settings>).detail.hudScale)
+
+  /** Drops the window listener (the game builds one RaceView per page; tests can build several). */
+  dispose(): void {
+    window.removeEventListener(SETTINGS_EVENT, this.onSettings)
   }
 
   /** True while the Esc menu's settings panel is open (Esc closes it before resuming). */
@@ -237,8 +245,9 @@ export class RaceView {
   /** Countdown step: 3, 2, 1 light the start lights red one by one and pop the number; 0 turns them green with GO!. */
   showCountdown(n: number): void {
     clearTimeout(this.countTimer)
-    // The controls hint stays up until a race starts, then fades HINT_MS after the countdown begins.
-    if (n === 3 || (n > 0 && !this.keys.classList.contains('race-hint'))) replay(this.keys, 'race-hint')
+    // The controls hint stays up until the first race of the page starts, then fades HINT_MS after its countdown begins
+    // (once per page load: a restart does not bring it back).
+    this.keys.classList.add('race-hint')
     this.countdown.hidden = false
     const lamps = startLamps(n)
     ;[...this.lights.children].forEach((l, i) => (l.className = LAMP_CLASS[lamps[i]]))
