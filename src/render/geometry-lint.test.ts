@@ -1,5 +1,5 @@
 // Scene geometry lint over every shipped track: builds the same static world the game shows
-// (createWorld + createPieceTrack, as createScene / createView do), minus the renderer, and fails on
+// (createWorld + createPieceTrack + createStartDressing, as createScene / createView do), minus the renderer, and fails on
 // paper-thin parts, on structural parts floating with nothing under them, and on structural parts with
 // no collider the car hits (trackSurface().obstacles) and no noCollide reason (lint.ts). The checker's
 // own bite is proven on fixtures in lint.test.ts.
@@ -11,6 +11,7 @@ import { LAP_NAMES, loadLap } from '../track/registry'
 import { lintScene, type Offender } from './lint'
 import { createWorld } from './scene'
 import { createPieceTrack } from './track/kenney'
+import { createStartDressing } from './track/start-dressing'
 
 /**
  * Known offenders too big to fix in the PR that added the lint: each one names its follow-up.
@@ -44,6 +45,8 @@ const buildScene = async (name: string): Promise<THREE.Group> => {
   const track = loadLap(name)
   const root = new THREE.Group()
   root.add(await createWorld(track), await createPieceTrack(track))
+  const start = createStartDressing(track)
+  if (start) root.add(start.object)
   return root
 }
 

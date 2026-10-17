@@ -1,6 +1,6 @@
 // Drivable surfaces for the wheel raycasts. Pure and deterministic: no three.js,
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
-import { barrierPillars, barrierPosts, gateLegs, gatePillars, isPad, padForward, poses, ROAD_WIDTH, turnCentre, widthAt, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
+import { barrierPillars, barrierPosts, gateLegs, gatePillars, isPad, onPad, padForward, poses, ROAD_WIDTH, turnCentre, widthAt, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
 import { bodyBoxes, parapetBoxes, pillarBoxes } from '../track/bodies'
 import { railBoxes } from '../track/rails'
 import { loopShift, wallFrame, wallTop, WALL_RADIUS, type LoopSegment, type WallrideSegment } from '../track/pose'
@@ -231,6 +231,9 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
   const groundY = options.groundY === undefined ? 0 : options.groundY
   const entries = poses(track)
   const pieces = track.segments.map((seg, i) => piece(entries[i], seg, widthOf(seg)))
+  // A free-drive pad is one more flat piece at y 0, after the segments, so no zone ever names it.
+  const pad = track.pad
+  if (pad) pieces.push((x, z) => (onPad(pad, x, z) ? { y: 0, gx: 0, gz: 0, t: 0 } : null))
   const zones = track.zones ?? []
   const padDirs = zones.map((z) => {
     const [x, z2] = padForward(track, z)

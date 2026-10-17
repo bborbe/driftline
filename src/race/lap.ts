@@ -213,7 +213,8 @@ export class LapLoop {
       }
       return null
     }
-    if (crosses(this.finish.pose, prev, car.position, 1, this.finish.halfWidth)) {
+    // A free-drive pad (Track.pad) has no finish: the run goes on until restart.
+    if (!this.track.pad && crosses(this.finish.pose, prev, car.position, 1, this.finish.halfWidth)) {
       const lap = this.lap
       const lapMs = ((tick - this.lapStartTick) * 1000) / TICK_HZ
       this.lapTimes = [...this.lapTimes, lapMs]
