@@ -4,6 +4,7 @@
 import * as THREE from 'three/webgpu'
 import { centreline } from '../../track/centreline'
 import { poses, turnSign, zoneCorners, type Track } from '../../track/schema'
+import { padForward } from '../../track/shapes'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
 import { noCollide, structural } from '../tags'
 import { lateralPoint, sampleSegment, segmentLength, TRACK_WIDTH } from '../track/geometry'
@@ -20,6 +21,8 @@ export const SIGN_OFFSET = TRACK_WIDTH / 2 + SIGN_EDGE
 /** No board within this distance of any road at a similar height (hairpins, crossings), beyond that road's half width (SIGN_CLEARANCE on a default-width one). */
 export const SIGN_CLEAR_EDGE = 1
 export const SIGN_CLEARANCE = TRACK_WIDTH / 2 + SIGN_CLEAR_EDGE
+/** Turbo boards also stand this many metres before each pad's entry. */
+export const PRE_PAD_DISTANCE = 12
 /** One chevron board per this many metres of turn, at most MAX_TURN_SIGNS per turn. */
 export const TURN_SIGN_SPACING = 12
 const MAX_TURN_SIGNS = 4
@@ -59,6 +62,14 @@ export const planSigns = (track: Track): Sign[] => {
     const [left, right] = zoneCorners(track, zone, Math.max(widthAt(seg, zone.from), widthAt(seg, zone.to)) + 2 * SIGN_EDGE)
     if (left.y >= GROUND_LEVEL) continue
     for (const c of [left, right]) signs.push({ kind: zone.kind, x: c.x, y: c.y, z: c.z, heading: c.heading + Math.PI })
+    // A second pair PRE_PAD_DISTANCE before the pad's entry (back against its arrow), facing the
+    // approaching car, so the boost is announced before the driver reaches it.
+    const [fx, fz] = padForward(track, zone)
+    const ahead = zoneCorners(track, zone, Math.max(widthAt(seg, zone.from), widthAt(seg, zone.to)) + 2 * SIGN_EDGE)
+    const [l0, r0] = zone.reverse ? [ahead[3], ahead[2]] : [ahead[0], ahead[1]]
+    for (const c of [l0, r0]) {
+      signs.push({ kind: zone.kind, x: c.x - fx * PRE_PAD_DISTANCE, y: c.y, z: c.z - fz * PRE_PAD_DISTANCE, heading: Math.atan2(fx, fz) + Math.PI })
+    }
   }
   return signs.filter(clear)
 }

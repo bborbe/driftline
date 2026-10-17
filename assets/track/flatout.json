@@ -30,5 +30,6 @@
     ]
   },
   "medals": { "author": 34500, "gold": 37500, "silver": 42000, "bronze": 49000 },
-  "theme": {"sky": "day", "exposure": 1.05, "sun": "#ffffff", "sunIntensity": 2.4, "ground": "#5cc94e", "curb": "#00c2ff", "sign": "#00c2ff", "screen": "#00337a", "scenery": ["tree_default", "tree_detailed", "plant_bushLarge"]}
+  "theme": {"sky": "day", "exposure": 1.05, "sun": "#ffffff", "sunIntensity": 2.4, "ground": "#5cc94e", "curb": "#00c2ff", "sign": "#00c2ff", "screen": "#00337a", "scenery": ["tree_default", "tree_detailed", "plant_bushLarge"]},
+  "environment": {"time": "noon", "weather": "sunny"}
 }

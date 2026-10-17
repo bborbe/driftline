@@ -228,6 +228,8 @@ export const KIT_PIECES: readonly PieceDef[] = [
   },
   flat('turbo', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.25, to: 0.75 }] }),
   flat('turbo-red', 'effect', { zones: [{ kind: 'turbo-red', segment: 0, from: 0.25, to: 0.75 }] }),
+  // Boost strip: a two-cell full-road turbo section, 18 m of pad (vs the turbo tile's 5 m).
+  flat('turbo-strip', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.05, to: 0.95 }] }, 2),
   flat('checkpoint', 'gate', { gates: [{ kind: 'checkpoint', segment: 0 }] }),
   // Two cells: the start/finish arch stands mid-tile (schema START_ARCH_FRACTION).
   flat('start', 'gate', { gates: [{ kind: 'start-finish', segment: 0 }] }, 2),
@@ -293,6 +295,7 @@ export interface KitTrack {
   kit: { start: KitStart; pieces: Placement[] }
   medals?: Track['medals']
   theme?: Track['theme']
+  environment?: Track['environment']
 }
 
 export const isKitTrack = (data: unknown): data is KitTrack => {
@@ -401,6 +404,7 @@ export function compileKit(kt: KitTrack): CompiledKit {
   const track: Track = { name: kt.name, start: startPose, segments, gates }
   if (kt.medals) track.medals = kt.medals
   if (kt.theme) track.theme = kt.theme
+  if (kt.environment) track.environment = kt.environment
   if (zones.length) track.zones = zones
   if (barriers.length) track.barriers = barriers
   return { track, poses: ps, firstSegment }
