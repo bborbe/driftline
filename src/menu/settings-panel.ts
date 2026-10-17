@@ -2,6 +2,7 @@
 // SETTINGS_EVENT after every change, so the running race applies it at once (src/menu/live.ts); nothing needs a reload.
 // Controls sit in tabs (src/menu/tabs.ts): click a tab or press Q / E; the last open tab is remembered.
 import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camera/views'
+import { CAMERA_FX, CAMERA_FX_EVENT, loadCameraFx, saveCameraFx, type CameraFx } from '../camera/feel'
 import { LIVE_FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
 import { loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
@@ -17,6 +18,7 @@ export interface SettingsHooks {
 }
 
 const VIEW_LABELS: Record<ViewMode, string> = { close: 'Close chase', far: 'Far chase', cockpit: 'In-car' }
+const CAMERA_FX_LABELS: Record<CameraFx, string> = { off: 'Off', low: 'Low', full: 'Full' }
 /** Option label; "Track default" names what it resolves to on the track when that is known: `Track default (snow)`. */
 export const choiceLabel = (c: string, trackDefault?: string): string =>
   c === 'default' ? `Track default${trackDefault ? ` (${trackDefault})` : ''}` : c[0].toUpperCase() + c.slice(1)
@@ -72,7 +74,15 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     saveView(localStorage, cam.value as ViewMode)
     window.dispatchEvent(new CustomEvent(CAMERA_EVENT, { detail: cam.value }))
   })
-  add('camera', label('Camera (1/2/3)'), cam)
+  // Camera effects (accessibility): Off is the plain chase camera — no speed FOV, lean, shake, start sweep or finish orbit.
+  const camFx = document.createElement('select')
+  camFx.id = 'setting-camera-fx'
+  for (const v of CAMERA_FX) camFx.append(new Option(CAMERA_FX_LABELS[v], v, false, v === loadCameraFx(localStorage)))
+  camFx.addEventListener('change', () => {
+    saveCameraFx(localStorage, camFx.value as CameraFx)
+    window.dispatchEvent(new CustomEvent(CAMERA_FX_EVENT, { detail: camFx.value }))
+  })
+  add('camera', label('Camera (1/2/3)'), cam, label('Camera effects'), camFx)
   const laps = document.createElement('select')
   laps.id = 'setting-laps'
   for (let n = 1; n <= MAX_LAPS; n++) laps.append(new Option(String(n), String(n), false, n === s.laps))
