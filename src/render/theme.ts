@@ -15,6 +15,21 @@ export const SKY_FILES: Record<Sky, string> = {
   overcast: 'kloofendal_overcast_puresky_1k.hdr',
 }
 
+/**
+ * Sky dome (background) intensity per sky. The puresky HDRIs are not on one radiometric scale: next
+ * to the partly cloudy `day` sky the others are far brighter for their look (the night sky is
+ * exposed to near daylight), and at intensity 1 ACES clips their dome to white haze. These factors
+ * bring each dome back to its own mood. They scale only the background, never the environment light
+ * (`skyLight`) a theme's lighting is tuned against.
+ */
+export const SKY_BRIGHTNESS: Record<Sky, number> = {
+  day: 1,
+  sunset: 0.4,
+  dusk: 0.35,
+  night: 0.08,
+  overcast: 0.35,
+}
+
 export const skyUrl = (sky: Sky): string => {
   const url = SKY_URLS[`/assets/sky/${SKY_FILES[sky]}`]
   if (!url) throw new Error(`no asset for sky "${sky}"`)
