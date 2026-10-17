@@ -178,6 +178,63 @@ describe('car physics', () => {
     return { overshoot: Math.max(...yaw) / settledYaw - 1, turnIn: yaw.findIndex((y) => y >= 0.63 * settledYaw) / TICK_HZ }
   }
 
+  // Speed drift at 90 km/h (25 m/s) on road: Space `hold` s with full right steer, then the driver
+  // countersteers in proportion to the body slip. Slide end = body slip back under 8°. Slip counts
+  // above 5 m/s only: a long press off throttle stops the car, and a crawl is a handbrake stop, not a spin.
+  const speedDrift = (hold: number, throttle: number) => {
+    let s = settled()
+    while (speedOf(s) < 25) s = step(s, { ...NO_INPUT, throttle: 1 })
+    const start = Math.hypot(s.velocity.x, s.velocity.z)
+    let maxSlip = 0
+    let slid = false
+    for (let t = 0; t < 4 * TICK_HZ; t++) {
+      const f = forwardOf(s)
+      // Body slip, + = nose right of travel: countersteer left.
+      const slip = (Math.sign(s.velocity.x * f.z - s.velocity.z * f.x) * slipAngleDeg(s) * Math.PI) / 180
+      const handbrake = t < hold * TICK_HZ
+      s = step(s, { ...NO_INPUT, throttle, steer: handbrake ? 1 : Math.max(-1, Math.min(1, -2 * slip)), handbrake })
+      if (Math.hypot(s.velocity.x, s.velocity.z) > 5) maxSlip = Math.max(maxSlip, slipAngleDeg(s))
+      if (slipAngleDeg(s) > 15) slid = true
+      if (slid && !handbrake && slipAngleDeg(s) < 8) return { maxSlip, seconds: (t + 1) / TICK_HZ, kept: Math.hypot(s.velocity.x, s.velocity.z) / start }
+    }
+    return { maxSlip, seconds: Infinity, kept: 0 }
+  }
+
+  it('speed drift stays off in grip cornering: a full-lock corner at 54-108 km/h slips under its 10° carry gate', () => {
+    for (const speed of [15, 20, 25, 30]) {
+      let s = settled()
+      while (speedOf(s) < speed) s = step(s, { ...NO_INPUT, throttle: 1 })
+      let maxSlip = 0
+      for (let t = 0; t < 3 * TICK_HZ; t++) {
+        s = step(s, { ...NO_INPUT, throttle: speedOf(s) < speed ? 1 : 0, steer: 1 })
+        maxSlip = Math.max(maxSlip, slipAngleDeg(s))
+      }
+      expect(maxSlip).toBeLessThan(10)
+    }
+  })
+
+  it('speed drift at 90 km/h: a 0.25 s handbrake tap with steer starts a slide', () => {
+    for (const throttle of [0, 1]) expect(speedDrift(0.25, throttle).maxSlip).toBeGreaterThan(15)
+  })
+
+  it('speed drift at 90 km/h: a longer handbrake press never spins the car, and the slide ends within 2 s of release', () => {
+    for (const throttle of [0, 1]) {
+      for (const hold of [0.25, 0.4, 0.6, 0.8, 1.2, 2]) {
+        const { maxSlip, seconds } = speedDrift(hold, throttle)
+        expect(maxSlip).toBeLessThan(60)
+        expect(seconds - hold).toBeLessThan(2)
+      }
+    }
+  })
+
+  // Before the speed drift a 0.4 s press slid 3 s and dropped 90 to 60 km/h; 0.6 s spun the car.
+  it('speed drift at 90 km/h: a slide from a press up to 0.8 s keeps its speed on throttle', () => {
+    for (const hold of [0.25, 0.4, 0.6, 0.8]) {
+      expect(speedDrift(hold, 1).kept).toBeGreaterThan(0.95)
+      expect(speedDrift(hold, 0).kept).toBeGreaterThan(0.5)
+    }
+  })
+
   it('turns in crisply at speed without overshooting the settled yaw rate', () => {
     for (const [speed, steer] of [[38.9, 1], [38.9, 0.3], [27.8, 1], [27.8, 0.3]]) {
       const { overshoot, turnIn } = stepSteer(speed, steer)
