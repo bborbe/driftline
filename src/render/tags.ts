@@ -25,8 +25,10 @@ export type StructuralKind = (typeof STRUCTURAL_KINDS)[number]
  * `backdrop`: the stadium ring, STADIUM_GAP outside the lap and past the trees, out of reach of the open ground.
  * `roadside-sign`: turn and turbo boards on the grass shoulder 1.5 m past the road edge, where the shipped
  * autopilot lines on plunge and knot run wide; a collider there would change the racing line.
+ * `trackside`: banners, marshal posts and catch fences further out on the open ground (decor/trackside.ts),
+ * where the offroad cap (10 m/s, physics/car.ts MATERIALS) already stops a car running wide; visual only, like the boards.
  */
-export const NO_COLLIDE_REASONS = ['loop-shell', 'wallride-shell', 'backdrop', 'roadside-sign'] as const
+export const NO_COLLIDE_REASONS = ['loop-shell', 'wallride-shell', 'backdrop', 'roadside-sign', 'trackside'] as const
 export type NoCollideReason = (typeof NO_COLLIDE_REASONS)[number]
 
 /** Mark `obj` (and every mesh under it) solid-looking but deliberately not collided with, and say why. */
