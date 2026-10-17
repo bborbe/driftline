@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Track } from '../../track/schema'
 import { createBarriers, createRampSupports, createTrackMesh, ROAD_ROUGHNESS } from './mesh'
 import { ASPHALT } from '../look'
+import { applyAsphalt } from './asphalt'
 import { planGateLegs, planPieces, type GateLeg } from './kenney-plan'
 import { createZoneMeshes } from './zones'
 import { flat, structural, type FlatReason } from '../tags'
@@ -20,6 +21,9 @@ const urlFor = (piece: string): string => {
   if (!url) throw new Error(`no asset for track piece "${piece}"`)
   return url
 }
+
+// Road materials already given the asphalt nodes: pieces are clones that share their materials.
+const asphalted = new WeakSet<THREE.Material>()
 
 /**
  * Shadows on, and every material double-sided (back-face shadow casting): the Kenney pieces are single-sided, so an
@@ -38,7 +42,14 @@ export const preparePiece = (root: THREE.Object3D): THREE.Object3D => {
         mat.shadowSide = THREE.BackSide
         const std = mat as THREE.MeshStandardMaterial
         if (std.isMeshStandardMaterial) std.roughness = Math.min(std.roughness, ROAD_ROUGHNESS)
-        if (mat.name === 'road') std.color.copy(ASPHALT) // same asphalt as the procedural road (look.ts)
+        if (mat.name === 'road') {
+          std.color.copy(ASPHALT) // same asphalt as the procedural road (look.ts)
+          // Same grain, wear and sheen as well (asphalt.ts); pieces share materials, so once each.
+          if (std.isMeshStandardMaterial && !asphalted.has(std)) {
+            asphalted.add(std)
+            applyAsphalt(std)
+          }
+        }
       }
     }
   })
