@@ -96,7 +96,7 @@ mountAudioControls(audio, () => race.start(), () => !race.paused, settings.volum
 audio.setVolume(settings.volume)
 // The card pick is the start gesture: skip the Begin overlay and go straight into the countdown.
 if (fromMenu) document.getElementById('begin')?.click()
-// Debug spawn for screenshots (README § Debug screenshots): ?x&y&z&yaw places the car, freeze=1 holds it.
+// Debug spawn for screenshots (docs/development.md § Debug screenshots): ?x&y&z&yaw places the car, freeze=1 holds it.
 // With &cam=fly the same params (plus &pitch) place the free-fly camera instead, and the car stays on the grid.
 const pose = debugPose(location.search)
 const flyAtStart = flyRequested(location.search)

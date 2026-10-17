@@ -16,7 +16,7 @@ export const frozen = (search: string): boolean => new URLSearchParams(search).g
 /** Heading in the `?yaw=` convention (degrees, 0 = +z, CCW positive, -180..180) from a forward vector. */
 export const yawDeg = (forward: { x: number; z: number }): number => (Math.atan2(forward.x, forward.z) * 180) / Math.PI
 
-/** Debug-spawn query for the current pose (README § Debug screenshots), frozen so the frame holds still. */
+/** Debug-spawn query for the current pose (docs/development.md § Debug screenshots), frozen so the frame holds still. */
 export function poseQuery(track: string, p: { x: number; y: number; z: number }, yaw: number): string {
   const q = new URLSearchParams({ track, x: p.x.toFixed(1), y: p.y.toFixed(1), z: p.z.toFixed(1), yaw: yaw.toFixed(0), freeze: '1' })
   return `?${q}`

@@ -112,7 +112,7 @@ export const pitchParam = (search: string): number => {
 /** Degrees wrapped to -180..180, the HUD's `yaw` convention. */
 export const wrapDeg = (d: number): number => ((((d + 180) % 360) + 360) % 360) - 180
 
-/** Debug URL query that reopens this exact fly view (README § Debug screenshots), frozen like the spawn URL. */
+/** Debug URL query that reopens this exact fly view (docs/development.md § Debug screenshots), frozen like the spawn URL. */
 export function flyQuery(track: string, cam: FlyCam): string {
   const p = cam.position
   const q = new URLSearchParams({
