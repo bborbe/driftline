@@ -60,7 +60,7 @@ export const createGround = (grass?: THREE.Texture, tint: THREE.ColorRepresentat
 
 export type SceneSetup = {
   scene: THREE.Scene
-  /** The race's lighting and extras (environment.ts); view.ts adds the rain and the wet road from it. */
+  /** The race's lighting and extras (environment.ts); view.ts adds the rain, the snow and the wet road from it. */
   look: EnvironmentLook
   /** Move the sun's shadow frustum to follow a world point (the car). */
   follow: (x: number, y: number, z: number) => void

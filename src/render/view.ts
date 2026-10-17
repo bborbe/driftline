@@ -15,6 +15,7 @@ import { createSmoke } from './fx/smoke'
 import { createBoostStreaks } from './fx/boost-streaks'
 import { createSpeedLines } from './fx/speedlines'
 import { createRain } from './fx/rain'
+import { createSnow } from './fx/snow'
 import { FrameStats } from './fx/stats'
 import { watchFullscreen } from '../fullscreen'
 import { createScene } from './scene'
@@ -31,7 +32,7 @@ export type View = {
   car: THREE.Object3D
   /** Repaint the player car (Settings → Livery). */
   setLivery: (l: Livery) => void
-  /** Switch time of day and weather in place (Settings → Time / Weather): sky, light, fog, clouds, floodlights, rain, wet road, bloom. */
+  /** Switch time of day and weather in place (Settings → Time / Weather): sky, light, fog, clouds, floodlights, rain, snow, wet road, bloom. */
   setEnvironment: (env: Environment, seed?: number) => Promise<void>
   /** Turn the live effects (fx/flags.ts LIVE_FX) on or off (Settings → Effect). */
   setFx: (fx: Set<Fx>) => void
@@ -104,11 +105,13 @@ export const createView = async (
   ])
   renderer.toneMappingExposure = look.exposure
   scene.add(trackMesh, car.object)
-  // Rain wets the road and falls around the camera (render/environment.ts); both switch live with the weather.
+  // Rain wets the road and falls around the camera, snow drifts around it (render/environment.ts); all switch live with the weather.
   setWetRoad(trackMesh, look.rain)
   const rain = createRain(seed)
   rain.object.visible = look.rain
-  scene.add(rain.object)
+  const snow = createSnow(seed)
+  snow.object.visible = look.snow
+  scene.add(rain.object, snow.object)
   const start = createStartDressing(track)
   if (start) scene.add(start.object)
 
@@ -179,6 +182,7 @@ export const createView = async (
     renderer.toneMappingExposure = l.exposure
     setWetRoad(trackMesh, l.rain)
     rain.object.visible = l.rain
+    snow.object.visible = l.snow
     if (bloomPass) {
       const b = BLOOM[l.night ? 'night' : 'day']
       bloomPass.strength.value = b.strength
@@ -203,6 +207,7 @@ export const createView = async (
     if (fx.has('smoke')) smoke.update(s, dt, camera) // after the camera override, so puffs face the final camera
     sky(camera)
     if (rain.object.visible) rain.update(dt, camera)
+    if (snow.object.visible) snow.update(dt, camera)
     dust.update(s, material, dt, camera)
     draw()
     stats.push(performance.now(), dt)

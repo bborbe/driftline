@@ -19,7 +19,7 @@ describe('settings', () => {
     const s = fake()
     saveSettings(s, { volume: 0.3, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 } })
     expect(loadSettings(s)).toEqual({ volume: 0.3, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 } })
-    s.setItem('driftline-settings', JSON.stringify({ volume: 5, fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'snow' }))
+    s.setItem('driftline-settings', JSON.stringify({ volume: 5, fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'hail' }))
     expect(loadSettings(s)).toEqual({ volume: 1, fx: ['bloom'], laps: 1, time: 'default', weather: 'default', livery: DEFAULT_LIVERY })
   })
   it('keeps every time and weather choice across a reload', () => {

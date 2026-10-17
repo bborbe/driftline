@@ -7,7 +7,7 @@
 export const TIMES = ['morning', 'noon', 'sunset', 'night'] as const
 export type TimeOfDay = (typeof TIMES)[number]
 
-export const WEATHERS = ['sunny', 'cloudy', 'overcast', 'rain'] as const
+export const WEATHERS = ['sunny', 'cloudy', 'overcast', 'rain', 'snow'] as const
 export type Weather = (typeof WEATHERS)[number]
 
 export interface Environment {
@@ -73,7 +73,7 @@ export const trackEnvironment = (track: { environment?: EnvironmentDefault }): E
 /** Largest seed a random pick draws; `?seed=` takes any non-negative integer. */
 export const MAX_SEED = 99999
 
-/** One of the 16 presets from a seed: same seed, same preset (mulberry32, as the scenery planner). */
+/** One of the 20 presets from a seed: same seed, same preset (mulberry32, as the scenery planner). */
 export const randomEnvironment = (seed: number): Environment => {
   let s = seed | 0
   const next = () => {

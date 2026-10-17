@@ -8,6 +8,7 @@ import {
   TIMES,
   trackEnvironment,
   validateEnvironment,
+  WEATHER_CHOICES,
   WEATHERS,
 } from './environment'
 import { LAP_NAMES, loadLap } from './registry'
@@ -24,7 +25,7 @@ describe('validateEnvironment', () => {
 
   it('rejects unknown values and keys', () => {
     expect(validateEnvironment({ time: 'dawn' })[0]).toMatch(/^environment\.time must be one of/)
-    expect(validateEnvironment({ weather: 'snow' })[0]).toMatch(/^environment\.weather must be one of/)
+    expect(validateEnvironment({ weather: 'hail' })[0]).toMatch(/^environment\.weather must be one of/)
     expect(validateEnvironment({ wether: 'rain' })).toEqual(['environment.wether: unknown key'])
     expect(validateEnvironment('night')).toEqual(['environment must be an object'])
   })
@@ -80,7 +81,7 @@ describe('resolveEnvironment', () => {
   })
 
   it('ignores an unknown override value', () => {
-    expect(resolveEnvironment('?time=dawn&weather=snow', sunsetTrack, 'fixed', 5)).toEqual({ time: 'sunset', weather: 'cloudy', source: 'track' })
+    expect(resolveEnvironment('?time=dawn&weather=hail', sunsetTrack, 'fixed', 5)).toEqual({ time: 'sunset', weather: 'cloudy', source: 'track' })
   })
 
   it('random reaches every time and every weather', () => {
@@ -91,6 +92,27 @@ describe('resolveEnvironment', () => {
       seen.add(e.weather)
     }
     expect([...seen].sort()).toEqual([...TIMES, ...WEATHERS].sort())
+  })
+})
+
+describe('snow', () => {
+  it('?weather=snow overrides any track default', () => {
+    expect(resolveEnvironment('?weather=snow', sunsetTrack, 'fixed', 5)).toEqual({ time: 'sunset', weather: 'snow', source: 'url' })
+  })
+
+  it("is glacier's default weather", () => {
+    expect(resolveEnvironment('', loadLap('glacier'), 'fixed', 5)).toEqual({ time: 'noon', weather: 'snow', source: 'track' })
+  })
+
+  it('the random pick can land on snow', () => {
+    const seed = Array.from({ length: MAX_SEED + 1 }, (_, s) => s).find((s) => randomEnvironment(s).weather === 'snow')
+    expect(seed).toBeDefined()
+    expect(resolveEnvironment(`?seed=${seed}`, sunsetTrack, 'fixed', 1).weather).toBe('snow')
+  })
+
+  it('is a Settings weather choice, and choosing it resolves to snow', () => {
+    expect(WEATHER_CHOICES).toContain('snow')
+    expect(resolveEnvironment('', sunsetTrack, { time: 'default', weather: 'snow' }, 5)).toEqual({ time: 'sunset', weather: 'snow', source: 'setting' })
   })
 })
 
