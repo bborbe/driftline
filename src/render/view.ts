@@ -6,6 +6,7 @@ import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js'
 import { dot, forwardOf, trackSurface, type CarState, type Material } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
+import type { Livery } from './car/livery'
 import { parseFx } from './fx/flags'
 import { createSkidMarks } from './fx/skid'
 import { createDust } from './fx/dust'
@@ -28,6 +29,8 @@ export type View = {
   backend: 'WebGPU' | 'WebGL2'
   /** The player car mesh; main.ts hides it for the in-car view. */
   car: THREE.Object3D
+  /** Repaint the player car (Settings → Livery). */
+  setLivery: (l: Livery) => void
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
   /** Start lights, arch screens and start road paint; main.ts feeds it race.board() each frame. Null without a start gate. */
@@ -58,8 +61,14 @@ const wetRoad = (root: THREE.Object3D) => {
   })
 }
 
-/** `env` is the race's time of day and weather (track/environment.ts); `seed` varies its cloud layer. */
-export const createView = async (track: Track, fxQuery: string = location.search, env: Environment = DEFAULT_ENVIRONMENT, seed = 1): Promise<View> => {
+/** `env` is the race's time of day and weather (track/environment.ts); `seed` varies its cloud layer; `livery` paints the player car. */
+export const createView = async (
+  track: Track,
+  fxQuery: string = location.search,
+  env: Environment = DEFAULT_ENVIRONMENT,
+  seed = 1,
+  livery?: Livery,
+): Promise<View> => {
   const forceWebGL = new URLSearchParams(location.search).get('renderer') === 'webgl2'
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL })
   renderer.setPixelRatio(window.devicePixelRatio)
@@ -71,7 +80,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2'
   console.log(`renderer: ${backend}`)
 
-  const [{ scene, look, follow, frame: sky }, trackMesh, car] = await Promise.all([createScene(track, env, seed), createPieceTrack(track), createCarView()])
+  const [{ scene, look, follow, frame: sky }, trackMesh, car] = await Promise.all([createScene(track, env, seed), createPieceTrack(track), createCarView(undefined, livery)])
   renderer.toneMappingExposure = look.exposure
   scene.add(trackMesh, car.object)
   // Night lights the road edges; rain wets the road and falls around the camera (render/environment.ts).
@@ -157,5 +166,5 @@ export const createView = async (track: Track, fxQuery: string = location.search
     }
   }
 
-  return { renderer, camera, backend, car: car.object, scene, start, frame }
+  return { renderer, camera, backend, car: car.object, setLivery: car.setLivery, scene, start, frame }
 }
