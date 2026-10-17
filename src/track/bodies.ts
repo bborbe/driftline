@@ -1,7 +1,7 @@
-// Filled bodies under raised road: which rows of a raised segment stand on a solid body down
-// to the ground and which stay an open bridge span, and the body's collider boxes. The single
-// source for the body mesh (src/render/track/geometry.ts buildBody) and its collider
-// (src/physics/surface.ts). Pure TypeScript: no three, no browser APIs.
+// Raised road: which rows of a raised segment stand on a solid body down to the ground (an
+// embankment) and which are an open bridge on pillars, plus the collider boxes of both. The single
+// source for the body, deck and pillar meshes (src/render/track/geometry.ts, mesh.ts) and their
+// colliders (src/physics/surface.ts). Pure TypeScript: no three, no browser APIs.
 import { bankRise } from './bank'
 import { poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, type Sample } from './pose'
 import type { Pillar, Segment, Track } from './schema'
@@ -28,6 +28,8 @@ export const SPAN_HEADROOM = 2
 export const SPAN_CLEAR = ROAD_WIDTH + 1
 /** Lap distance within which a lower road is the piece's own approach (a ramp's foot), not a road underneath. */
 export const SPAN_PATH_SKIP = 50
+/** Thickness of a bridge deck's concrete box under the road: the pillars reach up to its underside. */
+export const DECK_DEPTH = 1
 /** Road height above the ground (y 0) from which a raised row is an open bridge, not a filled embankment. */
 export const BRIDGE_MIN_HEIGHT = 3
 
@@ -135,3 +137,74 @@ export const bodyBoxes = (track: Track): Pillar[] => {
     return out
   })
 }
+
+/** Target spacing of the pillars under a bridge, and the clearance they keep from any road below. */
+export const DECK_PILLAR_STEP = 12
+export const DECK_PILLAR_CLEAR = ROAD_WIDTH / 2 + 2
+/** Side of a deck pillar's square section: it carries a whole road. */
+export const DECK_PILLAR_SIZE = 1.6
+
+/** A deck pillar: centred on (x, z), standing on the ground, reaching up to `top`. */
+export type DeckPillar = { x: number; z: number; top: number }
+
+/**
+ * Pillars under the centreline of every bridge (span rows; the deck is render/track/geometry.ts buildDeck). Each run of span rows along
+ * the lap, across segment joints, gets evenly spaced pillars about DECK_PILLAR_STEP apart and at
+ * least one, however short the run. A pillar that would stand on another part of the lap (an
+ * underpass) is left out, so the road below stays open; filled rows stand on their own body.
+ */
+export const planDeckPillars = (track: Track): DeckPillar[] => {
+  const ps = poses(track)
+  const road: Sample[] = []
+  track.segments.forEach((seg, i) => {
+    if (seg.type === 'gap') return
+    const n = Math.max(1, Math.ceil(segmentLength(seg) / 1.5))
+    for (let k = 0; k <= n; k++) road.push(sampleSegment(ps[i], seg, k / n))
+  })
+  const plans = planBodies(track)
+  // Every geometry row in lap order: a span row, or null for anything that breaks a run.
+  type SpanRow = { seg: number; t: number; s: number }
+  const rows: (SpanRow | null)[] = []
+  let at = 0
+  track.segments.forEach((seg, i) => {
+    const len = segmentLength(seg)
+    const kinds = plans[i]?.kinds
+    if (!kinds) rows.push(null) // a loop stands on its own foot; gaps and ground-level road need none
+    else kinds.forEach((k, r) => rows.push(k === 'span' ? { seg: i, t: r / (kinds.length - 1), s: at + (len * r) / (kinds.length - 1) } : null))
+    at += len
+  })
+  const runs: SpanRow[][] = []
+  let run: SpanRow[] = []
+  for (const row of rows) {
+    if (row) run.push(row)
+    else if (run.length > 0) runs.push(run), (run = [])
+  }
+  if (run.length > 0) {
+    // A run across the lap's start continues into the first run.
+    if (rows[0] && runs.length > 0) runs[0] = [...run, ...runs[0].map((r) => ({ ...r, s: r.s + at }))]
+    else runs.push(run)
+  }
+  const out: DeckPillar[] = []
+  for (const r of runs) {
+    const s0 = r[0].s
+    const len = r[r.length - 1].s - s0
+    const count = Math.max(1, Math.round(len / DECK_PILLAR_STEP))
+    for (let k = 0; k < count; k++) {
+      const want = s0 + ((k + 0.5) * len) / count
+      const near = r.reduce((best, row) => (Math.abs(row.s - want) < Math.abs(best.s - want) ? row : best))
+      const p = sampleSegment(ps[near.seg], track.segments[near.seg], near.t)
+      const top = p.y - DECK_DEPTH
+      const blocked = road.some((q) => q.y < top - 1 && Math.hypot(q.x - p.x, q.z - p.z) < DECK_PILLAR_CLEAR)
+      if (!blocked) out.push({ x: p.x, z: p.z, top })
+    }
+  }
+  return out
+}
+
+/**
+ * The bridge pillars (planDeckPillars) as solid upright boxes, the same square section the render
+ * draws, from the ground up to the deck's underside: a car driving under a bridge has open space
+ * between them and hits a pillar like a wall. A car on the deck above clears their tops.
+ */
+export const pillarBoxes = (track: Track): Pillar[] =>
+  planDeckPillars(track).map((p) => ({ x: p.x, y: 0, z: p.z, heading: 0, halfWidth: DECK_PILLAR_SIZE / 2, halfDepth: DECK_PILLAR_SIZE / 2, height: p.top }))

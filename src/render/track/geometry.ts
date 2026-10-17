@@ -1,11 +1,11 @@
 // Track mesh generation from the shared schema. Pure TypeScript (no three) so it
 // is unit-testable in Node; src/render/track/mesh.ts wraps the arrays for three.js.
-import { planBodies, roadPoint, rowCount, type BodyKind, type BodyPlan } from '../../track/bodies'
-import { loopPoint, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, type LoopSegment, type Sample } from '../../track/pose'
+import { DECK_DEPTH, roadPoint, rowCount, type BodyKind, type BodyPlan } from '../../track/bodies'
+import { loopPoint, poses, ROAD_WIDTH, sampleSegment, turnSign, type LoopSegment, type Sample } from '../../track/pose'
 import type { Pose, Segment, Track } from '../../track/schema'
 
 export { sampleSegment, segmentLength, type Sample } from '../../track/pose'
-export { BRIDGE_MIN_HEIGHT, planBodies, RAISED_MIN, rowCount, SPAN_CLEAR, SPAN_HEADROOM, SPAN_PATH_SKIP, type BodyKind, type BodyPlan } from '../../track/bodies'
+export { BRIDGE_MIN_HEIGHT, DECK_DEPTH, DECK_PILLAR_CLEAR, DECK_PILLAR_SIZE, DECK_PILLAR_STEP, planBodies, planDeckPillars, RAISED_MIN, rowCount, SPAN_CLEAR, SPAN_HEADROOM, SPAN_PATH_SKIP, type BodyKind, type BodyPlan, type DeckPillar } from '../../track/bodies'
 
 /** Road width in metres (ROAD_WIDTH, src/track/pose.ts). */
 export const TRACK_WIDTH = ROAD_WIDTH
@@ -120,9 +120,11 @@ export const APRON_RUN = 2
  * Visual-only verge for a banked segment: an apron from the (dipped) inner road edge up to
  * the road plane, as wide as APRON_RUN × the dip (so zero at both flat joints and never
  * poking past the neighbouring segments), and a skirt from the (raised) outer edge down to
- * the road plane. Physics never sees it. Returns null for non-banked segments.
+ * the road plane. Physics never sees it. Returns null for non-banked segments. On a bridge
+ * (`kinds`, planBodies) the verge is left out between span rows: there is no ground under it
+ * and the deck's parapets close the edges, so it would only hang in the air as a thin sheet.
  */
-export const buildApron = (entry: Pose, seg: Segment): SegmentGeometry | null => {
+export const buildApron = (entry: Pose, seg: Segment, kinds: readonly BodyKind[] | null = null): SegmentGeometry | null => {
   if (seg.type !== 'banked') return null
   const rows = rowCount(seg)
   const s = turnSign(seg)
@@ -142,6 +144,7 @@ export const buildApron = (entry: Pose, seg: Segment): SegmentGeometry | null =>
   }
   const idx: number[] = []
   for (let r = 0; r < rows - 1; r++) {
+    if (kinds && (kinds[r] === 'span' || kinds[r + 1] === 'span')) continue // under a bridge deck (buildDeck)
     const a = r * perRow
     const b = (r + 1) * perRow
     idx.push(a, a + 1, b, a + 1, b + 1, b) // apron
@@ -150,8 +153,6 @@ export const buildApron = (entry: Pose, seg: Segment): SegmentGeometry | null =>
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }
 
-/** Thickness of an elevated deck's concrete box under the road, on a bridge span. */
-export const DECK_DEPTH = 1
 /** A bridge's parapet either side of the road: thickness outward from the road edge, and height above it. */
 export const PARAPET_WIDTH = 0.5
 export const PARAPET_HEIGHT = 0.8
@@ -327,65 +328,4 @@ const buildLoopShell = (entry: Pose, seg: LoopSegment): SegmentGeometry => {
     idx.push(a + 1, b + 1, a + 3, a + 3, b + 1, b + 3) // shell, facing away from the axis
   }
   return { positions, indices: new Uint32Array(idx), rows, perRow }
-}
-
-/** Target spacing of the pillars under a bridge, and the clearance they keep from any road below. */
-export const DECK_PILLAR_STEP = 12
-export const DECK_PILLAR_CLEAR = TRACK_WIDTH / 2 + 2
-
-/** A deck pillar: centred on (x, z), standing on the ground, reaching up to `top`. */
-export type DeckPillar = { x: number; z: number; top: number }
-
-/**
- * Pillars under the centreline of every bridge (span rows, buildDeck). Each run of span rows along
- * the lap, across segment joints, gets evenly spaced pillars about DECK_PILLAR_STEP apart and at
- * least one, however short the run. A pillar that would stand on another part of the lap (an
- * underpass) is left out, so the road below stays open; filled rows stand on their own body.
- */
-export const planDeckPillars = (track: Track): DeckPillar[] => {
-  const ps = poses(track)
-  const road: Sample[] = []
-  track.segments.forEach((seg, i) => {
-    if (seg.type === 'gap') return
-    const n = Math.max(1, Math.ceil(segmentLength(seg) / 1.5))
-    for (let k = 0; k <= n; k++) road.push(sampleSegment(ps[i], seg, k / n))
-  })
-  const plans = planBodies(track)
-  // Every geometry row in lap order: a span row, or null for anything that breaks a run.
-  type SpanRow = { seg: number; t: number; s: number }
-  const rows: (SpanRow | null)[] = []
-  let at = 0
-  track.segments.forEach((seg, i) => {
-    const len = segmentLength(seg)
-    const kinds = plans[i]?.kinds
-    if (!kinds) rows.push(null) // a loop stands on its own foot; gaps and ground-level road need none
-    else kinds.forEach((k, r) => rows.push(k === 'span' ? { seg: i, t: r / (kinds.length - 1), s: at + (len * r) / (kinds.length - 1) } : null))
-    at += len
-  })
-  const runs: SpanRow[][] = []
-  let run: SpanRow[] = []
-  for (const row of rows) {
-    if (row) run.push(row)
-    else if (run.length > 0) runs.push(run), (run = [])
-  }
-  if (run.length > 0) {
-    // A run across the lap's start continues into the first run.
-    if (rows[0] && runs.length > 0) runs[0] = [...run, ...runs[0].map((r) => ({ ...r, s: r.s + at }))]
-    else runs.push(run)
-  }
-  const out: DeckPillar[] = []
-  for (const r of runs) {
-    const s0 = r[0].s
-    const len = r[r.length - 1].s - s0
-    const count = Math.max(1, Math.round(len / DECK_PILLAR_STEP))
-    for (let k = 0; k < count; k++) {
-      const want = s0 + ((k + 0.5) * len) / count
-      const near = r.reduce((best, row) => (Math.abs(row.s - want) < Math.abs(best.s - want) ? row : best))
-      const p = sampleSegment(ps[near.seg], track.segments[near.seg], near.t)
-      const top = p.y - DECK_DEPTH
-      const blocked = road.some((q) => q.y < top - 1 && Math.hypot(q.x - p.x, q.z - p.z) < DECK_PILLAR_CLEAR)
-      if (!blocked) out.push({ x: p.x, z: p.z, top })
-    }
-  }
-  return out
 }
