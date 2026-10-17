@@ -1,11 +1,13 @@
 // The settings panel, shared by the start screen and the in-race Esc menu. Writes through to localStorage and fires
 // SETTINGS_EVENT after every change, so the running race applies it at once (src/menu/live.ts); nothing needs a reload.
+// Controls sit in tabs (src/menu/tabs.ts): click a tab or press Q / E; the last open tab is remembered.
 import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camera/views'
 import { LIVE_FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
 import { loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES, type TimeChoice, type WeatherChoice } from '../track/environment'
+import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type ControlId, type Tab } from './tabs'
 
 export interface SettingsHooks {
   /** Live volume change, e.g. GameAudio.setVolume. */
@@ -17,8 +19,8 @@ const choiceLabel = (c: string): string => (c === 'default' ? 'Track default' : 
 
 export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   const s: Settings = loadSettings(localStorage)
-  const box = document.createElement('div')
-  box.className = 'menu-settings'
+  const controls = {} as Record<ControlId, HTMLElement[]>
+  const add = (id: ControlId, ...els: HTMLElement[]) => void (controls[id] = els)
   const label = (text: string) => Object.assign(document.createElement('span'), { textContent: text })
   const commit = () => {
     saveSettings(localStorage, s)
@@ -31,7 +33,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     commit()
     hooks.onVolume?.(s.volume)
   })
-  box.append(label('Volume'), vol)
+  add('volume', label('Volume'), vol)
 
   // Only the effects a toggle changes: bloom and skid marks are always on (glow.ts, view.ts).
   for (const f of LIVE_FX) {
@@ -40,7 +42,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
       s.fx = LIVE_FX.filter((x) => (x === f ? cb.checked : s.fx.includes(x)))
       commit()
     })
-    box.append(label(`Effect: ${f}`), cb)
+    add(f, label(`Effect: ${f}`), cb)
   }
   const cam = document.createElement('select')
   for (const v of VIEWS) cam.append(Object.assign(document.createElement('option'), { value: v, textContent: VIEW_LABELS[v] }))
@@ -49,7 +51,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     saveView(localStorage, cam.value as ViewMode)
     window.dispatchEvent(new CustomEvent(CAMERA_EVENT, { detail: cam.value }))
   })
-  box.append(label('Camera (1/2/3)'), cam)
+  add('camera', label('Camera (1/2/3)'), cam)
   const laps = document.createElement('select')
   laps.id = 'setting-laps'
   for (let n = 1; n <= MAX_LAPS; n++) laps.append(new Option(String(n), String(n), false, n === s.laps))
@@ -57,7 +59,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     s.laps = Number(laps.value)
     commit()
   })
-  box.append(label('Laps (from the next restart)'), laps)
+  add('laps', label('Laps (from the next restart)'), laps)
   const time = document.createElement('select')
   time.id = 'setting-time'
   for (const c of TIME_CHOICES) time.append(new Option(choiceLabel(c), c, false, c === s.time))
@@ -65,7 +67,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     s.time = time.value as TimeChoice
     commit()
   })
-  box.append(label('Time of day'), time)
+  add('time', label('Time of day'), time)
   const weather = document.createElement('select')
   weather.id = 'setting-weather'
   for (const c of WEATHER_CHOICES) weather.append(new Option(choiceLabel(c), c, false, c === s.weather))
@@ -73,7 +75,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     s.weather = weather.value as WeatherChoice
     commit()
   })
-  box.append(label('Weather'), weather)
+  add('weather', label('Weather'), weather)
   // Livery: repaints the car (and its ghost) at once.
   const repaint = () => {
     s.livery = clampLivery(s.livery)
@@ -86,7 +88,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     s.livery = { ...s.livery, pattern: pattern.value as Settings['livery']['pattern'] }
     repaint()
   })
-  box.append(label('Livery'), pattern)
+  add('livery', label('Livery'), pattern)
   const paint = document.createElement('select')
   paint.id = 'setting-paint'
   for (const p of PAINT_IDS) paint.append(new Option(p, p, false, p === s.livery.paint))
@@ -94,7 +96,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     s.livery = { ...s.livery, paint: paint.value as Settings['livery']['paint'] }
     repaint()
   })
-  box.append(label('Colour'), paint)
+  add('paint', label('Colour'), paint)
   const num = Object.assign(document.createElement('input'), { type: 'number', min: '1', max: String(MAX_NUMBER), value: String(s.livery.number), id: 'setting-number' })
   // While typing, repaint every valid number; on commit (blur / Enter) snap the field to the clamped value.
   num.addEventListener('input', () => {
@@ -107,6 +109,52 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     repaint()
     num.value = String(s.livery.number)
   })
-  box.append(label('Race number'), num)
+  add('number', label('Race number'), num)
+  return tabbed(controls)
+}
+
+/** The tab strip over one page per tab; Q / E switch while the panel is on screen. */
+function tabbed(controls: Record<ControlId, HTMLElement[]>): HTMLElement {
+  const box = document.createElement('div')
+  box.className = 'menu-settings-tabs'
+  const strip = Object.assign(document.createElement('div'), { className: 'menu-tabs' })
+  const buttons = {} as Record<Tab, HTMLButtonElement>
+  const pages = {} as Record<Tab, HTMLElement>
+  let current = loadTab(localStorage)
+  const show = (tab: Tab) => {
+    current = tab
+    saveTab(localStorage, tab)
+    for (const t of TABS) {
+      buttons[t].classList.toggle('menu-tab-active', t === tab)
+      buttons[t].setAttribute('aria-selected', String(t === tab))
+      pages[t].hidden = t !== tab
+    }
+  }
+  for (const t of TABS) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'menu-tab', textContent: TAB_LABELS[t], id: `setting-tab-${t}` })
+    b.setAttribute('role', 'tab')
+    b.addEventListener('click', (e) => {
+      e.stopPropagation()
+      show(t)
+    })
+    buttons[t] = b
+    const page = Object.assign(document.createElement('div'), { className: 'menu-settings', id: `setting-page-${t}` })
+    page.setAttribute('role', 'tabpanel')
+    page.append(...TAB_CONTROLS[t].flatMap((id) => controls[id]))
+    pages[t] = page
+  }
+  strip.append(...TABS.map((t) => buttons[t]), Object.assign(document.createElement('span'), { className: 'menu-hint', textContent: 'Q / E' }))
+  box.append(strip, ...TABS.map((t) => pages[t]))
+  show(current)
+  // One listener per panel; a panel the Esc menu replaced drops its own on the next key.
+  const onKey = (e: KeyboardEvent) => {
+    if (!box.isConnected) return window.removeEventListener('keydown', onKey, true)
+    if (box.getClientRects().length === 0 || (e.target as HTMLElement | null)?.tagName === 'INPUT') return
+    const next = moveTab(current, e.code)
+    if (next === current) return
+    show(next)
+    e.preventDefault()
+  }
+  window.addEventListener('keydown', onKey, true)
   return box
 }

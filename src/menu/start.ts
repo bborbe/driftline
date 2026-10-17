@@ -33,6 +33,7 @@ export function chooseTrack(names: string[]): Promise<string> {
     const toggleSettings = () => {
       settingsOpen = !settingsOpen
       settings.hidden = !settingsOpen
+      if (settingsOpen) settings.scrollIntoView({ block: 'nearest' })
     }
 
     // One row per track group, then the settings button; actions[row][col] fires on select.
