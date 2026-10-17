@@ -18,6 +18,7 @@ import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
 import { effectiveFxQuery, loadSettings, saveSettings } from './menu/settings'
 import { settingsPanel } from './menu/settings-panel'
+import { environmentLabel, resolveEnvironment } from './track/environment'
 import { devMode, RunTaint } from './debug/tuning'
 import { mountTuningPanel } from './debug/tuning-panel'
 import { isTuned } from './physics/handling'
@@ -27,7 +28,9 @@ const fromMenu = !skipMenu(location.search)
 const trackName = fromMenu ? await chooseTrack(LAP_NAMES) : lapName(location.search)
 const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
-const view = await createView(track, effectiveFxQuery(location.search, settings))
+// Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
+const env = resolveEnvironment(location.search, track, settings.environment, Date.now())
+const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1)
 const { camera, backend } = view
 
 // Debug overlay (pose, fps, build label) in the corners; backtick or ?debug=0 hides it, P copies the debug-spawn URL
@@ -170,7 +173,7 @@ view.renderer.setAnimationLoop(() => {
   debug.setText(
     f
       ? `${backend}  ${track.name}  FLY${cam.orbiting ? ' ORBIT' : ''}  x ${f.position.x.toFixed(1)}  y ${f.position.y.toFixed(1)}  z ${f.position.z.toFixed(1)}  yaw ${wrapDeg((f.yaw * 180) / Math.PI).toFixed(0)}  pitch ${((f.pitch * 180) / Math.PI).toFixed(0)}  ·  WASD move  drag look  Space/Ctrl up/down (E/Q)  Shift fast  O orbit  C exit`
-      : `${backend}  ${track.name}  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${inLoop(s.position) ? `  up ${rotate(s.orientation, v3(0, 1, 0)).y.toFixed(2)}` : ''}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`,
+      : `${backend}  ${track.name}  ${environmentLabel(env)}  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${inLoop(s.position) ? `  up ${rotate(s.orientation, v3(0, 1, 0)).y.toFixed(2)}` : ''}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`,
   )
   view.start?.update(race.board())
   view.frame(s, elapsed, material)

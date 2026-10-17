@@ -32,5 +32,6 @@
       { "piece": "straight-2" },
       { "piece": "straight-2" }
     ]
-  }
+  },
+  "environment": {"time": "noon", "weather": "sunny"}
 }
