@@ -89,6 +89,7 @@ Debug
 - [test-loop](https://bborbe.github.io/driftline/?track=test-loop) - one full vertical loop
 - [test-wallride](https://bborbe.github.io/driftline/?track=test-wallride) - two velodrome 180s whose outer edge curves up into a near-vertical wall
 - [test-spiral](https://bborbe.github.io/driftline/?track=test-spiral) - a corkscrew loop that exits two road widths over
+- [test-pad](https://bborbe.github.io/driftline/?track=test-pad) - free drive on a 400 × 400 m walled asphalt pad: painted r 15/40/80 m circles and a 300 m lane marked every 50 m, for feeling drift, grip and steering; no finish
 - [test-kit](https://bborbe.github.io/driftline/?track=test-kit) - a lap of track kit pieces
 - [test-kit-all](https://bborbe.github.io/driftline/?track=test-kit-all) - every track kit piece in one lap
 

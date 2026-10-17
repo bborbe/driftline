@@ -50,5 +50,6 @@
       "kind": "checkpoint",
       "segment": 5
     }
-  ]
+  ],
+  "environment": {"time": "noon", "weather": "sunny"}
 }

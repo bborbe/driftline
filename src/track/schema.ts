@@ -3,16 +3,30 @@
 // no browser APIs, so physics may import it. The centreline (pose.ts), the shapes built on it
 // (shapes.ts), validation (validate.ts) and the layout id (layout-id.ts) live in their own modules
 // and are re-exported here, so every importer of the format keeps one entry point.
+import type { EnvironmentDefault } from './environment'
 import type { Theme } from './theme'
 
 export { constantWidth, exitPose, MAX_ROAD_WIDTH, maxWidth, MIN_ROAD_WIDTH, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, widthAt, type Sample } from './pose'
-export { BARRIER, barrierPillars, barrierPosts, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, gateScale, gateUp, gateWidth, padForward, zoneCorners, type Pillar } from './shapes'
+export { BARRIER, barrierPillars, onPad, padLaneMarks, padWalls, barrierPosts, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, gateScale, gateUp, gateWidth, padForward, zoneCorners, type Pillar } from './shapes'
 export { layoutId } from './layout-id'
 export { validate } from './validate'
 export { isColour, SKIES, validateTheme, type Sky, type Theme } from './theme'
 
 /** Kit grid cell size in metres (the 10 m Kenney piece). Every piece's footprint is a multiple of it; road width is per segment (widthAt). */
 export const CELL = 10
+
+/**
+ * The three standard corner radii (m), one driving style each on the 14 m road: tight needs
+ * braking (grip limit ~64 km/h), medium is the 90 km/h drift corner (grip limit ~85 km/h, so a
+ * 90 km/h entry needs a short speed drift), wide is flat out near top speed (~146 km/h). Measured
+ * in src/race/corner-radii.test.ts. Multiples of CELL, so the 90° kit pieces sit on the grid. The
+ * kit's corner-* pieces and a free-form `curve` segment's named `radius` both read this one table.
+ */
+export const CORNER_RADII = { tight: 20, medium: 40, wide: 150 } as const
+
+export type CornerSize = keyof typeof CORNER_RADII
+
+export const CORNER_SIZES = Object.keys(CORNER_RADII) as CornerSize[]
 
 /** World pose at a piece connection edge: bottom-center, heading in radians (0 = +z, CCW positive). */
 export interface Pose {
@@ -134,6 +148,20 @@ export type Barrier =
   | { from: [number, number]; to: [number, number] }
   | { segment: number; side: Turn; gap?: number; from?: number; to?: number }
 
+/**
+ * A free-drive test pad: one flat, open asphalt square of `size` metres centred on `centre` [x, z] at
+ * y 0, with painted guides — circles of `circles` radii about `circleCentre` and a straight `lane`
+ * from `from` to `to` with a distance mark every `marks` metres. The pad drives as road (no offroad
+ * inside it) and a track with one is free drive: no finish, no lap (src/race/lap.ts).
+ */
+export interface Pad {
+  centre: [number, number]
+  size: number
+  circleCentre: [number, number]
+  circles: number[]
+  lane: { from: [number, number]; to: [number, number]; marks: number }
+}
+
 export interface Track {
   name: string
   start: Pose
@@ -143,8 +171,12 @@ export interface Track {
   medals?: Medals
   zones?: Zone[]
   barriers?: Barrier[]
+  /** Optional: a free-drive asphalt pad (Pad). */
+  pad?: Pad
   /** Optional per-track look (src/track/theme.ts). Render-only and not part of layoutId. */
   theme?: Theme
+  /** Optional default time of day and weather (src/track/environment.ts). Render-only and not part of layoutId. */
+  environment?: EnvironmentDefault
 }
 
 /** Native length of a straight road tile (assets/track/pieces.json); straights are split into tiles of about this length. */

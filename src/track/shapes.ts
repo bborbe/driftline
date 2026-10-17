@@ -2,7 +2,7 @@
 // pad arrows. Each is the single source for both its collider (src/physics) and its mesh
 // (src/render). Pure TypeScript: no three, no browser APIs.
 import { exitPose, partialPose, poses, segmentLength, widthAt } from './pose'
-import { CELL, START_ARCH_FRACTION, tileLength, type Gate, type Pose, type Track, type Zone } from './schema'
+import { CELL, START_ARCH_FRACTION, tileLength, type Gate, type Pad, type Pose, type Track, type Zone } from './schema'
 
 /**
  * Unit horizontal direction a turbo pad's arrow points, as [x, z] — the single source for the
@@ -120,9 +120,41 @@ export function gateLegs(track: Track, gate: Gate): Pillar[] {
 
 // Each barrier as the [x, z] points of its wall line: a road-following one is sampled every
 // BARRIER.step metres or less along its piece, offset from the road edge there (widthAt) to the wall's middle.
+/** True when (x, z) lies on the pad's asphalt, shrunk by `margin` metres on every side (negative grows it). */
+export const onPad = (pad: Pad, x: number, z: number, margin = 0): boolean => {
+  const half = pad.size / 2 - margin
+  return Math.abs(x - pad.centre[0]) <= half && Math.abs(z - pad.centre[1]) <= half
+}
+
+/** Length of one pad wall piece: each edge is split into these, so no collider box is hundreds of metres long. */
+const PAD_WALL_STEP = 20
+
+/** The pad's four edge walls, their inner face on the asphalt's edge: lines of [x, z] points, clockwise from the -x/-z corner. */
+export function padWalls(pad: Pad): [number, number][][] {
+  const h = pad.size / 2 + BARRIER.halfWidth
+  const [cx, cz] = pad.centre
+  const corners: [number, number][] = [[cx - h, cz - h], [cx - h, cz + h], [cx + h, cz + h], [cx + h, cz - h]]
+  const n = Math.max(1, Math.ceil((2 * h) / PAD_WALL_STEP))
+  return corners.map(([x0, z0], i) => {
+    const [x1, z1] = corners[(i + 1) % 4]
+    return Array.from({ length: n + 1 }, (_, k) => [x0 + ((x1 - x0) * k) / n, z0 + ((z1 - z0) * k) / n] as [number, number])
+  })
+}
+
+/** Distance marks along the pad's lane: the [x, z] centre of a mark every `lane.marks` metres from its start, ends included. */
+export function padLaneMarks(pad: Pad): [number, number][] {
+  const { from, to, marks } = pad.lane
+  const length = Math.hypot(to[0] - from[0], to[1] - from[1])
+  const n = Math.floor(length / marks + 1e-9)
+  return Array.from({ length: n + 1 }, (_, k) => {
+    const f = (k * marks) / length
+    return [from[0] + (to[0] - from[0]) * f, from[1] + (to[1] - from[1]) * f] as [number, number]
+  })
+}
+
 function barrierLines(track: Track): [number, number][][] {
   const entries = poses(track)
-  return (track.barriers ?? []).map((b) => {
+  return [...(track.barriers ?? []).map((b) => {
     if (!('segment' in b)) return [b.from, b.to]
     const seg = track.segments[b.segment]
     const from = b.from ?? 0
@@ -137,7 +169,7 @@ function barrierLines(track: Track): [number, number][][] {
       // Heading 0 faces +z with +x on the left.
       return [p.x + Math.cos(p.heading) * offset, p.z - Math.sin(p.heading) * offset] as [number, number]
     })
-  })
+  }), ...(track.pad ? padWalls(track.pad) : [])]
 }
 
 /** Every barrier wall length as an upright box — the single source for the colliders (src/physics) and the walls (src/render). */

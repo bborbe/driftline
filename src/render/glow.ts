@@ -1,6 +1,6 @@
 // Glow pass: the bloom post pass and the emissive look it picks up. Bloom is on by default
-// (`?bloom=0` turns it off, for A/B shots and slow GPUs); `?time=night` selects the night preset,
-// whose bloom is stronger and wider so lights read in the dark. Every glowing material is built
+// (`?bloom=0` turns it off, for A/B shots and slow GPUs); a night environment (render/environment.ts)
+// selects the night preset, whose bloom is stronger and wider so lights read in the dark. Every glowing material is built
 // or tagged here with its class (userData.glow), so a test can prove each class is wired.
 // Pure data plus material factories; nothing here reads car state.
 import * as THREE from 'three/webgpu'
@@ -46,11 +46,8 @@ export const bloomEnabled = (search: string): boolean => {
   return v === null || !['0', 'off', 'false'].includes(v)
 }
 
-/** `?time=night` selects the night preset; anything else is day. */
-export const glowPreset = (search: string): GlowPreset => (new URLSearchParams(search).get('time') === 'night' ? 'night' : 'day')
-
-/** The bloom parameters for a page's query, or null when `?bloom=0` turns the pass off. */
-export const bloomFor = (search: string): BloomParams | null => (bloomEnabled(search) ? BLOOM[glowPreset(search)] : null)
+/** The bloom parameters for a page's query and preset (the environment's night flag), or null when `?bloom=0` turns the pass off. */
+export const bloomFor = (search: string, preset: GlowPreset = 'day'): BloomParams | null => (bloomEnabled(search) ? BLOOM[preset] : null)
 
 /** Render passes in order for a page's query: the scene, then bloom unless it is off. */
 export const glowPasses = (search: string): string[] => (bloomFor(search) ? ['scene', 'bloom'] : ['scene'])

@@ -13,8 +13,12 @@ const straight = (kind?: ZoneKind, from = 0, to = 1): Track => ({
   ...(kind ? { zones: [{ kind, segment: 0, from, to }] } : {}),
 })
 
+// The straight as a handling rig: its surface without the edge rails (src/track/rails.ts), so a car
+// steered at full lock or sent across the road is measured on the zone, not stopped by a rail.
+const rig = (track: Track) => trackSurface(track, { rails: false })
+
 const run = (track: Track, ticks: number, input: (s: CarState, i: number) => CarInput, start?: CarState): CarState => {
-  const surface = trackSurface(track)
+  const surface = rig(track)
   let s = start ?? createCarAt(track.start)
   for (let i = 0; i < ticks; i++) s = step(s, input(s, i), surface)
   return s
@@ -61,7 +65,7 @@ describe('turbo pads', () => {
   // Longest boost seen while coasting `ticks` from `start` over a track with one pad (z 180..220).
   // Throws unless the car's centre actually crossed the pad, so a "no boost" can never mean "never got there".
   const maxTurbo = (pad: Zone, start: CarState, ticks = 500): number => {
-    const surface = trackSurface({ ...straight(), zones: [pad] })
+    const surface = rig({ ...straight(), zones: [pad] })
     let s = start
     let most = 0
     let onPad = false
@@ -148,7 +152,7 @@ describe('surface grip', () => {
   it('ice keeps its acceleration (0→60 km/h within 2× road) while losing side grip', () => {
     // Full throttle from rest on a straight of `kind`: seconds to 60 km/h.
     const to60 = (kind?: ZoneKind) => {
-      const surface = trackSurface(straight(kind))
+      const surface = rig(straight(kind))
       let s = run(straight(kind), 100, () => NO_INPUT)
       let ticks = 0
       while (speedOf(s) < 60 / 3.6 && ticks < 3000) {

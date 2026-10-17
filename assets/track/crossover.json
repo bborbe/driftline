@@ -326,5 +326,6 @@
       ]
     }
   ],
-  "theme": {"sky": "day", "skyLight": 0.6, "fog": "#f2a46a", "fogNear": 180, "fogFar": 900, "sun": "#ff9e55", "sunIntensity": 2.0, "ground": "#3fe03a", "curb": "#ff7a00", "sign": "#ffffff", "screen": "#c2410c", "scenery": ["tree_palmTall", "tree_palm", "plant_bushLarge", "rock_largeB"]}
+  "theme": {"sky": "day", "skyLight": 0.6, "fog": "#f2a46a", "fogNear": 180, "fogFar": 900, "sun": "#ff9e55", "sunIntensity": 2.0, "ground": "#3fe03a", "curb": "#ff7a00", "sign": "#ffffff", "screen": "#c2410c", "scenery": ["tree_palmTall", "tree_palm", "plant_bushLarge", "rock_largeB"]},
+  "environment": {"time": "noon", "weather": "sunny"}
 }

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { WHEEL_NODES } from '../car/wheels'
 import type { Track } from '../track/schema'
 import { attachLights } from './car/lights'
-import { BLOOM, bloomFor, BRAKE_EMISSIVE, EMISSIVE, GLOW_COLOR, glowClasses, glowLuminance, glowPasses, glowPreset, tailLightIntensity } from './glow'
+import { BLOOM, bloomFor, BRAKE_EMISSIVE, EMISSIVE, GLOW_COLOR, glowClasses, glowLuminance, glowPasses, tailLightIntensity } from './glow'
 import { createEdgeLines } from './track/curbs'
 import { createZoneMeshes } from './track/zones'
 
@@ -42,10 +42,10 @@ describe('glow pass', () => {
     }
   })
 
-  it('picks the night preset on ?time=night, at least 1.5x the day strength', () => {
-    expect(glowPreset('')).toBe('day')
-    expect(glowPreset('?time=night')).toBe('night')
-    expect(bloomFor('?time=night')).toBe(BLOOM.night)
+  it('uses the night preset at night, at least 1.5x the day strength', () => {
+    expect(bloomFor('')).toBe(BLOOM.day)
+    expect(bloomFor('', 'night')).toBe(BLOOM.night)
+    expect(bloomFor('?bloom=0', 'night')).toBeNull()
     expect(BLOOM.night.strength).toBeGreaterThanOrEqual(1.5 * BLOOM.day.strength)
     expect(BLOOM.night.threshold).toBeLessThan(BLOOM.day.threshold)
   })

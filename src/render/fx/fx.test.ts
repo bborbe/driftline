@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createCar, dot, forwardOf, NO_INPUT, step, TICK_HZ, type CarInput, type CarState } from '../../physics'
+import { createCar, createCarAt, dot, forwardOf, NO_INPUT, step, TICK_HZ, trackSurface, TURBO, type CarInput, type CarState } from '../../physics'
+import { CELL, ROAD_WIDTH } from '../../track/schema'
+import { loadLap } from '../../track/registry'
+import { ROAD_HALF_WIDTH, ROAD_TOP } from '../track/zones'
+import { DECAL_LIFT } from '../track/curbs'
+import { BOOST_FADE_S, boostStreakCount, MAX_BOOST_STREAKS } from './boost-streaks'
 import { parseFx, pipelinePasses } from './flags'
 import { SkidTrail } from './skid'
 import { MAX_SMOKE, smokeIntensity, SmokePool } from './smoke'
@@ -55,6 +60,31 @@ describe('skid marks', () => {
     run(atSpeed(15), 2 * TICK_HZ, { ...NO_INPUT, steer: 1, handbrake: true }, (s) => trail.update(s))
     expect(trail.count).toBeGreaterThan(0)
   })
+
+  it('persist after the drift and sit on the drawn surface as decals: asphalt top + 3 mm on the road, ground + 3 mm off it', () => {
+    const track = loadLap('test-flat')
+    const surface = trackSurface(track)
+    const trail = new SkidTrail(surface)
+    const go = (s: CarState, ticks: number, input: CarInput) => {
+      for (let t = 0; t < ticks; t++) {
+        s = step(s, input, surface)
+        trail.update(s)
+      }
+      return s
+    }
+    // Down test-flat's 120 m start straight to ~15 m/s, then a handbrake flick that stays on the asphalt.
+    let s = createCarAt(track.start)
+    while (speedOf(s) < 15) s = step(s, { ...NO_INPUT, throttle: 1 }, surface)
+    s = go(s, TICK_HZ / 2, { ...NO_INPUT, steer: 0.5, handbrake: true })
+    const laid = trail.marks.map((m) => ({ ...m }))
+    expect(laid.length).toBeGreaterThan(0)
+    go(s, 200, NO_INPUT) // rolling on: every mark already laid is still there, unmoved
+    expect(trail.marks.slice(0, laid.length)).toEqual(laid)
+    const onRoad = laid.filter((m) => Math.abs(m.x) < ROAD_HALF_WIDTH * (ROAD_WIDTH / CELL))
+    expect(onRoad.length).toBeGreaterThan(0)
+    for (const m of onRoad) expect(m.y).toBeCloseTo(ROAD_TOP + DECAL_LIFT, 6)
+  })
+
 })
 
 describe('drift smoke', () => {
@@ -110,5 +140,31 @@ describe('frame stats', () => {
     st.push(61_000, 1 / 60)
     expect(st.count).toBe(1)
     expect(st.onePercentLow()).toBeCloseTo(60, 5)
+  })
+})
+
+describe('boost streaks', () => {
+  const yellow = TURBO['turbo']
+  const red = TURBO['turbo-red']
+
+  it('show none without a boost', () => {
+    expect(boostStreakCount(0, yellow.force)).toBe(0)
+    expect(boostStreakCount(0, 0)).toBe(0)
+  })
+
+  it('show while a pad boost runs, more for the strong red pad', () => {
+    const y = boostStreakCount(yellow.ticks, yellow.force)
+    const r = boostStreakCount(red.ticks, red.force)
+    expect(y).toBeGreaterThan(0)
+    expect(r).toBe(MAX_BOOST_STREAKS)
+    expect(r).toBeGreaterThan(y)
+  })
+
+  it('fade out over the last BOOST_FADE_S of the boost', () => {
+    const full = boostStreakCount(yellow.ticks, yellow.force)
+    const late = boostStreakCount(Math.round((BOOST_FADE_S * TICK_HZ) / 3), yellow.force)
+    expect(late).toBeGreaterThan(0)
+    expect(late).toBeLessThan(full)
+    expect(boostStreakCount(1, yellow.force)).toBeGreaterThanOrEqual(1)
   })
 })

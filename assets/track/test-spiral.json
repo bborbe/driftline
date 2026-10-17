@@ -52,5 +52,6 @@
         "walls": "left"
       }
     ]
-  }
+  },
+  "environment": {"time": "noon", "weather": "sunny"}
 }

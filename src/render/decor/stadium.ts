@@ -35,10 +35,14 @@ const SCREEN_EVERY = 4
 
 export const planStadium = (track: Track): StadiumProp[] => {
   const line = centreline(track, 4)
-  const minX = Math.min(...line.map((p) => p.x)) - STADIUM_GAP
-  const maxX = Math.max(...line.map((p) => p.x)) + STADIUM_GAP
-  const minZ = Math.min(...line.map((p) => p.z)) - STADIUM_GAP
-  const maxZ = Math.max(...line.map((p) => p.z)) + STADIUM_GAP
+  // A free-drive pad rings the stadium round the whole asphalt, not only its lane.
+  const pad = track.pad
+  const xs = [...line.map((p) => p.x), ...(pad ? [pad.centre[0] - pad.size / 2, pad.centre[0] + pad.size / 2] : [])]
+  const zs = [...line.map((p) => p.z), ...(pad ? [pad.centre[1] - pad.size / 2, pad.centre[1] + pad.size / 2] : [])]
+  const minX = Math.min(...xs) - STADIUM_GAP
+  const maxX = Math.max(...xs) + STADIUM_GAP
+  const minZ = Math.min(...zs) - STADIUM_GAP
+  const maxZ = Math.max(...zs) + STADIUM_GAP
   // Four sides, each from one corner to the next, facing inward: heading 0 faces +z.
   const sides = [
     { from: [minX, minZ], to: [maxX, minZ], heading: 0 },
@@ -144,15 +148,37 @@ const keepMeshes = (root: THREE.Object3D, keep: (o: THREE.Object3D) => boolean) 
   for (const o of drop) o.removeFromParent()
 }
 
+/**
+ * Where a light post's lamps sit, in model space: the middle of the vertices in its top tenth.
+ * Read from the model, not hard-coded, so night floodlights (render/environment.ts) stay on the lamps.
+ */
+export const lampHead = (root: THREE.Object3D): THREE.Vector3 => {
+  root.updateMatrixWorld(true)
+  const points: THREE.Vector3[] = []
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh
+    if (!mesh.isMesh) return
+    const pos = mesh.geometry.attributes.position
+    for (let i = 0; i < pos.count; i++) points.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld))
+  })
+  const top = Math.max(...points.map((p) => p.y))
+  const bottom = Math.min(...points.map((p) => p.y))
+  const lamps = points.filter((p) => p.y >= top - (top - bottom) * 0.1)
+  return lamps.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(lamps.length)
+}
+
+/** The arena: one group whose `userData.floodlights` lists every light post's lamp head in world space. */
 export const createStadium = async (track: Track, screen?: string): Promise<THREE.Group> => {
   const loader = new GLTFLoader()
   const props = planStadium(track)
+  const heads: THREE.Vector3[] = []
   const baked = await Promise.all(
     STADIUM_MODELS.map(async (m) => {
       const url = MODEL_URLS[`/assets/racing-kit/${m}.glb`]
       if (!url) throw new Error(`no asset for stadium model "${m}"`)
       const root = (await loader.loadAsync(url)).scene
       const at = props.filter((p) => p.model === m).map((p) => placement(p.x, 0, p.z, p.heading, p.scale))
+      if (m === 'lightPostLarge') heads.push(...at.map((mat) => lampHead(root).applyMatrix4(mat)))
       // Bake the cloth and the rest of the model separately: same transforms, two meshes.
       const cloth = root.clone()
       keepMeshes(cloth, (o) => isCloth(m, o))
@@ -164,6 +190,7 @@ export const createStadium = async (track: Track, screen?: string): Promise<THRE
   const screens = screenParts(props.filter((p) => p.model === 'screen'))
   const group = new THREE.Group()
   group.name = 'stadium'
+  group.userData.floodlights = heads
   // Three draw calls for the whole arena (body, banner cloth, screen faces). Fully rough (still lit by the HDRI, unlike Lambert, which
   // left every shaded side black), and no shadows: it stands far outside the car's shadow frustum
   // (scene.ts, ±60 m).

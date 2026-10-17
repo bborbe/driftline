@@ -1,7 +1,8 @@
 // Structural validation of untrusted track JSON.
 import { loopShiftOf, type LoopSegment } from './pose'
-import { MAX_ROAD_WIDTH, maxWidth, MIN_ROAD_WIDTH, ZONE_KINDS, zoneSegments, type Medals, type Pose, type Segment, type Track } from './schema'
+import { MAX_ROAD_WIDTH, maxWidth, MIN_ROAD_WIDTH, ZONE_KINDS, zoneSegments, type Medals, type Pad, type Pose, type Segment, type Track } from './schema'
 import { validateTheme } from './theme'
+import { validateEnvironment } from './environment'
 
 /** Structural validation of untrusted JSON. Returns a list of problems, empty when valid. */
 export function validate(data: unknown): string[] {
@@ -74,7 +75,15 @@ export function validate(data: unknown): string[] {
       })
     }
   }
+  if (t.pad !== undefined) {
+    const pt = (v: unknown) => Array.isArray(v) && v.length === 2 && v.every(Number.isFinite)
+    const p = t.pad as Partial<Pad>
+    if (!pt(p?.centre) || !pos(p?.size)) errs.push('pad needs centre [x, z] and a positive size')
+    if (!pt(p?.circleCentre) || !Array.isArray(p?.circles) || !p.circles.every(pos)) errs.push('pad needs circleCentre [x, z] and positive circle radii')
+    if (!pt(p?.lane?.from) || !pt(p?.lane?.to) || !pos(p?.lane?.marks)) errs.push('pad lane needs from, to [x, z] and a positive marks spacing')
+  }
   if (t.theme !== undefined) errs.push(...validateTheme(t.theme))
+  if (t.environment !== undefined) errs.push(...validateEnvironment(t.environment))
   return errs
 }
 
