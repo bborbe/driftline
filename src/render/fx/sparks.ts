@@ -24,9 +24,10 @@ export type Spark = { x: number; y: number; z: number; vx: number; vy: number; v
 /** Where the body touches an obstacle: the contact point on the wall side and the wall normal (out of the wall). */
 export type Contact = { x: number; y: number; z: number; nx: number; nz: number }
 
-type Grid = Map<string, number[]>
+type Grid = Map<number, number[]>
 const grids = new WeakMap<readonly Pillar[], Grid>()
-const cellKey = (i: number, j: number) => `${i},${j}`
+// Numeric cell key, so the per-frame lookup allocates no string. Cells span ±262 km at GRID 8 m.
+const cellKey = (i: number, j: number) => (i + 32768) * 65536 + (j + 32768)
 
 // Obstacles bucketed by every grid cell their reach touches, built once per obstacle list.
 const gridFor = (obstacles: readonly Pillar[]): Grid => {
