@@ -67,7 +67,7 @@ Feature branch + pull request into `master`, merged with a merge commit (`gh pr 
 
 - **PRs merge on green CI:** `.github/workflows/ci.yml` runs `npm ci`, `npm test` and `npm run build` on every pull request (no deploy, `contents: read` only). Its result is the test signal for a merge — a local `make test` that times out on a loaded machine does not block it. `pages.yml` deploys production on push to `master`, and PR previews (next bullet).
 
-- **Every open PR gets a playable preview** at `https://bborbe.github.io/driftline/pr-<n>/`, linked from one bot comment on the PR. That comment is updated on every push, and the preview's `<meta name="commit">` is the PR head SHA. How it works:
+- **Every open PR gets a playable preview** at `https://bborbe.github.io/driftline/pr-<n>/`, linked from one bot comment on the PR. Every deploy run refreshes the comment on every open PR, so it is updated on every push, and the preview's `<meta name="commit">` is the PR head SHA. How it works:
   - Mechanism: `pages.yml` builds one Pages artifact per run. Master goes into `/`, and each open same-repo PR goes into `/pr-<n>/` (`VITE_BASE` sets the Vite `base`). It triggers on master pushes and on `pull_request_target` (opened / synchronize / reopened / closed).
   - Cleanup: closing a PR rebuilds the site without it, so the preview 404s after that deploy.
   - Forks: fork PRs get no preview and trigger no deploy.
