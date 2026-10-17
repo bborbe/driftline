@@ -100,4 +100,8 @@ Debug
 - Effect pads change the car until a reset pad: no-steer, cruise, fragile, engine-off, slow-mo
 - Pick 1–10 laps under **Laps** in the settings, or add `&laps=3` to a track link
 
+## License
+
+BSD 2-Clause, see [LICENSE](LICENSE).
+
 Development: see [docs/development.md](docs/development.md)
