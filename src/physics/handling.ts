@@ -55,6 +55,14 @@ export type Handling = {
   driftCarrySlipHi: number // deg
   driftGripLo: number // material grip where the drift fades out
   driftGripHi: number // material grip where the drift is full
+  driftHoldSlip: number // deg of slip held at full steer into the turn
+  driftHoldSlipLo: number // deg, the hold starts past this slip
+  driftHoldSlipMax: number // deg, no hold past this (a crash or a spin)
+  driftHoldMinSpeed: number // m/s, no hold below this (a scrape)
+  driftHoldKp: number // 1/s² per rad of slip error
+  driftHoldKd: number // 1/s, damping on the slip rate
+  driftHoldRelease: number // fraction of the hold gain that straightens the slide when steer is neutral
+  driftHoldNeutral: number // |steer| under this counts as straightened
   // Air and suspension
   gravity: number // m/s²
   spring: number // N/m
@@ -108,6 +116,14 @@ export const DEFAULT_HANDLING: Readonly<Handling> = Object.freeze({
   driftCarrySlipHi: 15,
   driftGripLo: 0.6,
   driftGripHi: 1,
+  driftHoldSlip: 20,
+  driftHoldSlipLo: 10,
+  driftHoldSlipMax: 45,
+  driftHoldMinSpeed: 18,
+  driftHoldKp: 80,
+  driftHoldKd: 10,
+  driftHoldRelease: 0.5,
+  driftHoldNeutral: 0.2,
   gravity: 9.81,
   spring: 40000,
   damper: 4500,
