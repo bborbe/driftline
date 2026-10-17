@@ -27,6 +27,8 @@ export const padWidth = (track: Track, zone: Zone): number => {
   const seg = track.segments[zone.segment]
   return 2 * ROAD_HALF_WIDTH * Math.min(roadScale(seg, zone.from), roadScale(seg, zone.to)) - 0.5
 }
+/** Turbo pads run the full asphalt width (less a hair, so the curb never z-fights them), like a painted boost lane. */
+export const turboPadWidth = (track: Track, zone: Zone): number => padWidth(track, zone) + 0.4
 /** Surfaces: the whole asphalt of a CELL-wide road, stretched by roadScale; the ragged fade keeps them off the curbs. */
 export const SURFACE_WIDTH = 2 * ROAD_HALF_WIDTH
 /** Decal height over the segment's pose: the road top plus 3 mm (polygonOffset does the rest). */
@@ -39,7 +41,7 @@ export const EDGE_FADE = 1.2
 export const GRID = 0.3
 
 const PAD_LOOK: Record<'turbo' | 'turbo-red', { color: number; emissive: number }> = {
-  'turbo': { color: 0xffd60a, emissive: 0.5 },
+  'turbo': { color: 0xffae00, emissive: 0.5 },
   'turbo-red': { color: 0xff2a2a, emissive: 0.6 },
 }
 
@@ -66,22 +68,40 @@ export const zoneQuad = (track: Track, zone: Zone, width = padWidth(track, zone)
   return new Float32Array([...lift(l0, ZONE_LIFT), ...lift(r0, ZONE_LIFT), ...lift(l1, ZONE_LIFT), ...lift(r0, ZONE_LIFT), ...lift(r1, ZONE_LIFT), ...lift(l1, ZONE_LIFT)])
 }
 
+/** Turbo chevrons: one per this many metres of pad (at least MIN_CHEVRONS), spanning CHEVRON_SPAN of its width. */
+export const CHEVRON_PITCH = 2.5
+export const MIN_CHEVRONS = 2
+export const CHEVRON_SPAN = 0.86
+/** Arm thickness of a chevron along the road, as a fraction of its slot. */
+const CHEVRON_ARM = 0.45
+
 /**
- * Chevrons on a turbo pad pointing along its arrow (padForward: the direction physics boosts), as
- * triangle positions slightly above its quad. A reversed pad swaps the ends so the tips point back.
+ * Bold V chevrons on a turbo pad pointing along its arrow (padForward: the direction physics boosts),
+ * as triangle positions slightly above its quad. Each chevron is two arms, 4 triangles (12 vertices):
+ * vertex 0 is the left outer back corner, 2 the outer tip, 7 the right outer back corner. A reversed
+ * pad swaps the ends so the tips point back.
  */
-export const turboChevrons = (track: Track, zone: Zone, count = 3, width = padWidth(track, zone)): Float32Array => {
-  const [c0, c1, c2, c3] = zoneCorners(track, zone, width * 0.7)
+export const turboChevrons = (track: Track, zone: Zone, width = turboPadWidth(track, zone)): Float32Array => {
+  const [c0, c1, c2, c3] = zoneCorners(track, zone, width * CHEVRON_SPAN)
   const [l0, r0, l1, r1] = zone.reverse ? [c3, c2, c1, c0] : [c0, c1, c2, c3]
+  const length = Math.hypot((l1.x + r1.x - l0.x - r0.x) / 2, (l1.z + r1.z - l0.z - r0.z) / 2)
+  const count = Math.max(MIN_CHEVRONS, Math.round(length / CHEVRON_PITCH))
   const out: number[] = []
   const dy = ZONE_LIFT + 0.002
+  // A point at u across (0 left .. 1 right) and v along (0 entry .. 1 exit) the chevron band.
+  const at = (u: number, v: number): Pose => lerp(lerp(l0, r0, u), lerp(l1, r1, u), v)
   for (let i = 0; i < count; i++) {
-    const a = (i + 0.15) / count
-    const b = (i + 0.85) / count
-    const left = lerp(l0, l1, a)
-    const right = lerp(r0, r1, a)
-    const tip = lerp(lerp(l0, r0, 0.5), lerp(l1, r1, 0.5), b)
-    out.push(...lift(left, dy), ...lift(right, dy), ...lift(tip, dy))
+    const back = (i + 0.1) / count
+    const tip = (i + 0.9) / count
+    const arm = CHEVRON_ARM * (tip - back)
+    // Each arm lies between a leading edge (outer back corner → tip) and the same edge `arm` behind it.
+    const lo = at(0, back + arm)
+    const li = at(0, back)
+    const ro = at(1, back + arm)
+    const ri = at(1, back)
+    const to = at(0.5, tip)
+    const ti = at(0.5, tip - arm)
+    for (const p of [lo, li, to, li, ti, to, ri, ro, to, ri, to, ti]) out.push(...lift(p, dy))
   }
   return new Float32Array(out)
 }
@@ -300,7 +320,7 @@ export const createZoneMeshes = (track: Track): THREE.Group => {
         const look = PAD_LOOK[kind]
         materials.set(kind, new THREE.MeshStandardMaterial({ ...DECAL, color: look.color, emissive: look.color, emissiveIntensity: look.emissive, roughness: 0.4 }))
       }
-      group.add(flat(padMesh(zoneQuad(track, zone), materials.get(kind)!, 2), 'effect-pad'))
+      group.add(flat(padMesh(zoneQuad(track, zone, turboPadWidth(track, zone)), materials.get(kind)!, 2), 'effect-pad'))
       group.add(flat(padMesh(turboChevrons(track, zone), chevron, 3), 'decal'))
     } else if (isEffect(kind)) {
       if (!materials.has(kind)) {

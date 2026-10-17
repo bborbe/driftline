@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createCar, dot, forwardOf, NO_INPUT, step, TICK_HZ, type CarInput, type CarState } from '../../physics'
+import { createCar, dot, forwardOf, NO_INPUT, step, TICK_HZ, TURBO, type CarInput, type CarState } from '../../physics'
+import { BOOST_FADE_S, boostStreakCount, MAX_BOOST_STREAKS } from './boost-streaks'
 import { parseFx, pipelinePasses } from './flags'
 import { SkidTrail } from './skid'
 import { MAX_SMOKE, smokeIntensity, SmokePool } from './smoke'
@@ -110,5 +111,31 @@ describe('frame stats', () => {
     st.push(61_000, 1 / 60)
     expect(st.count).toBe(1)
     expect(st.onePercentLow()).toBeCloseTo(60, 5)
+  })
+})
+
+describe('boost streaks', () => {
+  const yellow = TURBO['turbo']
+  const red = TURBO['turbo-red']
+
+  it('show none without a boost', () => {
+    expect(boostStreakCount(0, yellow.force)).toBe(0)
+    expect(boostStreakCount(0, 0)).toBe(0)
+  })
+
+  it('show while a pad boost runs, more for the strong red pad', () => {
+    const y = boostStreakCount(yellow.ticks, yellow.force)
+    const r = boostStreakCount(red.ticks, red.force)
+    expect(y).toBeGreaterThan(0)
+    expect(r).toBe(MAX_BOOST_STREAKS)
+    expect(r).toBeGreaterThan(y)
+  })
+
+  it('fade out over the last BOOST_FADE_S of the boost', () => {
+    const full = boostStreakCount(yellow.ticks, yellow.force)
+    const late = boostStreakCount(Math.round((BOOST_FADE_S * TICK_HZ) / 3), yellow.force)
+    expect(late).toBeGreaterThan(0)
+    expect(late).toBeLessThan(full)
+    expect(boostStreakCount(1, yellow.force)).toBeGreaterThanOrEqual(1)
   })
 })

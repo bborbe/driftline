@@ -3,7 +3,7 @@ import { centreline } from '../../track/centreline'
 import type { Track } from '../../track/schema'
 import { FIXTURE_TRACK } from '../../track/fixture'
 import { LAP_NAMES, loadLap } from '../../track/registry'
-import { GROUND_LEVEL, planSigns, SIGN_CLEAR_EDGE } from './signs'
+import { PRE_PAD_DISTANCE, GROUND_LEVEL, planSigns, SIGN_CLEAR_EDGE } from './signs'
 
 // Every shipped track (campaign, test and multi-level) plus the all-segment-types fixture.
 const tracks: Record<string, Track> = { ...Object.fromEntries(LAP_NAMES.map((n) => [n, loadLap(n)])), fixture: FIXTURE_TRACK }
@@ -30,12 +30,28 @@ describe('planSigns', () => {
     }
   })
 
-  it('test2: chevrons both ways and a turbo board each side of both pads', () => {
+  it('test2: chevrons both ways and a turbo board each side of both pads, beside and before them', () => {
     const kinds = planSigns(tracks.test2).map((s) => s.kind)
     expect(kinds).toContain('left')
     expect(kinds).toContain('right')
-    expect(kinds.filter((k) => k === 'turbo')).toHaveLength(2)
-    expect(kinds.filter((k) => k === 'turbo-red')).toHaveLength(2)
+    expect(kinds.filter((k) => k === 'turbo')).toHaveLength(4)
+    expect(kinds.filter((k) => k === 'turbo-red')).toHaveLength(4)
+  })
+
+  it('stands a turbo board pair PRE_PAD_DISTANCE before the pad entry, facing the approaching car', () => {
+    const zone = { kind: 'turbo' as const, segment: 0, from: 0.5, to: 0.6 }
+    const track = { name: 't', start: { x: 0, y: 0, z: 0, heading: 0 }, segments: [{ type: 'straight' as const, length: 100 }], gates: [], zones: [zone] }
+    const before = planSigns(track).filter((s) => s.z < 50 - 1)
+    expect(before).toHaveLength(2)
+    for (const s of before) {
+      expect(s.z).toBeCloseTo(50 - PRE_PAD_DISTANCE, 3)
+      expect(Math.cos(s.heading)).toBeCloseTo(-1, 6) // the face looks back down -z, at the car
+    }
+    expect(Math.sign(before[0].x)).toBe(-Math.sign(before[1].x))
+    // A reversed pad is entered from its far end, so its early pair stands past that end.
+    const rev = planSigns({ ...track, zones: [{ ...zone, reverse: true }] }).filter((s) => s.z > 60 + 1)
+    expect(rev).toHaveLength(2)
+    for (const s of rev) expect(s.z).toBeCloseTo(60 + PRE_PAD_DISTANCE, 3)
   })
 
   it('puts a turn board on the outside of the turn, facing the oncoming car', () => {

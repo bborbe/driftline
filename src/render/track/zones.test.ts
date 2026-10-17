@@ -5,7 +5,7 @@ import { createCarAt, trackSurface, type CarState } from '../../physics'
 import { dustIntensity, DustPool } from '../fx/dust'
 import { effectIcon } from './effect-pads'
 import { buildSegment, type SegmentGeometry } from './geometry'
-import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, SURFACE_OVERRUN, surfaceJoins, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, ZONE_WIDTH, zoneQuad } from './zones'
+import { CHEVRON_PITCH, CHEVRON_SPAN, EDGE_FADE, MIN_CHEVRONS, ROAD_HALF_WIDTH, ROAD_TOP, SURFACE_OVERRUN, surfaceJoins, surfacePatch, padWidth, turboChevrons, turboPadWidth, valueNoise, ZONE_LIFT, ZONE_WIDTH, zoneQuad } from './zones'
 
 // Asphalt half width on a default-width segment: ROAD_HALF_WIDTH (a CELL-wide road) stretched by ROAD_WIDTH / CELL.
 const HALF = (ROAD_HALF_WIDTH * ROAD_WIDTH) / CELL
@@ -75,9 +75,10 @@ const shipped = readdirSync(trackDir)
 // Each chevron is (left, right, tip): tip minus the base midpoint is where it points.
 const chevronDirs = (positions: Float32Array): [number, number][] => {
   const out: [number, number][] = []
-  for (let i = 0; i < positions.length; i += 9) {
-    const bx = (positions[i] + positions[i + 3]) / 2
-    const bz = (positions[i + 2] + positions[i + 5]) / 2
+  // One chevron per 12 vertices: 0 left outer back corner, 2 the outer tip, 7 the right outer back corner.
+  for (let i = 0; i < positions.length; i += 36) {
+    const bx = (positions[i] + positions[i + 21]) / 2
+    const bz = (positions[i + 2] + positions[i + 23]) / 2
     const dx = positions[i + 6] - bx
     const dz = positions[i + 8] - bz
     const l = Math.hypot(dx, dz)
@@ -106,6 +107,28 @@ describe('turbo pad arrows', () => {
       expect(fwd[i][0] * back[i][0] + fwd[i][1] * back[i][1]).toBeCloseTo(-1, 4)
       expect(back[i][0] * fx + back[i][1] * fz).toBeCloseTo(1, 4)
     }
+  })
+})
+
+describe('bold turbo pads', () => {
+  const zone = { kind: 'turbo' as const, segment: 0, from: 0.2, to: 0.4 }
+  const track: Track = { name: 't', start: { x: 0, y: 0, z: 0, heading: 0 }, segments: [{ type: 'straight', length: 100 }], gates: [], zones: [zone] }
+
+  it('span the asphalt between the curbs', () => {
+    const q = zoneQuad(track, zone, turboPadWidth(track, zone))
+    const xs = Array.from({ length: q.length / 3 }, (_, i) => q[i * 3])
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(padWidth(track, zone) + 0.5 - 0.1, 3) // the asphalt there, less 0.1 m
+  })
+
+  it('carry one bold V chevron per CHEVRON_PITCH metres, wide across the pad', () => {
+    const c = turboChevrons(track, zone)
+    expect(c.length / 36).toBe(Math.round(20 / CHEVRON_PITCH))
+    const xs = Array.from({ length: c.length / 3 }, (_, i) => c[i * 3])
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(turboPadWidth(track, zone) * CHEVRON_SPAN, 3)
+  })
+
+  it('a short pad still gets MIN_CHEVRONS', () => {
+    expect(turboChevrons(track, { ...zone, to: 0.21 }).length / 36).toBe(MIN_CHEVRONS)
   })
 })
 

@@ -214,6 +214,8 @@ export const KIT_PIECES: readonly PieceDef[] = [
   },
   flat('turbo', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.25, to: 0.75 }] }),
   flat('turbo-red', 'effect', { zones: [{ kind: 'turbo-red', segment: 0, from: 0.25, to: 0.75 }] }),
+  // Boost strip: a two-cell full-road turbo section, 18 m of pad (vs the turbo tile's 5 m).
+  flat('turbo-strip', 'effect', { zones: [{ kind: 'turbo', segment: 0, from: 0.05, to: 0.95 }] }, 2),
   flat('checkpoint', 'gate', { gates: [{ kind: 'checkpoint', segment: 0 }] }),
   // Two cells: the start/finish arch stands mid-tile (schema START_ARCH_FRACTION).
   flat('start', 'gate', { gates: [{ kind: 'start-finish', segment: 0 }] }, 2),
