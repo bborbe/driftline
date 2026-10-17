@@ -15,11 +15,11 @@
       { "piece": "straight-2" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
-      { "piece": "straight-2" },
-      { "piece": "straight-2" },
-      { "piece": "straight-2" },
-      { "piece": "straight-1" },
-      { "piece": "straight-1" },
+      { "piece": "straight-2", "width": [14, 10], "walls": "both" },
+      { "piece": "straight-2", "width": 10, "walls": "both" },
+      { "piece": "straight-2", "width": 10, "walls": "both" },
+      { "piece": "straight-1", "width": 10, "walls": "both" },
+      { "piece": "straight-1", "width": [10, 14], "walls": "both" },
       { "piece": "bank-180", "turn": "left" }
     ]
   },
