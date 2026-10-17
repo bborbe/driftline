@@ -96,8 +96,9 @@ export type NumberPlate = { at: 'nose' | 'left' | 'right'; band: Band; x: number
 export const NUMBER_PLATES: readonly NumberPlate[] = [
   // On the deck ahead of the cockpit: the nose tip of the Kenney cars is too narrow for a legible plate.
   { at: 'nose', band: 'top', x: 0.63, y: 0.5, radius: 0.15 },
-  { at: 'left', band: 'left', x: 0.45, y: 0.55, radius: 0.32 },
-  { at: 'right', band: 'right', x: 0.45, y: 0.55, radius: 0.32 },
+  // Low on the flank: higher up the cockpit edge cuts the plate off on the Kenney race car.
+  { at: 'left', band: 'left', x: 0.45, y: 0.42, radius: 0.3 },
+  { at: 'right', band: 'right', x: 0.45, y: 0.42, radius: 0.3 },
 ]
 
 /** The subset of CanvasRenderingContext2D the livery drawing uses. */
@@ -170,7 +171,7 @@ const drawNumber = (g: Draw2D, n: number, x: number, y: number, r: number): void
   g.arc(x, y, r, 0, Math.PI * 2)
   g.fill()
   g.fillStyle = '#111111'
-  g.font = `bold ${Math.round(r * (n > 9 ? 1.1 : 1.4))}px sans-serif`
+  g.font = `bold ${Math.round(r * 1.1)}px sans-serif` // one size for 1 and 2 digits, so neither leaves the disc
   g.textAlign = 'center'
   g.textBaseline = 'middle'
   g.fillText(String(n), x, y + r * 0.06)

@@ -8,7 +8,7 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 import type { Track } from '../track/schema'
 import grassUrl from '/assets/textures/grass_diff_1k.jpg?url'
 import { createScenery } from './scenery'
-import { createCurbs, createMarkings } from './track/curbs'
+import { createCurbs, createEdgeLines, createMarkings } from './track/curbs'
 import { createRails } from './track/rails'
 import { createSigns } from './decor/signs'
 import { createStadium } from './decor/stadium'
@@ -135,7 +135,7 @@ export const createWorld = async (track: Track, theme: ResolvedTheme = resolveTh
   const curb = theme.curb === undefined ? undefined : new THREE.Color(theme.curb)
   const world = new THREE.Group()
   world.name = 'world'
-  world.add(createGround(grass, theme.ground), scenery, stadium, createCurbs(track, curb), createMarkings(track), createRails(track), createSigns(track, theme.sign))
+  world.add(createGround(grass, theme.ground), scenery, stadium, createCurbs(track, curb), createMarkings(track), createEdgeLines(track), createRails(track), createSigns(track, theme.sign))
   return world
 }
 

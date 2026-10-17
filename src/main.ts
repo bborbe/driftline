@@ -190,5 +190,5 @@ view.renderer.setAnimationLoop(() => {
       : `${backend}  ${track.name}  ${environmentLabel(env)}  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${inLoop(s.position) ? `  up ${rotate(s.orientation, v3(0, 1, 0)).y.toFixed(2)}` : ''}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`,
   )
   view.start?.update(race.board())
-  view.frame(s, elapsed, material)
+  view.frame(s, elapsed, material, carInput.brake > 0)
 })

@@ -11,6 +11,7 @@ import * as THREE from 'three/webgpu'
 import { isEffect, poses, sampleSegment, segmentLength, SURFACE_KINDS, turnSign, zoneCorners, type Pose, type SurfaceKind, type Track, type Zone, type ZoneKind } from '../../track/schema'
 import { EFFECT_LOOK, effectIcon } from './effect-pads'
 import { flat } from '../tags'
+import { padEmissive, tagGlow } from '../glow'
 import { lateralPoint, PROFILE, roadScale, rowCount } from './geometry'
 
 const roadColumns = PROFILE.filter(([, , band]) => band === 'road')
@@ -318,7 +319,9 @@ export const createZoneMeshes = (track: Track): THREE.Group => {
     if (kind === 'turbo' || kind === 'turbo-red') {
       if (!materials.has(kind)) {
         const look = PAD_LOOK[kind]
-        materials.set(kind, new THREE.MeshStandardMaterial({ ...DECAL, color: look.color, emissive: look.color, emissiveIntensity: look.emissive, roughness: 0.4 }))
+        // Turbo pads glow through the bloom pass (glow.ts); effect pads stay below its day threshold.
+        const pad = new THREE.MeshStandardMaterial({ ...DECAL, color: look.color, emissive: look.color, emissiveIntensity: padEmissive(look.emissive), roughness: 0.4 })
+        materials.set(kind, tagGlow(pad, 'turbo-pad'))
       }
       group.add(flat(padMesh(zoneQuad(track, zone, turboPadWidth(track, zone)), materials.get(kind)!, 2), 'effect-pad'))
       group.add(flat(padMesh(turboChevrons(track, zone), chevron, 3), 'decal'))

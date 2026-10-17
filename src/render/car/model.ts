@@ -5,14 +5,15 @@ import { dot, forwardOf, type CarState } from '../../physics'
 import { STEERED, WHEEL_NODES, type Corner } from '../../car/wheels'
 import { CAR_ID, FALLBACK_CAR, resolveCar } from '../cars'
 import { createBodyFeel, updateBodyFeel } from './body'
+import { attachLights } from './lights'
 import type { Livery } from './livery'
 import { applyLivery } from './paint'
 import { spinRate, wheelYaw } from './rig'
 
 export type CarView = {
   object: THREE.Object3D
-  /** Pose the car and its wheels from physics state; dt in seconds. */
-  update: (s: CarState, dt: number) => void
+  /** Pose the car and its wheels from physics state; dt in seconds; `braking` brightens the tail lights. */
+  update: (s: CarState, dt: number, braking?: boolean) => void
   /** Repaint the car (render/car/livery.ts); takes effect on the next frame. */
   setLivery: (l: Livery) => void
 }
@@ -24,6 +25,7 @@ const view = (root: THREE.Object3D): CarView => {
     if (w) wheels.set(corner, w)
   }
   root.traverse((o) => (o.castShadow = true))
+  const lights = attachLights(root) // after the shadow pass: lamps and rim rings cast none
   let roll = 0
   let body = createBodyFeel()
   const lean = new THREE.Quaternion()
@@ -32,7 +34,8 @@ const view = (root: THREE.Object3D): CarView => {
   return {
     object: root,
     setLivery: (l) => applyLivery(root, l),
-    update: (s, dt) => {
+    update: (s, dt, braking = false) => {
+      lights.setBraking(braking)
       root.position.set(s.position.x, s.position.y, s.position.z)
       root.quaternion.set(s.orientation.x, s.orientation.y, s.orientation.z, s.orientation.w)
       // Body feel on top of the physics pose: lean in the car frame, squat along body up.
