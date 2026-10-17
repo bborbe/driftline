@@ -15,8 +15,9 @@ const LAP_TIMEOUT = 30_000
 // autopilot's time (HUMAN_PACE; operator's first lap2 run: 36.05 s vs 53.7 s), so lap2's 67-90 s
 // window is a ~45-60 s human lap; the floor also catches the track being shortened again.
 // test-ramp: 120 m to the ramp (SC4 row 3, jump at ~135 km/h); test-flat: a 120 m straight with a
-// turbo pad into a gentle r 150 m S-bend (row 4, steering at ~140 km/h). Autopilot ~34 s / ~68 s
-// (it takes the S at its 13 m/s curve pace; a human holds ~140 km/h through it).
+// turbo pad into a gentle r 150 m S-bend (row 4, steering at ~140 km/h), back through a medium
+// r 40 m S (the 90 km/h drift corner). Autopilot ~34 s / ~75 s (it takes every curve at its 13 m/s
+// pace; a human holds ~140 km/h through the wide S).
 const RUN_UP: Record<string, [number, number]> = { 'test-ramp': [25_000, 45_000], 'test-flat': [55_000, 80_000] }
 
 // Tracks whose medals were last set from this autopilot's lap (mixed-surface redesign, 2026-10-17).

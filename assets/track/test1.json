@@ -67,5 +67,6 @@
     "gold": 15000,
     "silver": 18000,
     "bronze": 22000
-  }
+  },
+  "environment": {"time": "noon", "weather": "sunny"}
 }

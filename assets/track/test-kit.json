@@ -17,5 +17,6 @@
       { "piece": "walled", "surface": "dirt" },
       { "piece": "bank-180", "turn": "left" }
     ]
-  }
+  },
+  "environment": {"time": "noon", "weather": "sunny"}
 }

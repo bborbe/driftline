@@ -10,5 +10,6 @@
       { "piece": "straight-2" },
       { "piece": "wallride", "turn": "left" }
     ]
-  }
+  },
+  "environment": {"time": "noon", "weather": "sunny"}
 }

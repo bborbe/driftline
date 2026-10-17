@@ -319,5 +319,6 @@
       "side": "left"
     }
   ],
-  "theme": {"sky": "overcast", "skyLight": 0.7, "fog": "#c4cad3", "fogNear": 140, "fogFar": 800, "sun": "#e3ecf7", "sunIntensity": 1.1, "ground": "#3f7d4e", "curb": "#1d64e0", "sign": "#ffffff", "screen": "#334155", "scenery": ["tree_pineTallA", "tree_pineTallB", "tree_pineRoundC", "rock_tallB", "stone_tallC"]}
+  "theme": {"sky": "overcast", "skyLight": 0.7, "fog": "#c4cad3", "fogNear": 140, "fogFar": 800, "sun": "#e3ecf7", "sunIntensity": 1.1, "ground": "#3f7d4e", "curb": "#1d64e0", "sign": "#ffffff", "screen": "#334155", "scenery": ["tree_pineTallA", "tree_pineTallB", "tree_pineRoundC", "rock_tallB", "stone_tallC"]},
+  "environment": {"time": "noon", "weather": "overcast"}
 }
