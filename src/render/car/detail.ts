@@ -20,7 +20,7 @@ export const isDetail = (o: THREE.Object3D): boolean => {
 const TREAD_BLOCKS = 20
 const SPOKES = 5
 const ARM_RADIUS = 0.022 // m
-const ARM_SPREAD = 0.28 // m: half the wishbone's base along the car, at the body end
+const ARM_SPREAD = 0.46 // m: half the wishbone's base along the car, at the body end; wider than the tyre, so the arms show from the side
 const ARM_INNER_X = 0.2 // m: where the wishbones meet the body, off the car's centre line
 const ARM_RISE = 0.09 // m: upper and lower wishbone height off the hub centre
 const HELMET_RADIUS = 0.17 // m
