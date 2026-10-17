@@ -9,5 +9,6 @@
     "circleCentre": [-60, 0],
     "circles": [15, 40, 80],
     "lane": { "from": [120, -170], "to": [120, 130], "marks": 50 }
-  }
+  },
+  "environment": {"time": "noon", "weather": "sunny"}
 }
