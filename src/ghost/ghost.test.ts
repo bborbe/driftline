@@ -221,3 +221,15 @@ describe('ghost consume (per-tick inputs fed by the stepper)', () => {
     expect(replay.state).toEqual(endAt)
   })
 })
+
+describe('ghost locked (dev-tuned run)', () => {
+  it('keeps no ghost from a locked lap', () => {
+    const rec = new GhostRecorder()
+    rec.locked = () => true
+    driveLap(rec, createCar(), 5 * TICK_HZ, 5_000)
+    expect(rec.best).toBeNull()
+    rec.locked = () => false
+    driveLap(rec, createCar(), 5 * TICK_HZ, 6_000)
+    expect(rec.best!.lapTimeMs).toBe(6_000)
+  })
+})
