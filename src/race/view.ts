@@ -6,9 +6,13 @@ import { controlsPanel } from './controls'
 import { litTicks, SPEEDO_TICKS, type EffectChip, type Target } from './hud'
 import { formatDelta, MEDAL_LABEL, type Medal } from './medals'
 import { formatLapTime, type RaceStore } from './store'
+import { LAMPS, startLamps, type Lamp } from './start-board'
 
 /** How long a split delta stays on screen. */
 const SPLIT_MS = 2500
+/** HUD start-light class per lamp (race.css). */
+const LAMP_CLASS: Record<Lamp, string> = { off: '', red: 'on', green: 'go' }
+
 /** How long GO! stays up after the countdown. */
 const GO_MS = 900
 
@@ -92,7 +96,7 @@ export class RaceView {
     this.actions = actions
     this.status.append(this.lap, this.cp)
     this.chase.append(this.target, this.best)
-    for (let i = 0; i < 3; i++) this.lights.append(el('i', ''))
+    for (let i = 0; i < LAMPS; i++) this.lights.append(el('i', ''))
     this.countdown.append(this.lights, this.count)
     this.countdown.hidden = true
     const gauge = el('div', 'race-gauge')
@@ -207,7 +211,8 @@ export class RaceView {
   showCountdown(n: number): void {
     clearTimeout(this.countTimer)
     this.countdown.hidden = false
-    ;[...this.lights.children].forEach((l, i) => (l.className = n === 0 ? 'go' : i < 4 - n ? 'on' : ''))
+    const lamps = startLamps(n)
+    ;[...this.lights.children].forEach((l, i) => (l.className = LAMP_CLASS[lamps[i]]))
     this.count.textContent = n === 0 ? 'GO!' : String(n)
     this.count.className = `race-count${n === 0 ? ' race-go' : ''}`
     void this.count.offsetWidth // restart the pop animation on every step

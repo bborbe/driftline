@@ -50,7 +50,11 @@ export const TEST_TRACKS: readonly string[] = [
   'test-loop',
   'test-wallride',
   'test-spiral',
+  'test-pad',
 ]
+
+/** Free-drive test tracks: an open pad with no finish (Track.pad), so no autopilot lap (src/race/full-lap.test.ts). */
+export const FREE_DRIVE: readonly string[] = ['test-pad']
 
 /** Old track names that still resolve, so shared `?track=lap1` links keep working. */
 export const ALIASES: Readonly<Record<string, string>> = { lap1: 'test1', lap2: 'test2' }

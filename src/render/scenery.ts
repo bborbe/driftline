@@ -5,7 +5,7 @@ import * as THREE from 'three/webgpu'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { centreline } from '../track/centreline'
 import { capOpenEdges } from './cap'
-import type { Track } from '../track/schema'
+import { onPad, type Track } from '../track/schema'
 import { TRACK_WIDTH } from './track/geometry'
 import { DEFAULT_SCENERY } from './theme'
 
@@ -52,6 +52,8 @@ export const planScenery = (track: Track, spacing = 9, seed = 7, models: readonl
     const scale = isRock(model) ? 2 + rand() * 2 : 4 + rand() * 3
     const heading = rand() * Math.PI * 2
     // Other parts of the lap may pass nearby (hairpins, lap crossings): keep their clearance too.
+    // Nothing on a free-drive pad or its walls: the asphalt stays open.
+    if (track.pad && onPad(track.pad, x, z, -(scale + 2))) continue
     if (clear(x, z, scale)) props.push({ model, x, y: 0, z, heading, scale })
   }
   return props
