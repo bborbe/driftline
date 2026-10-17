@@ -62,7 +62,7 @@ type Part = {
 const fmt = (n: number) => n.toFixed(2)
 
 /** Nearest `key` tag on the object or an ancestor. */
-const tagOf = (o: THREE.Object3D, key: 'flat' | 'kind' | 'noCollide'): unknown => {
+const tagOf = (o: THREE.Object3D, key: 'flat' | 'kind' | 'noCollide' | 'hangs'): unknown => {
   for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.userData[key] !== undefined) return p.userData[key]
   return undefined
 }
@@ -367,7 +367,7 @@ export const lintScene = (root: THREE.Object3D, obstacles?: readonly Pillar[]): 
   /** Structural parts that must be covered by a collider. */
   const solidParts: Part[] = []
   const meshes: THREE.Mesh[] = []
-  const structuralParts: (Part & { kind: StructuralKind })[] = []
+  const structuralParts: (Part & { kind: StructuralKind; hangs: boolean })[] = []
   /** Everything a structural part may stand on: every part of every mesh but the `airborne` ones. */
   const surfaces: Part[] = []
   /** Non-flat parts, judged for thickness once every surface is known. */
@@ -417,7 +417,7 @@ export const lintScene = (root: THREE.Object3D, obstacles?: readonly Pillar[]): 
     for (const [k, part] of parts.entries()) {
       const label = parts.length > 1 && part.instance === undefined ? `${name}@${k}` : part.name
       judged.push(Object.assign(part, { label }))
-      if (kindTag !== undefined) structuralParts.push(Object.assign(part, { name: label, kind: kindTag as StructuralKind }))
+      if (kindTag !== undefined) structuralParts.push(Object.assign(part, { name: label, kind: kindTag as StructuralKind, hangs: tagOf(mesh, 'hangs') === true }))
       if (kindTag !== undefined && noCollideTag === undefined) solidParts.push(part)
     }
   })
@@ -443,15 +443,18 @@ export const lintScene = (root: THREE.Object3D, obstacles?: readonly Pillar[]): 
   // Floating: a structural part stands when its foot is on the ground (y 0), or a ray down from its
   // foot meets another surface within CONTACT_TOLERANCE. A non-load-bearing part (deck, body, stand,
   // sign) also stands when it touches a part that stands (a deck on its pillars, a board on its posts).
-  const onFoot = (part: Part): boolean => {
-    if (part.box.min.y <= CONTACT_TOLERANCE) return true
-    const feet = [...new Set(part.tris)].filter((i) => part.positions[i * 3 + 1] <= part.box.min.y + 0.01)
+  // A hanging part (tags.ts hangs) is held from above instead: its top must meet another surface.
+  const onFoot = (part: Part & { hangs: boolean }): boolean => {
+    if (!part.hangs && part.box.min.y <= CONTACT_TOLERANCE) return true
+    const feet = [...new Set(part.tris)].filter((i) =>
+      part.hangs ? part.positions[i * 3 + 1] >= part.box.max.y - 0.01 : part.positions[i * 3 + 1] <= part.box.min.y + 0.01,
+    )
     return feet.some((i) => {
       const [x, y, z] = [part.positions[i * 3], part.positions[i * 3 + 1], part.positions[i * 3 + 2]]
       return surfaces.some((s) => s !== part && carries(s, x, y, z))
     })
   }
-  const standing = new Set<Part>(structuralParts.filter((p) => p.box.min.y <= CONTACT_TOLERANCE))
+  const standing = new Set<Part>(structuralParts.filter((p) => !p.hangs && p.box.min.y <= CONTACT_TOLERANCE))
   const spread = () => {
     for (let grew = true; grew; ) {
       grew = false
