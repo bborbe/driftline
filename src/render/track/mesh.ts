@@ -4,7 +4,7 @@ import { ASPHALT } from '../look'
 import { flat, structural, type StructuralKind } from '../tags'
 import { barrierPillars, barrierPosts, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
 import { GATE_LEG_MIN_HEIGHT } from './kenney-plan'
-import { buildApron, buildBody, buildDeck, buildTrack, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
+import { buildApron, buildBody, buildDeck, buildTrack, DECK_FOOT_COLUMNS, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road; the road itself is the shared ASPHALT.
@@ -162,9 +162,10 @@ const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kin
 }
 
 /**
- * Solid bodies down to the ground under every raised row (ramps, drops, raised road), a deck box
- * on pillars only where another road passes underneath (planBodies). Elevated gates carry their own
- * legs to the ground (gateArch, createGateLegs). Visual only: physics drives the road strip and never sees any of them.
+ * Filled embankments down to the ground under low raised rows (ramp and drop ends), an open bridge
+ * deck with parapets on pillars where the road is high or another road passes underneath
+ * (planBodies). Elevated gates carry their own legs to the ground (gateArch, createGateLegs). Only
+ * the embankments collide (bodyBoxes, src/track/bodies.ts); decks, parapets and pillars are visual.
  */
 export const createRampSupports = (track: Track): THREE.Group => {
   const group = new THREE.Group()
@@ -179,7 +180,11 @@ export const createRampSupports = (track: Track): THREE.Group => {
       if (body.indices.length > 0) group.add(concreteMesh(body, (v) => body.positions[v * 3 + 1] === 0, 'ramp-body'))
     }
     const deck = buildDeck(ps[i], seg, plan?.kinds ?? null)
-    if (deck) group.add(concreteMesh(deck, (v) => v % deck.perRow === 1 || v % deck.perRow === 3, 'deck'))
+    if (deck) {
+      // A bridge deck (DECK_SECTION) or a loop's shell (left top, left foot, right top, right foot).
+      const feet = seg.type === 'loop' ? [1, 3] : DECK_FOOT_COLUMNS
+      group.add(concreteMesh(deck, (v) => feet.includes(v % deck.perRow), 'deck'))
+    }
   })
   for (const p of planDeckPillars(track)) {
     pillars.push(

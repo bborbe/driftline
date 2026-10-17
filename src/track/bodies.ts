@@ -28,8 +28,10 @@ export const SPAN_HEADROOM = 2
 export const SPAN_CLEAR = ROAD_WIDTH + 1
 /** Lap distance within which a lower road is the piece's own approach (a ramp's foot), not a road underneath. */
 export const SPAN_PATH_SKIP = 50
+/** Road height above the ground (y 0) from which a raised row is an open bridge, not a filled embankment. */
+export const BRIDGE_MIN_HEIGHT = 3
 
-/** How a raised row stands: `fill` is a solid body down to the ground, `span` a deck box over a road below. */
+/** How a raised row stands: `fill` is a solid body down to the ground, `span` an open bridge deck on pillars. */
 export type BodyKind = 'fill' | 'span'
 
 /**
@@ -45,7 +47,8 @@ const lapGap = (a: number, b: number, lap: number): number => {
 }
 
 /**
- * Which rows of the lap stand on a solid body and which stay open over a road passing
+ * Which rows of the lap stand on a solid body (an embankment) and which are an open bridge: a
+ * row whose road is BRIDGE_MIN_HEIGHT or more above the ground, or one with a road passing
  * underneath (crossover's bridge over the start straight). Null for a segment with no raised
  * row, a gap (no road) and a loop (its own shell and foot).
  */
@@ -75,7 +78,7 @@ export const planBodies = (track: Track): (BodyPlan | null)[] => {
       if (p.y > RAISED_MIN) raised = true
       const s = starts[i] + len * t
       const under = road.some((q) => q.y < p.y - SPAN_HEADROOM && Math.hypot(q.x - p.x, q.z - p.z) < SPAN_CLEAR && lapGap(q.s, s, lap) > SPAN_PATH_SKIP)
-      return under ? 'span' : 'fill'
+      return under || p.y >= BRIDGE_MIN_HEIGHT ? 'span' : 'fill'
     })
     return raised ? out : null
   })
