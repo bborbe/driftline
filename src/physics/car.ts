@@ -87,10 +87,9 @@ const YAW_ASSIST_MIN_SPEED = 5 // m/s
 // slide it keeps its speed through, and a longer press never spins it. The kick and the carry need
 // road grip (ice, dirt and grass keep their own slide); the spin guard acts on every material, so a
 // drift that slides off the road onto offroad ground still does not spin. Forward travel only, off
-// on a loop. Grip cornering slips 3-7°,
-// below every gate here, so row 1 asphalt grip is untouched. Only the entry kick needs the handbrake:
-// the spin guard and the carry act on any road slide past their angle (a wall glance, a yawed
-// landing), so those straighten out instead of spinning.
+// on a loop. Grip cornering slips 3-7°, below every gate here, so row 1 asphalt grip is untouched.
+// Only the entry kick needs the handbrake: the spin guard and the carry act on any slide past their
+// angle (a wall glance, a yawed landing), so those straighten out instead of spinning.
 // Entry: on the handbrake, a yaw torque (1/s² per unit steer) rotates the car in until the body
 // slips DRIFT_KICK_SLIP_HI degrees, so a 0.25 s tap already slides (the steer alone takes ~0.1 s to build).
 const DRIFT_KICK = 6
