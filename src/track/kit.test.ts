@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { trackSurface } from '../physics'
-import { buildDeck, DECK_MIN_HEIGHT, lateralPoint, planDeckPillars, PROFILE, sampleSegment } from '../render/track/geometry'
+import { buildDeck, lateralPoint, planBodies, planDeckPillars, PROFILE, rowCount, sampleSegment } from '../render/track/geometry'
 import { compileKit, connectorPose, isKitTrack, KIT_PIECES, LEVEL, onGrid, outConnector, resolveTrack, type KitTrack, type PieceDef } from './kit'
 import { CELL, exitPose, partialPose, poses, turnSign, validate, type Pose, type Turn } from './schema'
 import { loopPoint } from './pose'
@@ -265,12 +265,11 @@ describe('kit level format', () => {
       expect(Math.max(...ps.map((p) => p.y))).toBeGreaterThanOrEqual(7)
     })
 
-    it('every flat piece at or above DECK_MIN_HEIGHT (1 m) renders a deck whose soffit faces down', () => {
-      expect(DECK_MIN_HEIGHT).toBe(1)
-      const elevated = track.segments.map((seg, i) => ({ seg, entry: ps[i] })).filter(({ seg, entry }) => entry.y >= DECK_MIN_HEIGHT && seg.type !== 'ramp' && seg.type !== 'drop' && seg.type !== 'gap')
+    it('every raised flat piece renders a deck whose soffit faces down when it spans a road', () => {
+      const elevated = track.segments.map((seg, i) => ({ seg, entry: ps[i] })).filter(({ seg, entry }) => entry.y >= 1 && seg.type !== 'ramp' && seg.type !== 'drop' && seg.type !== 'gap')
       expect(elevated.length).toBeGreaterThanOrEqual(1)
       for (const { seg, entry } of elevated) {
-        const g = buildDeck(entry, seg)
+        const g = buildDeck(entry, seg, Array(rowCount(seg)).fill('span'))
         expect(g, seg.type).not.toBeNull()
         expect(g!.positions.length).toBeGreaterThan(0)
         // Soffit triangles join the two foot vertices (row offsets 1 and 3) of consecutive rows.
@@ -290,13 +289,16 @@ describe('kit level format', () => {
       }
     })
 
-    it('every elevated straight of at least 12 m stands on at least one pillar', () => {
+    it('every elevated straight of at least 12 m stands on a solid body, or on pillars where it spans a road', () => {
+      const plans = planBodies(track)
       const pillars = planDeckPillars(track)
       const decks = track.segments
-        .map((seg, i) => ({ seg, entry: ps[i] }))
-        .filter(({ seg, entry }) => seg.type === 'straight' && seg.length >= 12 && entry.y >= DECK_MIN_HEIGHT)
+        .map((seg, i) => ({ seg, entry: ps[i], plan: plans[i] }))
+        .filter(({ seg, entry }) => seg.type === 'straight' && seg.length >= 12 && entry.y >= 1)
       expect(decks.length).toBeGreaterThanOrEqual(1)
-      for (const { seg, entry } of decks) {
+      for (const { seg, entry, plan } of decks) {
+        expect(plan).not.toBeNull()
+        if (!plan!.kinds.includes('span')) continue
         const len = (seg as { length: number }).length
         const under = pillars.filter((p) => {
           const u = (p.x - entry.x) * Math.sin(entry.heading) + (p.z - entry.z) * Math.cos(entry.heading)
