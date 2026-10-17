@@ -10,6 +10,7 @@ import { parseFx } from './fx/flags'
 import { createSkidMarks } from './fx/skid'
 import { createDust } from './fx/dust'
 import { createSmoke } from './fx/smoke'
+import { createBoostStreaks } from './fx/boost-streaks'
 import { createSpeedLines } from './fx/speedlines'
 import { createRain } from './fx/rain'
 import { FrameStats } from './fx/stats'
@@ -109,6 +110,10 @@ export const createView = async (track: Track, fxQuery: string = location.search
   scene.add(skid.object)
   const smoke = fx.has('smoke') ? createSmoke() : null
   if (smoke) scene.add(smoke.object)
+  // Boost streaks are turbo feedback, so they are always on (camera space, like speed lines).
+  const boost = createBoostStreaks()
+  camera.add(boost.object)
+  if (!speedLines) scene.add(camera)
   // Dust off dirt and grass is surface feedback, so it is always on.
   const dust = createDust()
   scene.add(dust.object)
@@ -130,6 +135,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
     car.update(s, dt)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     speedLines?.update(dot(s.velocity, forwardOf(s)), dt)
+    boost.update(s.turbo, s.turboForce, dt)
     skid.update(s)
     if (topCam) {
       // Debug override of the chase camera main.ts set this frame.
