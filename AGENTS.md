@@ -65,5 +65,7 @@ Feature branch + pull request into `master`, merged with a merge commit (`gh pr 
 
 - **PRs merge on green CI:** `.github/workflows/ci.yml` runs `npm ci`, `npm test` and `npm run build` on every pull request (no deploy, `contents: read` only). Its result is the test signal for a merge — a local `make test` that times out on a loaded machine does not block it. `pages.yml` deploys on push to `master` only.
 
+- **A `golden-replay.json` conflict:** take master's file, then `GOLDEN_TRACKS=<your tracks> UPDATE_GOLDEN=1 npx vitest run src/race/golden-replay.test.ts`. Recording re-captures only the tracks already pinned and merges into the file; a bare `UPDATE_GOLDEN=1` re-records all of them.
+
 - **Single-feature tracks stay short (≤ 20 s autopilot lap)** except where the mechanic needs top speed: test-ramp and test-flat carry a full-throttle run-up, pinned by `src/race/run-up.test.ts` (ramp entry 130–147 km/h; S-bend ≥ 130 km/h).
 - **Visual changes are verified with the debug spawn** (docs/development.md § Debug screenshots): before reporting, shoot the change from the chase cam and from off-track (side, below) on test1, test2 and the single-feature test track for the mechanic you touched (`test-ramp`, `test-bank`, `test-surfaces`, … — docs/tracks.md; `?x&y&z&yaw&freeze=1`, `&cam=top`, `make shots`) and judge shape and material, not only seams. A fix for a reported visual bug also gets a shot of the reporter's exact pose on the live site once its `<meta name="commit">` shows the merge.

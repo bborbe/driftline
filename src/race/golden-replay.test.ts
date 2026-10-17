@@ -8,7 +8,9 @@
 // stayed within 1 µm all lap), so a hash pinned on one machine failed CI on another.
 // Re-capture only when a change is meant to move these tracks:
 //   UPDATE_GOLDEN=1 npx vitest run src/race/golden-replay.test.ts
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+// It re-records only the tracks already pinned (never adds one) and merges into the file;
+// GOLDEN_TRACKS=a,b narrows it to the named tracks, so a merge conflict re-records just your own.
+import { readFileSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { FixedStepper, NO_INPUT, TICK_HZ, trackSurface } from '../physics'
 import { STYLES } from '../track/catalogue'
@@ -42,13 +44,14 @@ const replay = (name: string): Golden => {
 
 describe('shipped tracks replay unchanged', () => {
   if (process.env.UPDATE_GOLDEN === '1') {
-    it('captures the golden laps of every track in assets/track', () => {
-      const names = readdirSync(new URL('../../assets/track/', import.meta.url))
-        .filter((f) => f.endsWith('.json') && f !== 'pieces.json')
-        .map((f) => f.slice(0, -'.json'.length))
-        .sort()
-      writeFileSync(FILE, JSON.stringify(Object.fromEntries(names.map((n) => [n, replay(n)]))) + '\n')
-    })
+    it('re-captures the golden laps of the pinned tracks', () => {
+      const prior: Record<string, Golden> = JSON.parse(readFileSync(FILE, 'utf8'))
+      const only = process.env.GOLDEN_TRACKS?.split(',').map((n) => n.trim())
+      const unknown = only?.filter((n) => !(n in prior)) ?? []
+      expect(unknown, 'GOLDEN_TRACKS names tracks that are not pinned').toEqual([])
+      const names = Object.keys(prior).filter((n) => !only || only.includes(n))
+      writeFileSync(FILE, JSON.stringify({ ...prior, ...Object.fromEntries(names.map((n) => [n, replay(n)])) }) + '\n')
+    }, 120_000) // every pinned lap in one test: far past vitest's 5 s default
     return
   }
   const golden: Record<string, Golden> = JSON.parse(readFileSync(FILE, 'utf8'))
