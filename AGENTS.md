@@ -11,7 +11,7 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 | `make run` | `npm run dev` | Start the Vite dev server (open the printed URL; `?renderer=webgl2` forces the WebGL2 fallback) |
 | `make test` | `npm test` | Run all unit tests (vitest) — must be green before every commit |
 | `make build` | `npm run build` | Typecheck (`tsc`) and production build |
-| `make shots` | `npm run shots` | Debug PNGs along each lap's centreline into `shots/` (README § Debug screenshots; `?x&y&z&yaw&freeze=1` spawn params) |
+| `make shots` | `npm run shots` | Debug PNGs along each lap's centreline into `shots/` (docs/development.md § Debug screenshots; `?x&y&z&yaw&freeze=1` spawn params) |
 | `VITE_CAR=<id> make build` | `npm run build` | Build with a specific car from `src/render/cars.ts` (`race` default, `stadium`, `raceFuture`, `box`; unknown ids fall back to `box`). Works with `make run` too |
 
 ## Layout
@@ -59,4 +59,4 @@ The why for each rule is in the PR it cites and in the operator's *3D Browser Ga
 
 Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). No releases or tags.
 
-- **Visual changes are verified with the debug spawn** (README § Debug screenshots): before reporting, shoot the change from the chase cam and from off-track (side, below) on test1, test2 and the single-feature test track for the mechanic you touched (`test-ramp`, `test-bank`, `test-surfaces`, … — README § Tracks; `?x&y&z&yaw&freeze=1`, `&cam=top`, `make shots`) and judge shape and material, not only seams. A fix for a reported visual bug also gets a shot of the reporter's exact pose on the live site once its `<meta name="commit">` shows the merge.
+- **Visual changes are verified with the debug spawn** (docs/development.md § Debug screenshots): before reporting, shoot the change from the chase cam and from off-track (side, below) on test1, test2 and the single-feature test track for the mechanic you touched (`test-ramp`, `test-bank`, `test-surfaces`, … — docs/tracks.md; `?x&y&z&yaw&freeze=1`, `&cam=top`, `make shots`) and judge shape and material, not only seams. A fix for a reported visual bug also gets a shot of the reporter's exact pose on the live site once its `<meta name="commit">` shows the merge.

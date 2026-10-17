@@ -1,4 +1,4 @@
-// `?cam=top`: debug camera straight above the track, framing the whole lap (README § Debug screenshots).
+// `?cam=top`: debug camera straight above the track, framing the whole lap (docs/development.md § Debug screenshots).
 import type { Track } from '../track/schema'
 import { centreline } from '../track/centreline'
 

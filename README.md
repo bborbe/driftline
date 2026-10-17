@@ -1,102 +1,107 @@
 # driftline
 
-Private Trackmania-like browser racing game. Vite + TypeScript + three.js (WebGPU, WebGL2 fallback).
+**Play online:** https://bborbe.github.io/driftline/
 
-```bash
-make run        # dev server (installs deps if needed); drive: WASD / arrows, Space = handbrake; ?renderer=webgl2 forces WebGL2
-make test
-make build
-```
+Trackmania-like browser racing game: short tracks, a lap timer with checkpoints, instant respawn and a ghost of your best run.
 
-See `VISION.md` and `AGENTS.md`.
+![driftline: chase view at the start of A04 knot](docs/screenshot.png)
+
+## Features
+
+- Grippy, drifty handling with handbrake slides and stable landings after jumps
+- Campaign, style and test tracks, the campaign and style tracks with author / gold / silver / bronze medals
+- Checkpoints with split deltas, and instant respawn at the last one
+- A ghost of your best lap that drives alongside you
+- Turbo pads, effect pads, ramps, gap jumps, banked turns, bridges and decks
+- Asphalt, dirt, ice and grass, each with its own grip
+- 1–10 lap races and a top-10 leaderboard per track
+
+## How to Play
+
+Open https://bborbe.github.io/driftline/, pick a track on the start screen (↑/↓ switches group, ←/→ picks a track) and press Enter or Space to start. Press `H` at any time for the full key list (also Esc → Controls).
+
+### Controls
+
+Driving
+
+- `W` / `↑` - Accelerate
+- `S` / `↓` - Brake / reverse
+- `A` `D` / `←` `→` - Steer
+- `Space` - Handbrake
+
+Race
+
+- `Enter` / `Space` - Start
+- `R` - Respawn at last checkpoint
+- `Backspace` - Restart the run
+- `Esc` - Pause menu
+- `L` - Leaderboard
+- `F` - Fullscreen
+- `M` - Mute
+- `H` - Controls
+
+Camera
+
+- `1` / `2` / `3` - Close chase / far chase / in-car
+- `C` - Free-fly camera on / off
+- `W` `A` `S` `D` - Fly: move
+- Mouse drag - Fly: look
+- `E` / `Q` - Fly: up / down
+- `Shift` - Fly: fast
+- `O` - Fly: orbit the track
+
+Debug
+
+- `` ` `` - Debug overlay on / off
+- `P` - Copy this view as a URL
 
 ## Tracks
 
-The start screen shows three groups (↑/↓ switches group, ←/→ picks a track); **Next track** on the finish panel stays inside the group.
+**Campaign**, in rising difficulty:
 
-- **Campaign** — numbered levels (`A01`, `A02`, …) in difficulty tiers (white → green → blue → red → black), each with author/gold/silver/bronze medals. Order and tiers live in `src/track/catalogue.ts`; a level is listed once its `assets/track/<name>.json` ships.
-  - `A01 crossover` and `A02 tower` are multi-level: the road climbs onto concrete decks on pillars and passes over itself. crossover is a figure-eight with an 8 m bridge over the start straight, then a 10 m gap jump (a `gap` segment is open air) onto a 74 m landing slope. tower has a 60 m climb into a steep 34° banked 180 at 12 m, a bridge over the start straight and a 12 m drop into a banked turn. A checkpoint counts from 2 m below its road to 20 m above, so a road under a deck gate never triggers it, while a full-throttle jump over the arch still does.
-  - `A03 plunge`, `A04 knot` and `A05 leap` are built entirely from the [track piece kit](docs/track-kit.md), in rising difficulty. plunge climbs onto an 8 m deck and plunges two levels straight into a banked 180. knot is a figure-eight whose 8 m deck, entered and left through banked and deck curves, crosses over the start straight, then a dirt run and a hairpin switchback. leap climbs to 12 m and jumps a `gap-jump` onto a 4 m deck, banks round at 4 m, then ice into a banked 180, a red turbo and dirt.
-- **Styles** — one kit track per Trackmania map style, `S01`–`S05`, each with medals and its own theme; listed in `STYLES` in `src/track/catalogue.ts`, and lapped by the surface-aware autopilot line (`surfaceLine()` in `src/race/autopilot.test-driver.ts`), which takes tight and low-grip corners slower. `src/race/styles.test.ts` checks each track has its own style and none of the others; see the table below.
-- **Test** — tracks for checking one thing fast. `test1` and `test2` are the original lap1/lap2 (`?track=lap1` / `?track=lap2` still open them, and their best times, boards and medals carry over). The single-feature tracks are short ovals that an autopilot laps in ≤ 20 s with no respawn:
+- [A01 crossover](https://bborbe.github.io/driftline/?track=crossover) - figure-eight with a bridge over the start straight and a gap jump
+- [A02 tower](https://bborbe.github.io/driftline/?track=tower) - a long climb into a steep banked 180 high up, then a big drop
+- [A03 plunge](https://bborbe.github.io/driftline/?track=plunge) - climb onto a deck and plunge two levels into a banked 180
+- [A04 knot](https://bborbe.github.io/driftline/?track=knot) - figure-eight over the start straight, then dirt and a hairpin switchback
+- [A05 leap](https://bborbe.github.io/driftline/?track=leap) - a high gap jump onto a deck, ice, a red turbo and dirt
 
-| Track | Checks |
-|---|---|
-| `test-flat` | grip, acceleration, top speed, hairpins |
-| `test-ramp` | ramp jump and landing |
-| `test-bank` | banked 180° turns |
-| `test-surfaces` | asphalt → dirt → ice → grass strips, and dirt mid-way round the first hairpin |
-| `test-turbo` | yellow and red turbo pads |
-| `test-effects` | effect pads: no-steer, cruise, fragile, engine-off, slow-mo, then reset |
-| `test-checkpoint` | four checkpoints in a row: split deltas, respawn at the last one |
+**Styles**, one per Trackmania map style:
 
-| Style level | Track | Style | What makes it that style |
-|---|---|---|---|
-| `S01` | `switchback` | Tech | ten tight turns (r 10 m kinks and hairpins) on asphalt and dirt; lift and turn in, again and again |
-| `S02` | `flatout` | Fullspeed | throttle held all lap, never a brake: two r 80 m banked 180s (`bank-180-wide`) and two 8 m climbs and drops |
-| `S03` | `dustbowl` | Dirt | almost all dirt, sweepers to slide through, walled so a line across the grass never pays |
-| `S04` | `glacier` | Ice | a walled ice channel: banked ice turns and a walled ice S |
-| `S05` | `washboard` | LOL | a red turbo straight into five bumps in a row; a 10–20 s lap |
+- [S01 switchback](https://bborbe.github.io/driftline/?track=switchback) - Tech: ten tight turns on asphalt and dirt
+- [S02 flatout](https://bborbe.github.io/driftline/?track=flatout) - Fullspeed: throttle held all lap, wide banks and drops
+- [S03 dustbowl](https://bborbe.github.io/driftline/?track=dustbowl) - Dirt: sweepers to slide through
+- [S04 glacier](https://bborbe.github.io/driftline/?track=glacier) - Ice: a walled ice channel
+- [S05 washboard](https://bborbe.github.io/driftline/?track=washboard) - LOL: a red turbo straight into five bumps
 
-Any other `assets/track/test*.json` joins the Test group; any other track not in `STYLES` joins the end of the campaign.
+**Test**, short tracks that check one thing:
 
-### Track themes
+- [test1](https://bborbe.github.io/driftline/?track=test1) - the original first lap
+- [test2](https://bborbe.github.io/driftline/?track=test2) - the original second lap
+- [test-flat](https://bborbe.github.io/driftline/?track=test-flat) - grip, acceleration, top speed, hairpins
+- [test-ramp](https://bborbe.github.io/driftline/?track=test-ramp) - ramp jump and landing
+- [test-bank](https://bborbe.github.io/driftline/?track=test-bank) - banked 180° turns
+- [test-surfaces](https://bborbe.github.io/driftline/?track=test-surfaces) - asphalt, dirt, ice and grass
+- [test-turbo](https://bborbe.github.io/driftline/?track=test-turbo) - yellow and red turbo pads
+- [test-effects](https://bborbe.github.io/driftline/?track=test-effects) - every effect pad in a row
+- [test-checkpoint](https://bborbe.github.io/driftline/?track=test-checkpoint) - four checkpoints: splits and respawn
+- [test-kit](https://bborbe.github.io/driftline/?track=test-kit) - a lap of track kit pieces
+- [test-kit-all](https://bborbe.github.io/driftline/?track=test-kit-all) - every track kit piece in one lap
 
-A track file may carry an optional `theme` block that changes its look without touching its layout: it is render-only, not part of the layout id (records carry over), and it works the same in spline tracks and `kit` tracks. Every field is optional; an absent field keeps the default stadium look, and a track with no `theme` renders exactly as before. Test tracks stay on the default. Format and validation: `src/track/theme.ts`; defaults: `src/render/theme.ts`.
+**Next track** on the finish panel stays inside the group.
 
-```json
-"theme": {
-  "sky": "night",
-  "skyLight": 0.6,
-  "exposure": 0.9,
-  "fog": "#141c33", "fogNear": 120, "fogFar": 700,
-  "sun": "#9fb4ff", "sunIntensity": 0.7,
-  "ground": "#3d5a6b",
-  "curb": "#00c8ff",
-  "sign": "#ff3df0",
-  "screen": "#7a1fa8",
-  "scenery": ["tree_default_dark", "rock_tallA"]
-}
-```
+## Gameplay
 
-| Field | Default | What it changes |
-|---|---|---|
-| `sky` | `day` | Background and image-based light: `day`, `sunset`, `dusk`, `night` or `overcast` (Poly Haven CC0 HDRIs in `assets/sky/`) |
-| `skyLight` | `0.45` | Strength of the light the sky casts |
-| `exposure` | `1` | Tone-mapping exposure; below 1 darkens the whole frame |
-| `fog`, `fogNear`, `fogFar` | `#b9d4e8`, 250, 1200 | Distance fog colour (match the sky's horizon) and its start / full distance in metres |
-| `sun`, `sunIntensity` | `#fff4e0`, 2.2 | Sun colour and strength (shadows follow it) |
-| `ground` | `#7fc25a` | Grass tint |
-| `curb` | red | Curb stripe accent, alternating with white |
-| `sign` | yellow | Turn-sign chevrons on the black boards; turbo signs keep their yellow / red |
-| `screen` | navy blue | Arena screen background |
-| `scenery` | six trees and rocks | Kenney Nature Kit models (`assets/nature-kit/<name>.glb`) the roadside scenery picks from; add a model's glb there to use it |
+- Drive through every checkpoint gate, then over the finish line
+- Each checkpoint flashes a split delta against your best run
+- `R` respawns you at the last checkpoint; `Backspace` restarts the run
+- Beat the bronze, silver, gold and author times to earn medals (single-lap races)
+- Your best lap comes back as a ghost that drives alongside you on every lap
+- Yellow and red turbo pads give a boost
+- Effect pads change the car until a reset pad: no-steer, cruise, fragile, engine-off, slow-mo
+- Pick 1–10 laps under **Laps** in the settings, or add `&laps=3` to a track link
 
-Colours are `#rrggbb`. An unknown key, a bad colour or an unknown sky fails validation, so a typo never silently does nothing.
+## License
 
-## Laps
+BSD 2-Clause, see [LICENSE](LICENSE).
 
-A race is 1 lap by default. Pick 1–10 laps under **Laps** in the start-screen / Esc-menu settings (saved in localStorage), or pass `?laps=N` (e.g. `?track=test2&laps=3`), which overrides the saved setting. In a multi-lap race the HUD shows `LAP 1/3`, split deltas flash at every checkpoint and lap line, and the finish panel shows the total time plus each lap time with the best lap marked. Best time, splits and the top-10 board are kept separately per lap count (1-lap records keep their original keys); medals are single-lap only. The ghost replays the session's best single lap at the start of every lap. R respawns at the current lap's last checkpoint; Backspace restarts at lap 1.
-
-## Cars
-
-The player car is picked at build time from the registry in `src/render/cars.ts`:
-
-```bash
-VITE_CAR=stadium make build   # race (default) | stadium | raceFuture | box
-```
-
-An unknown id falls back to `box`. New entries must use CC0, CC-BY or MIT assets with their licence under `assets/LICENSES/`, and must never be Nadeo-derived.
-
-## Debug screenshots
-
-- `?track=test2&x=-108&y=0.8&z=-59&yaw=90` spawns the car at that pose (yaw in degrees, 0 = +z, CCW positive). Without all four params the car spawns at the start line as usual. The HUD shows the current `yaw` in the same convention; press `P` to copy the current pose as a full `?track&x&y&z&yaw&freeze=1` URL (a toast confirms).
-- The small corner text (pose, fps, build label) is the debug overlay; backtick (`` ` ``) toggles it and `&debug=0` starts it hidden. The race HUD (timer, speed, LAP / CP, splits) is separate and always shown. `H` shows every key binding (also Esc → Controls).
-- `&freeze=1` holds physics and the countdown and hides the Begin overlay, so the frame is stable. Add `&renderer=webgl2` in headless browsers (headless WebGPU renders blank).
-- `&cam=top` swaps the chase camera for one straight above the track, framing the whole lap (fog off), e.g. `?track=test2&cam=top&freeze=1&renderer=webgl2`.
-- `&cam=fly` opens the free-fly camera instead: the same `x&y&z&yaw` (plus `&pitch`, degrees, up positive) place the camera, not the car, e.g. `?track=test2&x=-60&y=40&z=-120&yaw=30&pitch=-25&cam=fly&freeze=1&renderer=webgl2`; `&orbit=1` starts a slow orbit of the whole track. In game, `C` toggles fly mode (race, ghost and audio hold still; `C` or `1`/`2`/`3` returns), WASD / arrows move, mouse drag looks, `E`/`Q` rise/sink, Shift is fast, `O` orbits. `P` while flying copies this fly-view URL.
-- `make shots` (`npm run shots [-- test1 test-ramp]`, env `STEP=20`, `OUT=shots`; default: every Test-group track) starts a Vite dev server, walks each lap's centreline every `STEP` metres and writes `shots/<lap>/NNN.png` (gitignored). First run: `npx playwright install chromium-headless-shell`.
-
-## Deploy
-
-Every merge to `master` builds and deploys to https://bborbe.github.io/driftline/ via `.github/workflows/pages.yml` (GitHub Pages, source: GitHub Actions). The deployed commit SHA is in the page's `<meta name="commit">` tag.
+Development: see [docs/development.md](docs/development.md)
