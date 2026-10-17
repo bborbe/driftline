@@ -15,8 +15,10 @@ on:
 
 permissions: {}
 
+# A queued run replaces an older queued one, so every run builds from the live heads (plan job)
+# and fork-PR runs, which deploy nothing, stay out of the group.
 concurrency:
-  group: "pages"
+  group: ${{ (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) && format('pages-skip-{0}', github.run_id) || 'pages' }}
   cancel-in-progress: false
 
 jobs:
@@ -24,6 +26,7 @@ jobs:
     if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: read
     outputs:
       targets: ${{ steps.targets.outputs.targets }}
@@ -33,16 +36,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          MASTER_SHA: ${{ github.sha }}
-          EVENT_PR: ${{ github.event.pull_request.number }}
-          EVENT_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          master=$(gh api "repos/$REPO/commits/master" --jq .sha)
           prs=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
             | jq --arg repo "$REPO" '[.[] | select(.head.repo.full_name == $repo) | {n: .number, sha: .head.sha}]')
-          targets=$(jq -c --arg master "$MASTER_SHA" --arg ev "$EVENT_PR" --arg evsha "$EVENT_SHA" '
+          targets=$(jq -c --arg master "$master" '
             [{name: "root", ref: $master, base: "/driftline/"}] +
-            [.[] | (if (.n|tostring) == $ev then .sha = $evsha else . end)
-                 | {name: "pr-\(.n)", ref: .sha, base: "/driftline/pr-\(.n)/"}]' <<<"$prs")
+            [.[] | {name: "pr-\(.n)", ref: .sha, base: "/driftline/pr-\(.n)/"}]' <<<"$prs")
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "$targets" | jq .
 
@@ -70,12 +70,14 @@ jobs:
           # PR code never writes the shared npm cache.
           cache: ${{ matrix.target.name == 'root' && 'npm' || '' }}
       - name: Install
-        run: npm ci
+        # No lifecycle scripts for PR code: it runs with the Actions runtime token in master's cache scope.
+        run: npm ci ${{ matrix.target.name != 'root' && '--ignore-scripts' || '' }}
       - name: Test
         if: matrix.target.name == 'root'
         run: npm test
       - name: Build
-        run: npm run build
+        # --base on the command line wins over the PR's vite.config.ts, also for branches cut before VITE_BASE existed.
+        run: npx tsc && npx vite build --base "$VITE_BASE"
         env:
           VITE_COMMIT_SHA: ${{ matrix.target.ref }}
           VITE_BASE: ${{ matrix.target.base }}
@@ -88,7 +90,7 @@ jobs:
 
   deploy:
     needs: [plan, build]
-    if: always() && needs.plan.result == 'success'
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -114,9 +116,9 @@ jobs:
             [ -d "$d" ] || continue
             n=${d#parts/site-pr-}
             mv "$d" "site/pr-$n"
-            deployed="$deployed $n"
+            deployed="$deployed,$n"
           done
-          echo "deployed=$deployed " >> "$GITHUB_OUTPUT"
+          echo "deployed=$deployed," >> "$GITHUB_OUTPUT"
           echo "previews:$deployed"
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -130,7 +132,7 @@ jobs:
 
   comment:
     needs: deploy
-    if: github.event_name == 'pull_request_target' && needs.deploy.result == 'success'
+    if: ${{ !cancelled() && github.event_name == 'pull_request_target' && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -149,7 +151,7 @@ jobs:
           if [ "$ACTION" = closed ]; then
             body="$marker
           Preview removed (PR closed)."
-          elif [[ "$DEPLOYED" == *" $PR "* ]]; then
+          elif [[ ",$DEPLOYED" == *",$PR,"* ]]; then
             body="$marker
           **Preview:** $url
           Commit: \`$SHA\` (check \`<meta name=\"commit\">\`). Updates on every push, removed when the PR closes."
@@ -158,7 +160,7 @@ jobs:
           Preview build failed for \`$SHA\` — see the Deploy to GitHub Pages run. Production was deployed regardless."
           fi
           id=$(gh api "repos/$REPO/issues/$PR/comments?per_page=100" --jq \
-            "[.[] | select(.body | startswith(\"$marker\"))][0].id // empty")
+            "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))][0].id // empty")
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
           elif [ "$ACTION" != closed ]; then
