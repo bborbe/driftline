@@ -6,12 +6,16 @@ import { STEERED, WHEEL_NODES, type Corner } from '../../car/wheels'
 import { CAR_ID, FALLBACK_CAR, resolveCar } from '../cars'
 import { createBodyFeel, updateBodyFeel } from './body'
 import { attachLights } from './lights'
+import type { Livery } from './livery'
+import { applyLivery } from './paint'
 import { spinRate, wheelYaw } from './rig'
 
 export type CarView = {
   object: THREE.Object3D
   /** Pose the car and its wheels from physics state; dt in seconds; `braking` brightens the tail lights. */
   update: (s: CarState, dt: number, braking?: boolean) => void
+  /** Repaint the car (render/car/livery.ts); takes effect on the next frame. */
+  setLivery: (l: Livery) => void
 }
 
 const view = (root: THREE.Object3D): CarView => {
@@ -29,6 +33,7 @@ const view = (root: THREE.Object3D): CarView => {
   const up = new THREE.Vector3()
   return {
     object: root,
+    setLivery: (l) => applyLivery(root, l),
     update: (s, dt, braking = false) => {
       lights.setBraking(braking)
       root.position.set(s.position.x, s.position.y, s.position.z)
@@ -46,12 +51,16 @@ const view = (root: THREE.Object3D): CarView => {
   }
 }
 
-export const createCarView = async (id: string = CAR_ID): Promise<CarView> => {
+export const createCarView = async (id: string = CAR_ID, livery?: Livery): Promise<CarView> => {
   const entry = resolveCar(id)
+  let car: CarView
   try {
-    return view(await entry.build())
+    car = view(await entry.build())
   } catch (err) {
     console.warn(`car "${entry.id}" failed to load, using ${FALLBACK_CAR}: ${String(err)}`)
-    return view(await resolveCar(FALLBACK_CAR).build())
+    car = view(await resolveCar(FALLBACK_CAR).build())
   }
+  if (livery) car.setLivery(livery)
+  car.object.traverse((o) => (o.castShadow = true)) // the livery meshes are new
+  return car
 }

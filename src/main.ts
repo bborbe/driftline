@@ -16,7 +16,8 @@ import { loopTubes } from './track/pose'
 import { rotate, v3 } from './physics/vec'
 import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
-import { effectiveFxQuery, loadSettings, saveSettings } from './menu/settings'
+import { effectiveFxQuery, LIVERY_EVENT, loadSettings, saveSettings } from './menu/settings'
+import { clampLivery, ghostLivery } from './render/car/livery'
 import { settingsPanel } from './menu/settings-panel'
 import { environmentLabel, resolveEnvironment } from './track/environment'
 import { devMode, RunTaint } from './debug/tuning'
@@ -30,7 +31,7 @@ const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 const env = resolveEnvironment(location.search, track, settings.environment, Date.now())
-const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1)
+const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery)
 const { camera, backend } = view
 
 // Debug overlay (pose, fps, build label) in the corners; backtick or ?debug=0 hides it, P copies the debug-spawn URL
@@ -59,8 +60,14 @@ const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
 const inLoop = loopTubes(track)
 const ghostRecorder = new GhostRecorder()
 ghostRecorder.locked = () => taint.locked
-const ghostCar = await createGhostCar()
+const ghostCar = await createGhostCar(undefined, ghostLivery(settings.livery))
 view.scene.add(ghostCar.object)
+// Settings → Livery repaints the car and its ghost at once.
+window.addEventListener(LIVERY_EVENT, (e) => {
+  const livery = clampLivery((e as CustomEvent).detail)
+  view.setLivery(livery)
+  ghostCar.setLivery(ghostLivery(livery))
+})
 let ghost: GhostReplayer | null = null
 let lapStartTick = 0
 const race = initRace(sim, track, {
@@ -126,6 +133,13 @@ const flyAtStart = flyRequested(location.search)
 if (pose && !flyAtStart) sim.state = { ...createCarAt(pose), orientation: yawRoll(pose.heading, debugRoll(location.search)) }
 const freeze = frozen(location.search)
 if (freeze) document.getElementById('begin')?.remove()
+// &ghost=show (debug shots): the ghost stands 4 m to the car's left in the car's pose, no best lap needed.
+const ghostShow = new URLSearchParams(location.search).get('ghost') === 'show'
+if (ghostShow) {
+  const side = rotate(sim.state.orientation, v3(4, 0, 0))
+  ghostCar.update({ ...sim.state, position: v3(sim.state.position.x + side.x, sim.state.position.y + side.y, sim.state.position.z + side.z) }, 0)
+  ghostCar.object.visible = true
+}
 // Camera views (1/2/3), free-fly (C, ?cam=fly) and orbit (O): while flying the race, ghost and audio hold still,
 // and leaving fly mode carries the race on from the same tick.
 const cam = createCameraController({
