@@ -86,6 +86,13 @@ const STOPPED = 0.5 // m/s — below this, brake input becomes reverse and throt
 // DRIFT_CARRY_MAX_G on the handbrake (DRIFT_CARRY_MAX_G_FREE after it). The slide turns the car's
 // path instead of scrubbing its speed, and ends itself in ~0.5-1 s once the velocity catches up
 // with the nose. A higher cap bends the path so tight that a 40 m corner is cut.
+// Hold with steer: once the slide is past DRIFT_HOLD_SLIP_LO degrees and Space is up, steer into the
+// turn holds the body slip at DRIFT_HOLD_SLIP degrees x steer, by a yaw torque on the slip error
+// (DRIFT_HOLD_KP, 1/s² per rad) damped by its rate (DRIFT_HOLD_KD, 1/s). With the steer inside
+// DRIFT_HOLD_NEUTRAL (straightened) it pulls the slip back to 0 at DRIFT_HOLD_RELEASE x that rate,
+// so letting go ends the slide in ~0.3 s; countersteer ends it on the tyres. Only a drift: past
+// DRIFT_HOLD_SLIP_MAX degrees or under DRIFT_HOLD_MIN_SPEED m/s (a crash, a wall or pillar scrape) it
+// stays off. Grip cornering slips under DRIFT_HOLD_SLIP_LO, so row 1 grip is untouched.
 // Material grip at which the drift fades out (dirt 0.6) and is full (road 1).
 
 // Per-material handling: see MaterialHandling in ./handling. These are the shipped values; step() reads the live ones.
@@ -277,6 +284,9 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     driftLimitFree: DRIFT_LIMIT_FREE, driftCarryMaxGFree: DRIFT_CARRY_MAX_G_FREE,
     driftLimitBand: DRIFT_LIMIT_BAND, driftLimitRate: DRIFT_LIMIT_RATE, driftCarry: DRIFT_CARRY, driftCarryMaxG: DRIFT_CARRY_MAX_G,
     driftCarrySlipLo: DRIFT_CARRY_SLIP_LO, driftCarrySlipHi: DRIFT_CARRY_SLIP_HI, driftGripLo: DRIFT_GRIP_LO, driftGripHi: DRIFT_GRIP_HI,
+    driftHoldSlip: DRIFT_HOLD_SLIP, driftHoldSlipLo: DRIFT_HOLD_SLIP_LO, driftHoldSlipMax: DRIFT_HOLD_SLIP_MAX,
+    driftHoldMinSpeed: DRIFT_HOLD_MIN_SPEED, driftHoldKp: DRIFT_HOLD_KP, driftHoldKd: DRIFT_HOLD_KD, driftHoldRelease: DRIFT_HOLD_RELEASE,
+    driftHoldNeutral: DRIFT_HOLD_NEUTRAL,
     gravity: GRAVITY, spring: SPRING, damper: DAMPER,
   } = h
   // Sim time this tick: DT, scaled by a slow-motion pad. DT * 1 === DT, so unscaled runs are bit-identical.
@@ -449,6 +459,15 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
       const kick = clamp((DRIFT_KICK_SLIP_HI - betaDeg) / (DRIFT_KICK_SLIP_HI - DRIFT_KICK_SLIP_LO), 0, 1)
       // Positive steer = right = yaw toward -x, so a negative torque about y.
       torque = add(torque, v3(0, -DRIFT_KICK * kick * drift * INERTIA.y * clamp(input.steer, -1, 1), 0))
+    }
+    // Steer into the slide: + when the steer turns the same way the nose leads (beta < 0 is a right-hand slide).
+    const into = -Math.sign(beta) * clamp(input.steer, -1, 1)
+    const straightened = Math.abs(input.steer) < DRIFT_HOLD_NEUTRAL
+    if (!input.handbrake && betaDeg > DRIFT_HOLD_SLIP_LO && betaDeg < DRIFT_HOLD_SLIP_MAX && vFlat > DRIFT_HOLD_MIN_SPEED && (into > 0 || straightened)) {
+      const error = (((into > 0 ? DRIFT_HOLD_SLIP * into : 0) - betaDeg) * Math.PI) / 180
+      const gain = into > 0 ? 1 : DRIFT_HOLD_RELEASE
+      // A torque along sign(beta) grows |beta|; sign(beta) * growth is the rate |beta| grows at.
+      torque = add(torque, v3(0, Math.sign(beta) * drift * INERTIA.y * gain * (DRIFT_HOLD_KP * error - DRIFT_HOLD_KD * Math.sign(beta) * growth), 0))
     }
     const carry = clamp((betaDeg - DRIFT_CARRY_SLIP_LO) / (DRIFT_CARRY_SLIP_HI - DRIFT_CARRY_SLIP_LO), 0, 1)
     if (carry > 0) {
