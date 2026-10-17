@@ -11,6 +11,8 @@ import { createScenery } from './scenery'
 import { createCurbs, createEdgeLines, createMarkings } from './track/curbs'
 import { createRails } from './track/rails'
 import { createSigns } from './decor/signs'
+import { createTrackside } from './decor/trackside'
+import { footprints, planTrackside } from './decor/trackside-plan'
 import { createStadium } from './decor/stadium'
 import { flat } from './tags'
 import { resolveTheme, skyUrl, type ResolvedTheme } from './theme'
@@ -129,15 +131,16 @@ export const createFloodlights = (heads: readonly THREE.Vector3[]): THREE.Group 
 }
 
 /**
- * The static world around the track: ground, scenery, stadium, curbs, edge rails and signs. No sky, lights or
+ * The static world around the track: ground, scenery, stadium, curbs, edge rails, signs and trackside dressing. No sky, lights or
  * textures loaded here, so the geometry lint (geometry-lint.test.ts) builds exactly this, headless.
  */
 export const createWorld = async (track: Track, theme: ResolvedTheme = resolveTheme(track), grass?: THREE.Texture): Promise<THREE.Group> => {
-  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery), createStadium(track, theme.screen)])
+  const trackside = planTrackside(track)
+  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery, footprints(trackside)), createStadium(track, theme.screen)])
   const curb = theme.curb === undefined ? undefined : new THREE.Color(theme.curb)
   const world = new THREE.Group()
   world.name = 'world'
-  world.add(createGround(grass, theme.ground), scenery, stadium, createCurbs(track, curb), createMarkings(track), createEdgeLines(track), createRails(track), createSigns(track, theme.sign))
+  world.add(createGround(grass, theme.ground), scenery, stadium, createCurbs(track, curb), createMarkings(track), createEdgeLines(track), createRails(track), createSigns(track, theme.sign), createTrackside(trackside, theme.sign, theme.ground))
   return world
 }
 

@@ -1,29 +1,19 @@
 // Trackside dressing meshes: brake boards (100 / 50), corner-number boards, "driftline motorsport"
 // banners, marshal posts, catch fences and grass/terrain colour patches. This module only builds
-// geometry from a TracksidePlan; where things stand is the pure planner's job (planTrackside). Boards
+// geometry from a TracksidePlan; where things stand is the pure planner's job (trackside-plan.ts). Boards
 // and banners print from one canvas atlas and bake into one mesh; posts and fences bake into a second
 // vertex-coloured mesh; patches are flat decals over the ground. Visual only: physics never sees them.
 import * as THREE from 'three/webgpu'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
 import { flat, noCollide, structural } from '../tags'
 import { merged, placement, prepared } from './instance'
+import type { Board, TracksidePlan } from './trackside-plan'
 
-/** A printed board standing at (x, y, z), its face looking toward `heading` (0 = +z). */
-export type Board = { kind: 'brake-100' | 'brake-50' | 'corner'; label: number; x: number; y: number; z: number; heading: number }
-/** A banner hoarding centred on (x, y, z), `length` metres long, face toward `heading`. */
-export type Banner = { variant: 0 | 1; x: number; y: number; z: number; heading: number; length: number }
-/** A marshal post: a small booth with a flag pole, front toward `heading`. */
-export type MarshalPost = { x: number; y: number; z: number; heading: number }
-/** A catch fence along `points` (x, z), standing on height `y`. */
-export type Fence = { y: number; points: [number, number][] }
-/** A ground colour patch: an irregular blob of radius ~`radius`, `shade` of the ground colour. */
-export type Patch = { x: number; z: number; radius: number; heading: number; shade: 'dark' | 'light' | 'dirt' }
-
-export type TracksidePlan = { boards: Board[]; banners: Banner[]; marshals: MarshalPost[]; fences: Fence[]; patches: Patch[] }
+export type { Banner, Board, Fence, MarshalPost, Patch, TracksidePlan } from './trackside-plan'
 
 /** Board sizes in metres, lower edge `bottom` above the ground. Every part stays above MIN_THICKNESS (lint.ts). */
-export const BRAKE_BOARD = { width: 1.5, height: 1.5, depth: 0.16, bottom: 0.5 } as const
-export const CORNER_BOARD = { width: 1.4, height: 1.4, depth: 0.16, bottom: 1.6 } as const
+export const BRAKE_BOARD = { width: 2, height: 2, depth: 0.16, bottom: 0.5 } as const
+export const CORNER_BOARD = { width: 1.8, height: 1.8, depth: 0.16, bottom: 1.6 } as const
 export const BANNER = { height: 1.1, depth: 0.16, bottom: 0.3 } as const
 export const MARSHAL = { width: 2, height: 2.4, depth: 2, pole: 4.2 } as const
 export const FENCE = { height: 2.6, post: 0.16, spacing: 3, rails: [0.5, 1.5, 2.5] } as const
@@ -128,11 +118,12 @@ const panel = (parts: THREE.BufferGeometry[], cell: Cell, x: number, y: number, 
   const at = placement(x, y, z, heading)
   const uv = (u: number, v: number, i: number): [number, number] => (i >= FRONT[0] && i < FRONT[1] ? cellUv(cell, u, v) : FRAME_UV)
   parts.push(prepared(unitBox, white, local(at, 0, bottom + h / 2, 0, w, h, depth), uv))
+  // Posts run from the ground (world y 0) to the panel's top: a panel beside a raised road edge stands on longer legs.
   const top = bottom + h
   const post = 0.16
   for (let k = 0; k < posts; k++) {
     const px = posts === 1 ? 0 : -w / 2 + post + (k * (w - 2 * post)) / (posts - 1)
-    parts.push(prepared(unitBox, white, local(at, px, top / 2, -(depth / 2 + post / 2), post, top, post), () => FRAME_UV))
+    parts.push(prepared(unitBox, white, local(at, px, (top - y) / 2, -(depth / 2 + post / 2), post, top + y, post), () => FRAME_UV))
   }
 }
 
