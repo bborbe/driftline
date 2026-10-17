@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CELL, ROAD_WIDTH, type Track } from '../../track/schema'
-import { CURB_INNER, CURB_OUTER, CURB_TOP, curbDecals, DECAL_LIFT, EDGE_LINE, STRIPE_LENGTH } from './curbs'
+import { CURB_INNER, CURB_OUTER, CURB_TOP, curbDecals, DASH, DECAL_LIFT, EDGE_LINE, roadMarkings, STRIPE_LENGTH, TRIM_HALF_WIDTH } from './curbs'
+import { ROAD_HALF_WIDTH, ROAD_TOP } from './zones'
 import { LAP_NAMES, loadLap } from '../../track/registry'
 
 const straight = (...lengths: number[]): Track => ({
@@ -60,4 +61,51 @@ describe('curbDecals', () => {
       }
     })
   }
+})
+
+describe('roadMarkings', () => {
+  it('test-flat: ≥ 10 centre dashes, every vertex on the asphalt at road top + 3 mm', () => {
+    const track = loadLap('test-flat')
+    const m = roadMarkings(track)
+    expect(m.dashes).toBeGreaterThanOrEqual(10)
+    expect(m.strips).toBe(0)
+    expect(m.dashIndices).toBe(m.indices.length) // no surface patches: every index is a dash
+    expect(m.indices.length % 3).toBe(0)
+    expect(Math.max(...m.indices)).toBeLessThan(m.positions.length / 3)
+  })
+
+  it('a straight: dashes DASH.length long every DASH.length + DASH.gap, within DASH.width of the centreline, 3 mm over the road', () => {
+    const m = roadMarkings(straight(30))
+    expect(m.dashes).toBe(5) // 0-3, 6-9, 12-15, 18-21, 24-27
+    for (const [x, y, z] of vertices(m.positions)) {
+      expect(Math.abs(x)).toBeLessThanOrEqual((K * DASH.width) / 2 + 1e-5)
+      expect(y).toBeCloseTo(ROAD_TOP + DECAL_LIFT, 6)
+      expect(z % (DASH.length + DASH.gap)).toBeLessThanOrEqual(DASH.length + 1e-6)
+    }
+  })
+
+  it('runs the dash pattern on across a segment joint', () => {
+    // Every vertex keeps the 30 m straight's phase (dashes at 0-3, 6-9 … m), whichever segment draws it.
+    for (const t of [straight(10, 20), straight(2, 28)]) {
+      for (const [, , z] of vertices(roadMarkings(t).positions)) expect(z % (DASH.length + DASH.gap)).toBeLessThanOrEqual(DASH.length + 1e-6)
+    }
+    expect(roadMarkings(straight(10, 20)).dashes).toBe(5)
+    expect(roadMarkings(straight(2, 28)).dashes).toBe(6) // the first dash is drawn in two halves, either side of the 2 m joint
+  })
+
+  it('test-surfaces: one trim strip at each end of every surface patch, all inside the asphalt', () => {
+    const track = loadLap('test-surfaces')
+    const ends = 2 * (track.zones ?? []).filter((z) => ['dirt', 'ice', 'grass'].includes(z.kind)).length
+    expect(ends).toBeGreaterThan(0)
+    const m = roadMarkings(track)
+    expect(m.strips).toBe(ends)
+    expect(m.dashIndices).toBeLessThan(m.indices.length) // the strips follow the dashes
+    expect(TRIM_HALF_WIDTH).toBeLessThan(ROAD_HALF_WIDTH)
+    expect(m.positions.every(Number.isFinite)).toBe(true)
+  })
+
+  it('leaves a gap bare', () => {
+    const track: Track = { ...straight(10), segments: [{ type: 'straight', length: 10 }, { type: 'gap', length: 10 }, { type: 'straight', length: 10 }] }
+    for (const [, , z] of vertices(roadMarkings(track).positions)) expect(z <= 10 + 1e-6 || z >= 20 - 1e-6).toBe(true)
+  })
 })

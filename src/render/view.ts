@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu'
 import { pass } from 'three/tsl'
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js'
-import { dot, forwardOf, type CarState, type Material } from '../physics'
+import { dot, forwardOf, trackSurface, type CarState, type Material } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
 import { parseFx } from './fx/flags'
@@ -60,7 +60,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
   window.addEventListener('resize', resize)
   watchFullscreen(resize)
 
-  // Effects behind ?fx=bloom,speedlines,skid,smoke; all read car state only.
+  // Effects behind ?fx=bloom,speedlines,smoke; all read car state only.
   const fx = parseFx(fxQuery)
   let draw = () => renderer.render(scene, camera)
   if (fx.has('bloom')) {
@@ -74,8 +74,9 @@ export const createView = async (track: Track, fxQuery: string = location.search
     camera.add(speedLines.object)
     scene.add(camera) // camera children render only when the camera is in the scene
   }
-  const skid = fx.has('skid') ? createSkidMarks() : null
-  if (skid) scene.add(skid.object)
+  // Skid marks are road detail, so they are always on (`?fx=skid` still parses, for old links); they sit on the track's own surface.
+  const skid = createSkidMarks(trackSurface(track))
+  scene.add(skid.object)
   const smoke = fx.has('smoke') ? createSmoke() : null
   if (smoke) scene.add(smoke.object)
   // Dust off dirt and grass is surface feedback, so it is always on.
@@ -99,7 +100,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
     car.update(s, dt)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     speedLines?.update(dot(s.velocity, forwardOf(s)), dt)
-    skid?.update(s)
+    skid.update(s)
     if (topCam) {
       // Debug override of the chase camera main.ts set this frame.
       const t = topCamFor(track, camera.fov, camera.aspect)
