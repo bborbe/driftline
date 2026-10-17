@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { CAMPAIGN, menuOrder, STYLES, TEST_TRACKS } from '../../track/catalogue'
-import { gatePillars, poses, SEGMENT_TYPES, validate } from '../../track/schema'
+import { gatePillars, gateUp, poses, SEGMENT_TYPES, validate } from '../../track/schema'
 import { turnSign } from '../../track/pose'
 import { FIXTURE_TRACK } from '../../track/fixture'
 import { resolveTrack } from '../../track/kit'
@@ -393,7 +393,8 @@ describe('multi-level decks', () => {
       const legs = planGateLegs(planPieces(track))
       track.gates.forEach((gate, g) => {
         const pillars = gatePillars(track, gate)
-        if (pillars[0].y < GATE_LEG_MIN_HEIGHT) return
+        // A loop's top checkpoint hangs from its road and has no legs (shapes.ts gateLegs).
+        if (pillars[0].y < GATE_LEG_MIN_HEIGHT || gateUp(track, gate) === -1) return
         const at = `${name} gate ${g} at y ${pillars[0].y.toFixed(1)}`
         expect(gate.kind, at).toBe('checkpoint') // the piece the legs are measured from
         const mine = legs.filter((l) => pillars.some((p) => Math.hypot(l.x - p.x, l.z - p.z) < 1))

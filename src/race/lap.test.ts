@@ -301,4 +301,11 @@ describe('crosses', () => {
     expect(crosses(gate, v3(0, 9, 9), v3(0, 9, 11))).toBe(true) // airborne over the arch after a gap jump
     expect(crosses(gate, v3(0, 25, 9), v3(0, 25, 11))).toBe(false) // far above: a different level
   })
+  it('flips the height window for a gate hanging at a loop\'s top: counts the car upside down under the road, not the ground below', () => {
+    const top = { x: 0, y: 30, z: 10, heading: 0 }
+    expect(crosses(top, v3(0, 27, 9), v3(0, 27, 11), -1)).toBe(true) // inside the loop, 3 m under the road
+    expect(crosses(top, v3(0, 0.5, 9), v3(0, 0.5, 11), -1)).toBe(false) // on the run-in, 30 m below
+    expect(crosses(top, v3(0, 31, 9), v3(0, 31, 11), -1)).toBe(true) // within GATE_BELOW over the road's back
+    expect(crosses(top, v3(0, 27, 9), v3(0, 27, 11))).toBe(false) // upright, the same crossing is an underpass
+  })
 })

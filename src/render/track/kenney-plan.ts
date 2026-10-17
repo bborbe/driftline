@@ -88,7 +88,10 @@ export const planPieces = (track: Track): PiecePlan => {
   })
 
   track.gates.forEach((gate, i) => {
-    if (gate.kind === 'checkpoint') {
+    if (gate.kind === 'checkpoint' && gate.at) {
+      // Part-way along a segment (a loop's top): the piece model stands on an entry edge, so an arch.
+      proceduralGates.push(i)
+    } else if (gate.kind === 'checkpoint') {
       placements.push({ piece: 'checkpoint', pose: ps[gate.segment], scale: [1, 1, 1] })
     } else if (track.segments[gate.segment].type !== 'straight') {
       // The start piece is a straight tile; elsewhere fall back to an arch.

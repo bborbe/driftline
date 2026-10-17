@@ -4,8 +4,8 @@
 import {
   createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Surface, type Vec3,
 } from '../physics'
-import { gateLine, type Pose, type Track } from '../track/schema'
-import { loopTubes } from '../track/pose'
+import { gateLine, gateUp, type Pose, type Track } from '../track/schema'
+import { loopTubes, partialPose, poses } from '../track/pose'
 import { Effects } from './effects'
 
 /** Steps announced before GO: 3, 2, 1. */
@@ -65,6 +65,10 @@ export interface RaceEvents {
 
 interface GatePose {
   pose: Pose
+  /** 1 upright, -1 hanging from the road at a loop's top (gateUp). */
+  up?: 1 | -1
+  /** Where a respawn after this gate puts the car at rest, when not on its line: a loop's exit for its top. */
+  respawn?: Pose
 }
 
 export class LapLoop {
@@ -105,7 +109,15 @@ export class LapLoop {
     this.track = track
     this.isNewBest = isNewBest
     this.laps = laps
-    this.checkpoints = track.gates.filter((g) => g.kind === 'checkpoint').map((g) => ({ pose: gateLine(track, g) }))
+    const entries = poses(track)
+    this.checkpoints = track.gates
+      .filter((g) => g.kind === 'checkpoint')
+      .map((g) => {
+        const up = gateUp(track, g)
+        // At rest upside down 30 m up would only fall: past a loop's top, respawn at its exit instead.
+        const respawn = up === -1 ? partialPose(entries[g.segment], track.segments[g.segment], 1) : undefined
+        return { pose: gateLine(track, g), up, respawn }
+      })
     const sf = track.gates.find((g) => g.kind === 'start-finish')
     this.finish = { pose: sf ? gateLine(track, sf) : track.start }
     this.inLoop = loopTubes(track)
@@ -190,7 +202,8 @@ export class LapLoop {
     const prev = this.lastPosition ?? car.position
     this.lastPosition = car.position
     if (this.passed < this.checkpoints.length) {
-      if (crosses(this.checkpoints[this.passed].pose, prev, car.position)) {
+      const gate = this.checkpoints[this.passed]
+      if (crosses(gate.pose, prev, car.position, gate.up)) {
         this.passed++
         const index = this.passed
         this.emit((l) => l.checkpoint?.(tick, index))
@@ -220,9 +233,10 @@ export class LapLoop {
     return null
   }
 
-  /** Car state at the current lap's last passed checkpoint (start line before the first), at rest. */
+  /** Car state at the current lap's last passed checkpoint (start line before the first; a loop's exit for its top), at rest. */
   respawn(tick: number): CarState {
-    const pose = this.passed === 0 ? this.track.start : this.checkpoints[this.passed - 1].pose
+    const last = this.checkpoints[this.passed - 1]
+    const pose = this.passed === 0 ? this.track.start : (last.respawn ?? last.pose)
     const car = { ...createCarAt(pose), tick }
     this.lastPosition = car.position
     this.airborneTicks = 0
@@ -280,8 +294,11 @@ export function advanceRace(loop: LapLoop, sim: FixedStepper, elapsedSeconds: nu
   return respawned
 }
 
-/** Did the segment prev→cur cross the gate plane forwards, within the gate width and under its arch? */
-export function crosses(gate: Pose, prev: Vec3, cur: Vec3): boolean {
+/**
+ * Did the segment prev→cur cross the gate plane forwards, within the gate width and under its arch?
+ * `up` -1 is a gate hanging from its road (a loop's top, gateUp): the window flips below the road.
+ */
+export function crosses(gate: Pose, prev: Vec3, cur: Vec3, up: 1 | -1 = 1): boolean {
   const fx = Math.sin(gate.heading)
   const fz = Math.cos(gate.heading)
   const before = (prev.x - gate.x) * fx + (prev.z - gate.z) * fz
@@ -290,6 +307,6 @@ export function crosses(gate: Pose, prev: Vec3, cur: Vec3): boolean {
   const t = before / (before - after)
   const x = prev.x + (cur.x - prev.x) * t - gate.x
   const z = prev.z + (cur.z - prev.z) * t - gate.z
-  const y = prev.y + (cur.y - prev.y) * t - gate.y
+  const y = up * (prev.y + (cur.y - prev.y) * t - gate.y)
   return Math.abs(x * fz - z * fx) <= GATE_HALF_WIDTH && y >= -GATE_BELOW && y <= GATE_ABOVE
 }

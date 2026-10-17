@@ -2,7 +2,8 @@
 // lint.test.ts). `flat` exempts an intentionally flat piece from the thickness check and says why;
 // `kind` marks a structural piece, which must stand on the ground or on something beneath it and is
 // solid to the car (a collider covers it) unless `noCollide` says why not. All three enums are
-// closed: an unknown value fails the lint, so every exemption stays visible here.
+// closed: an unknown value fails the lint, so every exemption stays visible here. `hangs` turns a
+// structural piece's support upside down: it is held by what its top meets, not what is under it.
 import type * as THREE from 'three/webgpu'
 
 /** Why a piece may be thinner than MIN_THICKNESS (`airborne`: may also hang free). */
@@ -29,6 +30,16 @@ export type NoCollideReason = (typeof NO_COLLIDE_REASONS)[number]
 /** Mark `obj` (and every mesh under it) solid-looking but deliberately not collided with, and say why. */
 export const noCollide = <T extends THREE.Object3D>(obj: T, reason: NoCollideReason): T => {
   obj.userData.noCollide = reason
+  return obj
+}
+
+/**
+ * Mark `obj` (and every mesh under it) as hanging: a load-bearing piece held from above, which
+ * stands when its top meets a surface instead of its foot — the pillars of a checkpoint at a loop's
+ * top, which run down from the clamp over the back of the road (render/track/mesh.ts gateArch).
+ */
+export const hangs = <T extends THREE.Object3D>(obj: T): T => {
+  obj.userData.hangs = true
   return obj
 }
 
