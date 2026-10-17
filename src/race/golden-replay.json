@@ -1,0 +1,86 @@
+{
+  "crossover": {
+    "ticks": 5629,
+    "sha256": "cad00b76c163d3d58960a39d8379095d422191e0caab25923587bac686fb1764"
+  },
+  "dustbowl": {
+    "ticks": 4488,
+    "sha256": "3db169ca717d3256b76248993c371eb3d13fdbec956259fbc25b5bc6c38892f2"
+  },
+  "flatout": {
+    "ticks": 6085,
+    "sha256": "458f397b5a6a8b594cef5465c16e0299a41e0065baf4dafa39e80b96f300f561"
+  },
+  "glacier": {
+    "ticks": 6127,
+    "sha256": "5e933d0bcb87acf76ed78b7f9fd73797a932be068512440ec3e1be2111c736cf"
+  },
+  "knot": {
+    "ticks": 6850,
+    "sha256": "8fbed4be8fd383a998c5ca5b38c4318fc0104b78f8260466fd4612c3a4390f33"
+  },
+  "leap": {
+    "ticks": 7566,
+    "sha256": "1a978781bbb3d609fc2cd6630f062d392f503c29b70db74b2f8cb05407fe622d"
+  },
+  "plunge": {
+    "ticks": 5937,
+    "sha256": "ff0dbe2f21473950f5992cd99303ac7ce361b6b6490b5c6751ed5b551ca59023"
+  },
+  "switchback": {
+    "ticks": 4129,
+    "sha256": "b03de488c9173aa87db2a26da5379d2be38355950cb0bf944b0c33be3d91145a"
+  },
+  "test-bank": {
+    "ticks": 1768,
+    "sha256": "4bb0439a7f74e83c5d56e7dd579a5ee72338609bab6badb2d48c9e72794ff6d9"
+  },
+  "test-checkpoint": {
+    "ticks": 2043,
+    "sha256": "f2c8d946aa11e4a0fa5fd304e5160974e25513e01033656583d757fd213ed7a6"
+  },
+  "test-effects": {
+    "ticks": 2217,
+    "sha256": "54fbeead165cd267486b39dbf99a4ebb788c54507e75a99dc67ce95c02c461db"
+  },
+  "test-flat": {
+    "ticks": 2185,
+    "sha256": "f6f10df52baf563305d6b551a69d4e5f7a100a916fa64534f60df166b2a4a551"
+  },
+  "test-kit": {
+    "ticks": 2479,
+    "sha256": "953b8fb462c3bbccf78e40d4d7bab45f735ae84f65fe7fe6e0239807b95eb478"
+  },
+  "test-kit-all": {
+    "ticks": 4694,
+    "sha256": "d51f54b22558fbb3dd6d63026a565d2e626370896541284f6a72a4ac5bc0b3bc"
+  },
+  "test-ramp": {
+    "ticks": 2265,
+    "sha256": "70c1280caebf38382942e7c56b52dffc87baef0c52efcdbe9e11b682f38a9183"
+  },
+  "test-surfaces": {
+    "ticks": 2240,
+    "sha256": "4bc7538458e04dc54ee84907644d9e2a9c4eb73b801c125996357ffba8f8541a"
+  },
+  "test-turbo": {
+    "ticks": 2275,
+    "sha256": "859ef6fe430f59873995cb5c4c5f1dd20241819d6d3a61288b711f5c2be5869d"
+  },
+  "test1": {
+    "ticks": 2429,
+    "sha256": "caa146ade352869cf05e56f869fbf03ee66567cb0ac4bef4faaa011f4734f00d"
+  },
+  "test2": {
+    "ticks": 7495,
+    "sha256": "05728256b9cea63c424ff7ffb7afbcf4c31f81af4c591e8a2e8965f77fc3455f"
+  },
+  "tower": {
+    "ticks": 5617,
+    "sha256": "bddc92e2ebff1b778e6b808ccbff60faf74d2ed543808c698a0a5272780fdae0"
+  },
+  "washboard": {
+    "ticks": 2763,
+    "sha256": "054aa375ed9b28e3c34f99cb0db89889316f3beabaa82acf524a5d4786686aab"
+  }
+}
