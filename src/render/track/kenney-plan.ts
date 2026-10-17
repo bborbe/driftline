@@ -97,3 +97,39 @@ export const planPieces = (track: Track): PiecePlan => {
   })
   return { placements, procedural, proceduralGates }
 }
+
+/**
+ * The checkpoint piece's legs, measured from assets/pieces/checkpoint.glb: straight boxes from
+ * the piece origin up to the arch, 5.0–6.3 m either side of the centreline and 0–1.9 m along.
+ * This is the drawn leg; the collider (GATE_PILLAR) is a little narrower and stays as it is.
+ */
+export const CHECKPOINT_LEG = { inner: 5, outer: 6.3, depth: 1.9 } as const
+
+/** Lowest checkpoint base that gets its legs carried down to the ground. */
+export const GATE_LEG_MIN_HEIGHT = 1
+
+/** A leg carried from the ground up to the base of an elevated checkpoint piece: an upright box centred on (x, z). */
+export type GateLeg = { x: number; z: number; heading: number; halfWidth: number; halfDepth: number; height: number }
+
+/**
+ * The legs of every checkpoint piece placed on an elevated deck, continued from the ground up to
+ * the piece's base in the leg's own cross-section, so the leg reads as one column through the
+ * deck line. The inner face is the road edge (TRACK_WIDTH / 2), flush with the deck's side wall.
+ */
+export const planGateLegs = (plan: PiecePlan): GateLeg[] =>
+  plan.placements
+    .filter((p) => p.piece === 'checkpoint' && p.pose.y >= GATE_LEG_MIN_HEIGHT)
+    .flatMap(({ pose }) => {
+      const fx = Math.sin(pose.heading)
+      const fz = Math.cos(pose.heading)
+      const along = CHECKPOINT_LEG.depth / 2
+      const offset = (CHECKPOINT_LEG.inner + CHECKPOINT_LEG.outer) / 2
+      return [-1, 1].map((side) => ({
+        x: pose.x + fx * along + fz * side * offset,
+        z: pose.z + fz * along - fx * side * offset,
+        heading: pose.heading,
+        halfWidth: (CHECKPOINT_LEG.outer - CHECKPOINT_LEG.inner) / 2,
+        halfDepth: along,
+        height: pose.y,
+      }))
+    })

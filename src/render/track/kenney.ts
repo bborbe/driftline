@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Track } from '../../track/schema'
 import { createBarriers, createRampSupports, createTrackMesh, ROAD_ROUGHNESS } from './mesh'
 import { ASPHALT } from '../look'
-import { planPieces } from './kenney-plan'
+import { planGateLegs, planPieces, type GateLeg } from './kenney-plan'
 import { createZoneMeshes } from './zones'
 
 // Vite bundles each piece and hands back its URL, so the build works under any base path.
@@ -44,6 +44,27 @@ export const preparePiece = (root: THREE.Object3D): THREE.Object3D => {
   return root
 }
 
+/**
+ * The legs of elevated checkpoints carried down to the ground (planGateLegs), drawn with the
+ * checkpoint piece's own material, so each leg is one column above and below the deck line.
+ * Visual only: the colliders stay the gate pillars above the deck.
+ */
+export const createGateLegs = (legs: GateLeg[], checkpoint: THREE.Object3D): THREE.Group => {
+  const group = new THREE.Group()
+  group.name = 'gate-legs'
+  let material: THREE.Material | THREE.Material[] | undefined
+  checkpoint.traverse((o) => (material ??= (o as THREE.Mesh).material))
+  if (!material) throw new Error('checkpoint piece has no material')
+  for (const l of legs) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(2 * l.halfWidth, l.height, 2 * l.halfDepth), material)
+    leg.position.set(l.x, l.height / 2, l.z)
+    leg.rotation.y = l.heading
+    leg.castShadow = leg.receiveShadow = true
+    group.add(leg)
+  }
+  return group
+}
+
 export const createPieceTrack = async (track: Track): Promise<THREE.Group> => {
   const plan = planPieces(track)
   const loader = new GLTFLoader()
@@ -60,6 +81,8 @@ export const createPieceTrack = async (track: Track): Promise<THREE.Group> => {
   group.add(createRampSupports(track))
   group.add(createBarriers(track))
   group.add(createZoneMeshes(track))
+  const legs = planGateLegs(plan)
+  if (legs.length > 0) group.add(createGateLegs(legs, models.get('checkpoint')!))
   for (const p of plan.placements) {
     const obj = models.get(p.piece)!.clone()
     obj.position.set(p.pose.x, p.pose.y, p.pose.z)
