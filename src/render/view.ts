@@ -17,6 +17,7 @@ import { createScene } from './scene'
 import { resolveTheme } from './theme'
 import { topCamFor, topCamRequested } from './topcam'
 import { createPieceTrack } from './track/kenney'
+import { createStartDressing, type StartDressing } from './track/start-dressing'
 
 export type View = {
   renderer: THREE.WebGPURenderer
@@ -26,6 +27,8 @@ export type View = {
   car: THREE.Object3D
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
+  /** Start lights, arch screens and start road paint; main.ts feeds it race.board() each frame. Null without a start gate. */
+  start: StartDressing | null
   /** Pose the car from physics state and draw one frame; dt in seconds; `material` is the surface under the car. */
   frame: (state: CarState, dt: number, material?: Material) => void
 }
@@ -45,6 +48,8 @@ export const createView = async (track: Track, fxQuery: string = location.search
 
   const [{ scene, follow }, trackMesh, car] = await Promise.all([createScene(track), createPieceTrack(track), createCarView()])
   scene.add(trackMesh, car.object)
+  const start = createStartDressing(track)
+  if (start) scene.add(start.object)
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 3000)
   const resize = () => {
@@ -113,5 +118,5 @@ export const createView = async (track: Track, fxQuery: string = location.search
     }
   }
 
-  return { renderer, camera, backend, car: car.object, scene, frame }
+  return { renderer, camera, backend, car: car.object, scene, start, frame }
 }
