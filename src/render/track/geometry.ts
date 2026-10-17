@@ -1,10 +1,11 @@
 // Track mesh generation from the shared schema. Pure TypeScript (no three) so it
 // is unit-testable in Node; src/render/track/mesh.ts wraps the arrays for three.js.
-import { bankRise } from '../../track/bank'
+import { planBodies, roadPoint, rowCount, type BodyKind, type BodyPlan } from '../../track/bodies'
 import { loopPoint, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, type LoopSegment, type Sample } from '../../track/pose'
 import { gatePillars, type Pillar, type Pose, type Segment, type Track } from '../../track/schema'
 
 export { sampleSegment, segmentLength, type Sample } from '../../track/pose'
+export { planBodies, RAISED_MIN, rowCount, SPAN_CLEAR, SPAN_HEADROOM, SPAN_PATH_SKIP, type BodyKind, type BodyPlan } from '../../track/bodies'
 
 /** Road width in metres (ROAD_WIDTH, src/track/pose.ts). */
 export const TRACK_WIDTH = ROAD_WIDTH
@@ -27,14 +28,10 @@ export type SegmentGeometry = {
  * Positive roll raises the outside of the turn about the centreline — the same bankRise()
  * src/physics/surface.ts drives on, so the visible road and the collider agree.
  */
-export const lateralPoint = (p: Sample, u: number, s: number): [number, number, number] => [
-  p.x + Math.cos(p.heading) * u,
-  p.y + SURFACE_LIFT + bankRise(p.roll, -s * u),
-  p.z - Math.sin(p.heading) * u,
-]
-
-/** Rows to sample: about one every 1.5 m, never fewer than 13. Surface patches follow the same rows (zones.ts). */
-export const rowCount = (seg: Segment): number => Math.max(12, Math.ceil(segmentLength(seg) / 1.5)) + 1
+export const lateralPoint = (p: Sample, u: number, s: number): [number, number, number] => {
+  const [x, y, z] = roadPoint(p, u, s)
+  return [x, y + SURFACE_LIFT, z]
+}
 
 /** Surface bands of the road cross-section; mesh.ts colours each band to match the Kenney pieces. */
 export type Band = 'grass' | 'curb' | 'road'
@@ -153,85 +150,11 @@ export const buildApron = (entry: Pose, seg: Segment): SegmentGeometry | null =>
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }
 
-/** Road height above which a row counts as raised and gets a body or a deck underneath. */
-export const RAISED_MIN = 0.05
-/** Height a road below needs under a raised row before that row has to stay open: a car plus the deck. */
-export const SPAN_HEADROOM = 2
-/** A lower road this close (centreline to centreline) to a raised row keeps that row an open bridge span. */
-export const SPAN_CLEAR = TRACK_WIDTH + 1
-/** Lap distance within which a lower road is the piece's own approach (a ramp's foot), not a road underneath. */
-export const SPAN_PATH_SKIP = 50
 /** Thickness of an elevated deck's concrete box under the road, on a bridge span. */
 export const DECK_DEPTH = 1
 
 /** Depth of a filled body's lid below the road edges: under the road, so the road always draws over it. */
 export const LID_DROP = 0.05
-
-/** How a raised row stands: `fill` is a solid body down to the ground, `span` a deck box over a road below. */
-export type BodyKind = 'fill' | 'span'
-
-/**
- * Per geometry row (rowCount) of one segment: `fill` or `span`. `caps` are the filled rows
- * that close a filled run — the next or previous row along the lap, across segment joints,
- * is not filled (a span, a gap, a loop or ground-level road) — so the body has an end face.
- */
-export type BodyPlan = { kinds: BodyKind[]; caps: number[] }
-
-const lapGap = (a: number, b: number, lap: number): number => {
-  const d = Math.abs(a - b) % lap
-  return Math.min(d, lap - d)
-}
-
-/**
- * Which rows of the lap stand on a solid body and which stay open over a road passing
- * underneath (crossover's bridge over the start straight). Null for a segment with no raised
- * row, a gap (no road) and a loop (its own shell and foot). Visual only: physics never sees it.
- */
-export const planBodies = (track: Track): (BodyPlan | null)[] => {
-  const ps = poses(track)
-  const road: (Sample & { s: number })[] = []
-  const starts: number[] = []
-  let at = 0
-  track.segments.forEach((seg, i) => {
-    starts.push(at)
-    const len = segmentLength(seg)
-    if (seg.type !== 'gap') {
-      const n = Math.max(1, Math.ceil(len / 1.5))
-      for (let k = 0; k <= n; k++) road.push({ ...sampleSegment(ps[i], seg, k / n), s: at + (len * k) / n })
-    }
-    at += len
-  })
-  const lap = at
-  const kinds = track.segments.map((seg, i): BodyKind[] | null => {
-    if (seg.type === 'gap' || seg.type === 'loop') return null
-    const rows = rowCount(seg)
-    const len = segmentLength(seg)
-    let raised = false
-    const out = Array.from({ length: rows }, (_, r): BodyKind => {
-      const t = r / (rows - 1)
-      const p = sampleSegment(ps[i], seg, t)
-      if (p.y > RAISED_MIN) raised = true
-      const s = starts[i] + len * t
-      const under = road.some((q) => q.y < p.y - SPAN_HEADROOM && Math.hypot(q.x - p.x, q.z - p.z) < SPAN_CLEAR && lapGap(q.s, s, lap) > SPAN_PATH_SKIP)
-      return under ? 'span' : 'fill'
-    })
-    return raised ? out : null
-  })
-  const n = track.segments.length
-  return kinds.map((k, i) => {
-    if (!k) return null
-    const prev = kinds[(i - 1 + n) % n]
-    const next = kinds[(i + 1) % n]
-    const caps: number[] = []
-    k.forEach((kind, r) => {
-      if (kind !== 'fill') return
-      const before = r > 0 ? k[r - 1] : prev ? prev[prev.length - 1] : null
-      const after = r < k.length - 1 ? k[r + 1] : next ? next[0] : null
-      if (before !== 'fill' || after !== 'fill') caps.push(r)
-    })
-    return { kinds: k, caps }
-  })
-}
 
 // Top of a body's side wall: the road edge, or on a banked turn's inner side the apron rim, so the apron sits on the body.
 const wallTop = (p: Sample, seg: Segment, u: number, s: number): [number, number, number] => {
