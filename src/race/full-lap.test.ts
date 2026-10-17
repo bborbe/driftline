@@ -14,11 +14,19 @@ const LAP_TIMEOUT = 30_000
 // Lap-time window per track (ms) for this conservative autopilot. A human drives ~0.67x the
 // autopilot's time (HUMAN_PACE; operator's first lap2 run: 36.05 s vs 53.7 s), so lap2's 67-90 s
 // window is a ~45-60 s human lap; the floor also catches the track being shortened again.
+// test-ramp: 120 m to the ramp (SC4 row 3, jump at ~135 km/h); test-flat: a 120 m straight with a
+// turbo pad into a gentle r 150 m S-bend (row 4, steering at ~140 km/h). Autopilot ~34 s / ~68 s
+// (it takes the S at its 13 m/s curve pace; a human holds ~140 km/h through it).
+const RUN_UP: Record<string, [number, number]> = { 'test-ramp': [25_000, 45_000], 'test-flat': [55_000, 80_000] }
+
 const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => Sample[] }[] = [
   { track: load('test1'), minMs: 10_000, maxMs: 90_000 },
   { track: load('test2'), minMs: 45_000 / HUMAN_PACE, maxMs: 60_000 / HUMAN_PACE },
   // Single-feature test tracks: one mechanic each, a lap in at most 20 s even at autopilot pace.
-  ...TEST_TRACKS.filter((n) => n.startsWith('test-')).map((n) => ({ track: load(n), minMs: 5_000, maxMs: 20_000 })),
+  ...TEST_TRACKS.filter((n) => n.startsWith('test-') && !(n in RUN_UP)).map((n) => ({ track: load(n), minMs: 5_000, maxMs: 20_000 })),
+  // The two whose mechanic needs top speed: a full-throttle run-up from the grid (~130-140 km/h)
+  // makes the lap longer than 20 s, and the return leg has to match it.
+  ...Object.entries(RUN_UP).map(([n, [minMs, maxMs]]) => ({ track: load(n), minMs, maxMs })),
   // Multi-level campaign tracks: autopilot ~52.5 s (~35 s human, the low end of the brief's 35-55 s band).
   { track: load('crossover'), minMs: 40_000, maxMs: 65_000 },
   // Built only from kit pieces (assets/track/test-kit.json, src/track/kit.ts).

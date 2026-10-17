@@ -9,7 +9,27 @@
   "segments": [
     {
       "type": "straight",
-      "length": 80
+      "length": 120
+    },
+    {
+      "type": "curve",
+      "turn": "right",
+      "radius": 150,
+      "angle": 45
+    },
+    {
+      "type": "straight",
+      "length": 40
+    },
+    {
+      "type": "curve",
+      "turn": "left",
+      "radius": 150,
+      "angle": 45
+    },
+    {
+      "type": "straight",
+      "length": 90
     },
     {
       "type": "hairpin",
@@ -18,7 +38,27 @@
     },
     {
       "type": "straight",
-      "length": 80
+      "length": 120
+    },
+    {
+      "type": "curve",
+      "turn": "right",
+      "radius": 150,
+      "angle": 45
+    },
+    {
+      "type": "straight",
+      "length": 40
+    },
+    {
+      "type": "curve",
+      "turn": "left",
+      "radius": 150,
+      "angle": 45
+    },
+    {
+      "type": "straight",
+      "length": 90
     },
     {
       "type": "hairpin",
@@ -33,7 +73,21 @@
     },
     {
       "kind": "checkpoint",
-      "segment": 2
+      "segment": 6
+    }
+  ],
+  "zones": [
+    {
+      "kind": "turbo",
+      "segment": 0,
+      "from": 0.05,
+      "to": 0.1
+    },
+    {
+      "kind": "turbo",
+      "segment": 6,
+      "from": 0.05,
+      "to": 0.1
     }
   ]
 }

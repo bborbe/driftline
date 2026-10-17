@@ -12,8 +12,8 @@ The start screen shows three groups (↑/↓ switches group, ←/→ picks a tra
 
 | Track | Checks |
 |---|---|
-| `test-flat` | grip, acceleration, top speed, hairpins |
-| `test-ramp` | ramp jump and landing |
+| `test-flat` | grip, acceleration, top speed, hairpins; a turbo pad and 120 m straight into a gentle S-bend (r 150 m) taken at ~140 km/h |
+| `test-ramp` | ramp jump and landing; a 120 m run-up reaches the ramp at ~135 km/h flat out |
 | `test-bank` | banked 180° turns |
 | `test-surfaces` | asphalt → dirt → ice → grass strips, and dirt mid-way round the first hairpin |
 | `test-turbo` | yellow and red turbo pads |

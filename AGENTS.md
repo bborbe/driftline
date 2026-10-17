@@ -36,7 +36,7 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 
 - **Physics isolation:** nothing under `src/physics/` may import `three` or any browser API. It must stay pure and deterministic — no `Math.random`, `Date`, or `performance.now`. Time enters only as the fixed `DT`.
 - **Determinism is tested:** `src/physics/car.test.ts` runs 1000 scripted ticks twice and requires bit-identical state. Any physics change must keep it green.
-- **Handling thresholds are tested** (0→20 m/s ≤ 3 s, 20→0 within 30 m, drift slip > 15°, a step steer at 100–140 km/h overshoots its settled yaw rate by ≤ 30% and reaches 63% within 120 ms, ice 0→60 km/h within 2× road). Retune constants in `car.ts`, never loosen a test to make it pass. Where a handling change makes a grass cut pay, close it with a barrier in the track JSON.
+- **Handling thresholds are tested** (0→20 m/s ≤ 3 s, 20→0 within 30 m, drift slip > 15°, a step steer at 100–140 km/h overshoots its settled yaw rate by ≤ 30% and reaches 63% within 120 ms, ice 0→60 km/h within 2× road, at 90 km/h a 0.25 s handbrake tap slides and no press up to 2 s spins, with the slide kept at speed on throttle). Retune constants in `car.ts`, never loosen a test to make it pass. Where a handling change makes a grass cut pay, close it with a barrier in the track JSON.
 - The renderer logs `renderer: WebGPU` or `renderer: WebGL2` on startup; keep that line, it is how runs are verified.
 - **Original assets only** — no Nadeo assets, branding, or decompiled code.
 
@@ -60,4 +60,5 @@ The why for each rule is in the PR it cites and in the operator's *3D Browser Ga
 
 Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). No releases or tags.
 
+- **Single-feature tracks stay short (≤ 20 s autopilot lap)** except where the mechanic needs top speed: test-ramp and test-flat carry a full-throttle run-up, pinned by `src/race/run-up.test.ts` (ramp entry 130–147 km/h; S-bend ≥ 130 km/h).
 - **Visual changes are verified with the debug spawn** (docs/development.md § Debug screenshots): before reporting, shoot the change from the chase cam and from off-track (side, below) on test1, test2 and the single-feature test track for the mechanic you touched (`test-ramp`, `test-bank`, `test-surfaces`, … — docs/tracks.md; `?x&y&z&yaw&freeze=1`, `&cam=top`, `make shots`) and judge shape and material, not only seams. A fix for a reported visual bug also gets a shot of the reporter's exact pose on the live site once its `<meta name="commit">` shows the merge.
