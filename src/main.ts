@@ -1,5 +1,5 @@
 import './style.css'
-import { createCarAt, dot, FixedStepper, forwardOf, materialUnder, trackSurface } from './physics'
+import { createCarAt, dot, FixedStepper, forwardOf, materialUnder, TICK_HZ, trackSurface } from './physics'
 import { createCameraController } from './camera/controller'
 import { flyQuery, flyRequested, wrapDeg, type FlyCam } from './camera/fly'
 import { CAMERA_EVENT, loadView, saveView, type ViewMode } from './camera/views'
@@ -9,7 +9,7 @@ import { createView } from './render/view'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
 import { beginAllowed, GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
-import { lapCount } from './race/lap'
+import { COUNTDOWN_TICKS, lapCount } from './race/lap'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
 import { debugPose, debugRoll, frozen, poseQuery, yawDeg, yawRoll } from './race/debug-pose'
 import { centreline } from './track/centreline'
@@ -187,6 +187,11 @@ const cam = createCameraController({
   pose,
   search: location.search,
   store: localStorage,
+  race: () => ({
+    phase: race.loop.phase,
+    countdownLeft: race.loop.countdownLeft(sim.state.tick) / TICK_HZ,
+    countdownTotal: COUNTDOWN_TICKS / TICK_HZ,
+  }),
 })
 flying = () => cam.fly
 orbiting = () => cam.orbiting

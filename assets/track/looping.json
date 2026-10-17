@@ -6,9 +6,9 @@
       { "piece": "start" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
-      { "piece": "straight-2" },
-      { "piece": "straight-2" },
-      { "piece": "straight-2" },
+      { "piece": "straight-2", "width": [14, 18] },
+      { "piece": "straight-2", "width": 18 },
+      { "piece": "straight-2", "width": [18, 14] },
       { "piece": "turbo" },
       { "piece": "loop", "turn": "left" },
       { "piece": "checkpoint" },
@@ -21,9 +21,9 @@
       { "piece": "slope-down" },
       { "piece": "straight-2" },
       { "piece": "straight-2" },
-      { "piece": "checkpoint" },
-      { "piece": "curve-r3", "turn": "left" },
-      { "piece": "curve-r2", "turn": "left" }
+      { "piece": "checkpoint", "width": [14, 10] },
+      { "piece": "curve-r3", "turn": "left", "width": 10 },
+      { "piece": "curve-r2", "turn": "left", "width": [10, 14] }
     ]
   },
   "medals": { "author": 19300, "gold": 20900, "silver": 23500, "bronze": 27400 },
