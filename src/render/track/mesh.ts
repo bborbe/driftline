@@ -2,7 +2,7 @@
 import * as THREE from 'three/webgpu'
 import { ASPHALT } from '../look'
 import { barrierPillars, barrierPosts, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
-import { buildApron, buildDeck, buildRampSupport, buildTrack, lateralPoint, planDeckPillars, PROFILE, sampleSegment, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
+import { buildApron, buildDeck, buildRampSupport, buildTrack, lateralPoint, planDeckPillars, planGateFootings, PROFILE, sampleSegment, TRACK_WIDTH, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road; the road itself is the shared ASPHALT.
@@ -146,7 +146,7 @@ const PILLAR_SIZE = 0.7
 /** Deck pillars are heavier: they carry a whole road, not a ramp's edge. */
 const DECK_PILLAR_SIZE = 1.6
 
-/** Sides and pillars under every ramp and drop, and decks on pillars under elevated road (visual only; physics drives the road strip). */
+/** Sides and pillars under every ramp and drop, decks on pillars under elevated road, and footings under elevated gates (visual only; physics drives the road strip). */
 export const createRampSupports = (track: Track): THREE.Group => {
   const group = new THREE.Group()
   group.name = 'ramp-supports'
@@ -208,6 +208,16 @@ export const createRampSupports = (track: Track): THREE.Group => {
         new THREE.Vector3(p.x, p.top / 2, p.z),
         new THREE.Quaternion(),
         new THREE.Vector3(DECK_PILLAR_SIZE, p.top, DECK_PILLAR_SIZE),
+      ),
+    )
+  }
+  // Gate legs on an elevated deck stand beside the road, clear of the deck box: carry each to the ground.
+  for (const f of planGateFootings(track)) {
+    pillars.push(
+      new THREE.Matrix4().compose(
+        new THREE.Vector3(f.x, f.height / 2, f.z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), f.heading),
+        new THREE.Vector3(2 * f.halfWidth, f.height, 2 * f.halfDepth),
       ),
     )
   }
