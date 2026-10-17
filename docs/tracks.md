@@ -28,8 +28,8 @@ The start screen shows three groups (↑/↓ switches group, ←/→ picks a tra
 |---|---|---|---|
 | `S01` | `switchback` | Tech | ten tight turns (r 10 m kinks and hairpins) on asphalt and dirt; lift and turn in, again and again |
 | `S02` | `flatout` | Fullspeed | throttle held all lap, never a brake: two r 80 m banked 180s (`bank-180-wide`) and two 8 m climbs and drops |
-| `S03` | `dustbowl` | Dirt | almost all dirt, sweepers to slide through, walled so a line across the grass never pays |
-| `S04` | `glacier` | Ice | a walled ice channel: banked ice turns and a walled ice S |
+| `S03` | `dustbowl` | Dirt | an asphalt lap (~70 %) with three short walled dirt sections — a dirt chicane, a dirt corner, a dirt straight — a wide r 30 m sweeper, a bridge corner over a hill, a tight r 10 m into the finish |
+| `S04` | `glacier` | Ice | an asphalt lap (~75 %) with two short walled ice sections, each through a banked ice turn; tight S-bends, an overpass straight over a hill, wide r 30 m sweepers |
 | `S05` | `washboard` | LOL | a red turbo straight into five bumps in a row; a 10–20 s lap |
 | `S06` | `looping` | Loop | a turbo straight into one full vertical loop, then a banked 180 and two climbs and drops |
 | `S07` | `velodrome` | Wallride | a climb and a turbo into a velodrome wall, a left and a right spiral down the back straight, a second wall home |

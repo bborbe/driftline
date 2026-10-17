@@ -20,6 +20,9 @@ const LAP_TIMEOUT = 30_000
 // pace; a human holds ~140 km/h through the wide S).
 const RUN_UP: Record<string, [number, number]> = { 'test-ramp': [25_000, 45_000], 'test-flat': [55_000, 80_000] }
 
+// Tracks whose medals were last set from this autopilot's lap (mixed-surface redesign, 2026-10-17).
+const MEDALS_FROM_AUTOPILOT = ['dustbowl', 'glacier']
+
 // authorOf: the track's author medal is this share of the autopilot lap, within 5 % (the campaign rule).
 const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => Sample[]; authorOf?: number }[] = [
   { track: load('test1'), minMs: 10_000, maxMs: 90_000 },
@@ -45,7 +48,7 @@ const CASES: { track: Track; minMs: number; maxMs: number; line?: (t: Track) => 
   // radii, a deck over the start straight). A ~35-55 s human lap; medals checked against this lap below.
   { track: load('showcase'), minMs: 50_000, maxMs: 85_000, authorOf: 0.6 },
   // Style tracks S01-S05, driven on the surface-aware line (tight kit corners, dirt and ice): a
-  // 20-40 s human lap, washboard (LOL) 10-20 s. Autopilot ~38 / ~59 / ~39 / ~55 / ~25 s; medals at the
+  // 20-40 s human lap, washboard (LOL) 10-20 s. Autopilot ~38 / ~59 / ~35 / ~47 / ~25 s; medals at the
   // A03-A05 ratios.
   ...STYLES.map((l) => {
     const human = l.track === 'washboard' ? [10_000, 20_000] : [20_000, 40_000]
@@ -87,6 +90,14 @@ describe.each(CASES)('$track.name end to end', ({ track, minMs, maxMs, line = ce
     expect(lapTime).toBeLessThan(maxMs)
     if (authorOf) expect(Math.abs(track.medals!.author / (authorOf * lapTime) - 1)).toBeLessThan(0.05)
     console.log(`${track.name} autopilot lap time: ${(lapTime / 1000).toFixed(2)} s`)
+    // Medals set from this lap (the A03-A05 ratios): author 0.6 × autopilot, gold/silver/bronze at
+    // +8 / +22 / +42 % of author, each within rounding to the half second.
+    if (MEDALS_FROM_AUTOPILOT.includes(track.name)) {
+      expect(track.medals, `${track.name} has medals`).toBeDefined()
+      const { author, gold, silver, bronze } = track.medals!
+      expect(Math.abs(author / (0.6 * lapTime) - 1), 'author ≈ 0.6 × autopilot').toBeLessThanOrEqual(0.1)
+      for (const [ms, ratio] of [[gold, 1.08], [silver, 1.22], [bronze, 1.42]] as const) expect(Math.abs(ms - author * ratio)).toBeLessThanOrEqual(500)
+    }
   }, LAP_TIMEOUT)
 
   it('an autopilot completes a 3-lap run: LAP 1/3 → 3/3 with no respawn, total = sum of laps', () => {

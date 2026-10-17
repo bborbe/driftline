@@ -70,8 +70,8 @@ Debug
 
 - [S01 switchback](https://bborbe.github.io/driftline/?track=switchback) - Tech: ten tight turns on asphalt and dirt
 - [S02 flatout](https://bborbe.github.io/driftline/?track=flatout) - Fullspeed: throttle held all lap, wide banks and drops
-- [S03 dustbowl](https://bborbe.github.io/driftline/?track=dustbowl) - Dirt: sweepers to slide through
-- [S04 glacier](https://bborbe.github.io/driftline/?track=glacier) - Ice: a walled ice channel
+- [S03 dustbowl](https://bborbe.github.io/driftline/?track=dustbowl) - Dirt: asphalt with short dirt sections
+- [S04 glacier](https://bborbe.github.io/driftline/?track=glacier) - Ice: asphalt with short banked ice sections
 - [S05 washboard](https://bborbe.github.io/driftline/?track=washboard) - LOL: a red turbo straight into five bumps
 - [S06 looping](https://bborbe.github.io/driftline/?track=looping) - Loop: a turbo straight into a full vertical loop
 - [S07 velodrome](https://bborbe.github.io/driftline/?track=velodrome) - Wallride: two velodrome walls, a left-right spiral pair between them
