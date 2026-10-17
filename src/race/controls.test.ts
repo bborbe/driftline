@@ -10,7 +10,7 @@ describe('CONTROLS', () => {
   })
 
   // Every key the game binds (input.ts, race/index.ts, audio/controls.ts, camera/views.ts, camera/fly.ts, main.ts).
-  it.each(['W', 'S', 'A D', 'Space', 'Enter', 'R', 'Backspace', 'Esc', 'L', 'F', 'M', 'H', '1 / 2 / 3', 'C', 'E / Q', 'Shift', 'O', '`', 'P'])(
+  it.each(['W', 'S', 'A D', 'Space', 'Enter', 'R', 'Backspace', 'Esc', 'L', 'F', 'M', 'H', '1 / 2 / 3', 'C', 'Space / Ctrl', 'E / Q', 'Shift', 'O', '`', 'P'])(
     'lists %s',
     (key) => {
       expect(allKeys).toContain(key)

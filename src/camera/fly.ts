@@ -1,5 +1,5 @@
 // Free-fly camera (C toggles, `?cam=fly` opens in it): WASD / arrows move, mouse drag looks,
-// E / Q rise and sink, Shift is fast, O starts a slow orbit of the whole track. Pure TypeScript.
+// Space / E rise, Ctrl / Q sink, Shift is fast, O starts a slow orbit of the whole track. Pure TypeScript.
 import { add, scale, sub, v3, type Vec3 } from '../physics/vec'
 import { centreline } from '../track/centreline'
 import type { Track } from '../track/schema'
@@ -27,16 +27,31 @@ export const orbitToggleKey = (code: string): boolean => code === 'KeyO'
 export const flyRequested = (search: string): boolean => new URLSearchParams(search).get('cam') === 'fly'
 export const orbitRequested = (search: string): boolean => new URLSearchParams(search).get('orbit') === '1'
 
-/** Held key codes → fly input. Space is left alone: it is the Begin key. */
+const FORWARD = ['KeyW', 'ArrowUp']
+const BACK = ['KeyS', 'ArrowDown']
+const RIGHT = ['KeyD', 'ArrowRight']
+const LEFT = ['KeyA', 'ArrowLeft']
+const UP_KEYS = ['Space', 'KeyE', 'PageUp']
+const DOWN_KEYS = ['ControlLeft', 'ControlRight', 'KeyQ', 'PageDown']
+const FAST = ['ShiftLeft', 'ShiftRight']
+const FLY_KEYS = new Set([...FORWARD, ...BACK, ...RIGHT, ...LEFT, ...UP_KEYS, ...DOWN_KEYS, ...FAST])
+
+/** Held key codes → fly input. Space rises and Ctrl sinks (the Begin overlay ignores Space while flying). */
 export const flyInputFrom = (down: ReadonlySet<string>): FlyInput => {
-  const any = (...codes: string[]) => codes.some((c) => down.has(c))
+  const any = (codes: string[]) => codes.some((c) => down.has(c))
   return {
-    forward: (any('KeyW', 'ArrowUp') ? 1 : 0) - (any('KeyS', 'ArrowDown') ? 1 : 0),
-    right: (any('KeyD', 'ArrowRight') ? 1 : 0) - (any('KeyA', 'ArrowLeft') ? 1 : 0),
-    up: (any('KeyE', 'PageUp') ? 1 : 0) - (any('KeyQ', 'PageDown') ? 1 : 0),
-    fast: any('ShiftLeft', 'ShiftRight'),
+    forward: (any(FORWARD) ? 1 : 0) - (any(BACK) ? 1 : 0),
+    right: (any(RIGHT) ? 1 : 0) - (any(LEFT) ? 1 : 0),
+    up: (any(UP_KEYS) ? 1 : 0) - (any(DOWN_KEYS) ? 1 : 0),
+    fast: any(FAST),
   }
 }
+
+/** A key fly mode moves on: while flying its browser default (Space scroll, Ctrl+S / Ctrl+D …) is suppressed. */
+export const isFlyKey = (code: string): boolean => FLY_KEYS.has(code)
+
+/** Mouse buttons that start a drag-look: the left button, and macOS Ctrl+click (which some browsers report as button 2). */
+export const startsLook = (button: number, ctrlKey: boolean): boolean => button === 0 || (button === 2 && ctrlKey)
 
 const clampPitch = (p: number): number => Math.max(-MAX_PITCH, Math.min(MAX_PITCH, p))
 
