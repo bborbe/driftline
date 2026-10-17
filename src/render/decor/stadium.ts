@@ -68,6 +68,12 @@ export const planStadium = (track: Track): StadiumProp[] => {
 
 /** Big screen: board size and the height of its lower edge, in metres. */
 export const SCREEN = { width: 26, height: 10, bottom: 9, depth: 1 } as const
+/**
+ * The printed face stands `lift` metres proud of the dark body and also wins the depth test by a
+ * depth bias. Screens are 65–475 m from the car, where one depth step (near 0.1 m) is up to ~13 cm:
+ * a 2 cm lift let the body z-fight through the text, a pattern that shifts as the camera moves.
+ */
+export const SCREEN_FACE = { lift: 0.25, polygonOffsetFactor: -1, polygonOffsetUnits: -4 } as const
 
 /** Original screen art: the game's name over diagonal stripes. No third-party branding. */
 const screenTexture = (colour?: string): THREE.CanvasTexture => {
@@ -120,7 +126,7 @@ const screenParts = (props: StadiumProp[]): { body: THREE.BufferGeometry[]; face
       new THREE.Matrix4().multiplyMatrices(at, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion(), new THREE.Vector3(sx, sy, sz)))
     body.push(prepared(box, dark, local(0, SCREEN.bottom + SCREEN.height / 2, 0, SCREEN.width, SCREEN.height, SCREEN.depth)))
     for (const x of [-SCREEN.width / 3, SCREEN.width / 3]) body.push(prepared(box, dark, local(x, SCREEN.bottom / 2, -SCREEN.depth, 1.2, SCREEN.bottom, 1.2)))
-    faces.push(prepared(face, new THREE.Color(1, 1, 1), local(0, SCREEN.bottom + SCREEN.height / 2, SCREEN.depth / 2 + 0.02, 1, 1, 1), (u, v) => [u, v]))
+    faces.push(prepared(face, new THREE.Color(1, 1, 1), local(0, SCREEN.bottom + SCREEN.height / 2, SCREEN.depth / 2 + SCREEN_FACE.lift, 1, 1, 1), (u, v) => [u, v]))
   }
   return { body, faces }
 }
@@ -143,6 +149,6 @@ export const createStadium = async (track: Track, screen?: string): Promise<THRE
   // left every shaded side black), and no shadows: it stands far outside the car's shadow frustum
   // (scene.ts, ±60 m).
   group.add(merged([...parts.flat(), ...screens.body], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })))
-  group.add(merged(screens.faces, new THREE.MeshBasicMaterial({ map: screenTexture(screen) })))
+  group.add(merged(screens.faces, new THREE.MeshBasicMaterial({ map: screenTexture(screen), polygonOffset: true, polygonOffsetFactor: SCREEN_FACE.polygonOffsetFactor, polygonOffsetUnits: SCREEN_FACE.polygonOffsetUnits })))
   return group
 }
