@@ -21,12 +21,6 @@ const KNOWN: readonly { track: string; check: Offender['check']; mesh: string; f
   { track: 'test-kit-all', check: 'thin', mesh: 'track:test-kit-all/ramp-supports/BufferGeometry', followUp: LID_EDGE },
   { track: 'knot', check: 'thin', mesh: 'track:knot/ramp-supports/BufferGeometry@2', followUp: DECK_EDGE },
   { track: 'tower', check: 'thin', mesh: 'track:tower/ramp-supports/BufferGeometry@2', followUp: DECK_EDGE },
-  {
-    track: 'tower',
-    check: 'thin',
-    mesh: 'world/scenery/tree_pineRoundC/Mesh_tree_pineRoundC',
-    followUp: 'follow-up (racing-game manager, 2026-10-17): Kenney tree_pineRoundC foliage cones are open underneath',
-  },
 ]
 
 /**

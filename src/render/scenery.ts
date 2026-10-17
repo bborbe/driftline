@@ -4,6 +4,7 @@
 import * as THREE from 'three/webgpu'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { centreline } from '../track/centreline'
+import { capOpenEdges } from './cap'
 import type { Track } from '../track/schema'
 import { TRACK_WIDTH } from './track/geometry'
 import { DEFAULT_SCENERY } from './theme'
@@ -16,6 +17,9 @@ const MODEL_URLS = import.meta.glob('/assets/nature-kit/*.glb', { query: '?url',
 export const SCENERY_MODELS = DEFAULT_SCENERY
 
 export type Prop = { model: string; x: number; y: number; z: number; heading: number; scale: number }
+
+/** Kit models shipped with open holes (tree_pineRoundC's foliage cones are open underneath): capped on load. */
+export const OPEN_MODELS: readonly string[] = ['tree_pineRoundC']
 
 /** Rocks and stones are scaled smaller than trees and plants. */
 const isRock = (model: string) => model.startsWith('rock') || model.startsWith('stone')
@@ -60,7 +64,10 @@ export const createScenery = async (track: Track, set: readonly string[] = SCENE
       const url = MODEL_URLS[`/assets/nature-kit/${m}.glb`]
       if (!url) throw new Error(`no asset for scenery model "${m}"`)
       const root = (await loader.loadAsync(url)).scene
-      root.traverse((o) => (o.castShadow = o.receiveShadow = true))
+      root.traverse((o) => {
+        o.castShadow = o.receiveShadow = true
+        if (OPEN_MODELS.includes(m) && (o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry = capOpenEdges((o as THREE.Mesh).geometry)
+      })
       models.set(m, root)
     }),
   )
