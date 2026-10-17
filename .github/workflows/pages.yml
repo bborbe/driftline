@@ -1,47 +1,168 @@
 name: Deploy to GitHub Pages
 
+# One Pages site, one artifact: master builds into /, every open same-repo PR into /pr-<n>/.
+# Each run rebuilds the whole set, so a closed PR drops out on the next deploy (that is the cleanup).
+# pull_request_target runs this file from master in master's context, which the github-pages
+# environment (master-only deploy policy) accepts. PR code is only ever built with contents: read;
+# the deploy job runs no PR code. Fork PRs get no preview and do not trigger a deploy.
+
 on:
   push:
     branches: [master]
+  pull_request_target:
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
+# A queued run replaces an older queued one, so every run builds from the live heads (plan job)
+# and fork-PR runs, which deploy nothing, stay out of the group.
 concurrency:
-  group: "pages"
+  group: ${{ (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) && format('pages-skip-{0}', github.run_id) || 'pages' }}
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  plan:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+    steps:
+      - name: List build targets
+        id: targets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          master=$(gh api "repos/$REPO/commits/master" --jq .sha)
+          prs=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
+            | jq --arg repo "$REPO" '[.[] | select(.head.repo.full_name == $repo) | {n: .number, sha: .head.sha}]')
+          targets=$(jq -c --arg master "$master" '
+            [{name: "root", ref: $master, base: "/driftline/"}] +
+            [.[] | {name: "pr-\(.n)", ref: .sha, base: "/driftline/pr-\(.n)/"}]' <<<"$prs")
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "$targets" | jq .
+
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # A broken PR must never block or fail the production deploy.
+    continue-on-error: ${{ matrix.target.name != 'root' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.targets) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.target.ref }}
+          persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          # PR code never writes the shared npm cache.
+          cache: ${{ matrix.target.name == 'root' && 'npm' || '' }}
       - name: Install
-        run: npm ci
+        # No lifecycle scripts for PR code: it runs with the Actions runtime token in master's cache scope.
+        run: npm ci ${{ matrix.target.name != 'root' && '--ignore-scripts' || '' }}
       - name: Test
+        if: matrix.target.name == 'root'
         run: npm test
       - name: Build
-        run: npm run build
+        # --base on the command line wins over the PR's vite.config.ts, also for branches cut before VITE_BASE existed.
+        run: npx tsc && npx vite build --base "$VITE_BASE"
         env:
-          VITE_COMMIT_SHA: ${{ github.sha }}
+          VITE_COMMIT_SHA: ${{ matrix.target.ref }}
+          VITE_BASE: ${{ matrix.target.base }}
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-${{ matrix.target.name }}
+          path: dist
+          retention-days: 1
+
+  deploy:
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    outputs:
+      deployed: ${{ steps.assemble.outputs.deployed }}
+    steps:
+      - name: Download builds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: site-*
+          path: parts
+      - name: Assemble site
+        id: assemble
+        run: |
+          test -f parts/site-root/index.html || { echo "production build missing"; exit 1; }
+          mv parts/site-root site
+          deployed=""
+          for d in parts/site-pr-*; do
+            [ -d "$d" ] || continue
+            n=${d#parts/site-pr-}
+            mv "$d" "site/pr-$n"
+            deployed="$deployed,$n"
+          done
+          echo "deployed=$deployed," >> "$GITHUB_OUTPUT"
+          echo "previews:$deployed"
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  comment:
+    needs: deploy
+    if: ${{ !cancelled() && github.event_name == 'pull_request_target' && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post or update the preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          ACTION: ${{ github.event.action }}
+          DEPLOYED: ${{ needs.deploy.outputs.deployed }}
+        run: |
+          marker='<!-- driftline-preview -->'
+          url="https://bborbe.github.io/driftline/pr-$PR/"
+          if [ "$ACTION" = closed ]; then
+            body="$marker
+          Preview removed (PR closed)."
+          elif [[ ",$DEPLOYED" == *",$PR,"* ]]; then
+            body="$marker
+          **Preview:** $url
+          Commit: \`$SHA\` (check \`<meta name=\"commit\">\`). Updates on every push, removed when the PR closes."
+          else
+            body="$marker
+          Preview build failed for \`$SHA\` — see the Deploy to GitHub Pages run. Production was deployed regardless."
+          fi
+          id=$(gh api "repos/$REPO/issues/$PR/comments?per_page=100" --jq \
+            "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))][0].id // empty")
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+          elif [ "$ACTION" != closed ]; then
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
