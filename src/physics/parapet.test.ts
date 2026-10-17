@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { debugPose } from '../race/debug-pose'
-import { planBodies, rowCount } from '../track/bodies'
+import { PARAPET_WIDTH, planBodies, rowCount } from '../track/bodies'
 import { CAMPAIGN, STYLES, TEST_TRACKS } from '../track/catalogue'
 import { resolveTrack } from '../track/kit'
 import { poses, ROAD_WIDTH, sampleSegment, type Track } from '../track/schema'
@@ -36,14 +36,15 @@ describe('crossover bridge at the operator pose', () => {
     // The live debug spawn the operator reported (live ef1e661): the car on the curved bridge's parapet at deck height.
     const pose = debugPose('?x=-90.2&y=8.7&z=35.1&yaw=165')
     expect(pose).not.toBeNull()
-    // The pose is on a bridge row of the curve, just past the road edge.
+    // The pose is on a bridge row of the curve, past the old 10 m road's edge (on the wider road now, short of its parapet).
     const plans = planBodies(track)
     const ps = poses(track)
     const near = track.segments.flatMap((seg, i) =>
       plans[i] ? Array.from({ length: rowCount(seg) }, (_, r) => ({ kind: plans[i]!.kinds[r], p: sampleSegment(ps[i], seg, r / (rowCount(seg) - 1)) })) : [],
     ).reduce((a, b) => (Math.hypot(b.p.x - pose!.x, b.p.z - pose!.z) < Math.hypot(a.p.x - pose!.x, a.p.z - pose!.z) ? b : a))
     expect(near.kind).toBe('span')
-    expect(Math.hypot(near.p.x - pose!.x, near.p.z - pose!.z)).toBeGreaterThan(ROAD_WIDTH / 2)
+    expect(Math.hypot(near.p.x - pose!.x, near.p.z - pose!.z)).toBeGreaterThan(5)
+    expect(Math.hypot(near.p.x - pose!.x, near.p.z - pose!.z)).toBeLessThan(ROAD_WIDTH / 2 + PARAPET_WIDTH)
     // The spawn stands on the parapet itself: give the wall half a second to push the car in onto the road.
     const run = drive(surface, createCarAt(pose!), 3 * TICK_HZ, TICK_HZ / 2)
     expect(run.off, `off the deck at tick ${run.off}, ended at ${JSON.stringify(run.position)}`).toBe(-1)
@@ -51,8 +52,10 @@ describe('crossover bridge at the operator pose', () => {
 })
 
 const NAMES = [...new Set(['test1', 'test2', ...CAMPAIGN.map((l) => l.track), ...STYLES.map((l) => l.track), ...TEST_TRACKS])]
-// Off the travel direction toward the edge: a car aimed this far out reaches the parapet in well under a second.
-const AIM = (40 * Math.PI) / 180
+// Off the travel direction toward the edge: a car aimed this far out reaches the parapet in well under a
+// second, about 6 m down the deck on a default-width road (40° did that on the old 10 m road), so it
+// meets the wall on the span row it starts from and not past a deck's end.
+const AIM = Math.atan(ROAD_WIDTH / 2 / (5 / Math.tan((40 * Math.PI) / 180)))
 
 describe.each(NAMES)('%s bridge parapets', (name) => {
   const track = load(name)

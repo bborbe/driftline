@@ -1,7 +1,7 @@
 // Shapes built on the track format: gate lines and pillars, barrier walls and posts, zone quads,
 // pad arrows. Each is the single source for both its collider (src/physics) and its mesh
 // (src/render). Pure TypeScript: no three, no browser APIs.
-import { exitPose, partialPose, poses, segmentLength } from './pose'
+import { exitPose, partialPose, poses, segmentLength, widthAt } from './pose'
 import { CELL, START_ARCH_FRACTION, tileLength, type Gate, type Pose, type Track, type Zone } from './schema'
 
 /**
@@ -35,12 +35,27 @@ export function gateLine(track: Track, gate: Gate): Pose {
 }
 
 /**
- * Gate pillar footprint, measured from the Kenney start/checkpoint models (assets/pieces):
- * each pillar spans 5.17–6.30 m either side of the centreline and 1.9 m along the track.
+ * Gate pillar footprint on a road CELL (10 m) wide, measured from the Kenney start/checkpoint models
+ * (assets/pieces): each pillar spans 5.17–6.30 m either side of the centreline and 1.9 m along the track.
  * The checkpoint model's drawn legs start at 5.0 m (render/track/kenney-plan.ts CHECKPOINT_LEG);
  * the collider stays at 5.17 so the racing lines keep clear (the lint's COLLIDER_TOLERANCE covers it).
+ * On a wider or narrower road the gate is the same model stretched across (gateScale): its legs move
+ * out with the road edge and widen; depth and height do not change.
  */
 export const GATE_PILLAR = { offset: 5.735, halfWidth: 0.565, halfDepth: 0.95, height: 6.7 } as const
+/** Inner face of the models' drawn legs on a CELL-wide road (kenney-plan.ts CHECKPOINT_LEG.inner): stretched, the collider keeps its 0.17 m inset from it. */
+const DRAWN_LEG_INNER = 5
+
+/** Road width (m) under a gate's line: the segment's width there (widthAt). */
+export function gateWidth(track: Track, gate: Gate): number {
+  const seg = track.segments[gate.segment]
+  if (gate.at !== undefined && gate.at > 0) return widthAt(seg, gate.at)
+  if (gate.kind !== 'start-finish' || seg.type !== 'straight') return widthAt(seg, 0)
+  return widthAt(seg, (tileLength(seg.length) * START_ARCH_FRACTION) / seg.length)
+}
+
+/** Sideways stretch of a gate model built for a CELL-wide road, so its legs stand just off the road's edge. */
+export const gateScale = (track: Track, gate: Gate): number => gateWidth(track, gate) / CELL
 
 /** Lowest gate base whose legs are carried down to the ground (the arch's legs, gateLegs). */
 export const GATE_LEG_MIN_HEIGHT = 1
@@ -72,15 +87,19 @@ export function gatePillars(track: Track, gate: Gate): Pillar[] {
   const line = gateLine(track, gate)
   const section = GATE_PILLAR
   const base = gateUp(track, gate) === 1 ? line.y : line.y - section.height
+  const k = gateScale(track, gate)
+  // The drawn leg stretches with the road (k); the collider keeps the same inset inside it.
+  const outer = (section.offset + section.halfWidth) * k
+  const inner = section.offset - section.halfWidth + DRAWN_LEG_INNER * (k - 1)
   const along = gate.kind === 'checkpoint' ? section.halfDepth : 0
   const fx = Math.sin(line.heading)
   const fz = Math.cos(line.heading)
   return [-1, 1].map((side) => ({
-    x: line.x + fx * along + fz * side * section.offset,
+    x: line.x + fx * along + (fz * side * (outer + inner)) / 2,
     y: base,
-    z: line.z + fz * along - fx * side * section.offset,
+    z: line.z + fz * along - (fx * side * (outer + inner)) / 2,
     heading: line.heading,
-    halfWidth: section.halfWidth,
+    halfWidth: (outer - inner) / 2,
     halfDepth: section.halfDepth,
     height: section.height,
   }))
@@ -100,7 +119,7 @@ export function gateLegs(track: Track, gate: Gate): Pillar[] {
 }
 
 // Each barrier as the [x, z] points of its wall line: a road-following one is sampled every
-// BARRIER.step metres or less along its piece, offset from the centreline to the wall's middle.
+// BARRIER.step metres or less along its piece, offset from the road edge there (widthAt) to the wall's middle.
 function barrierLines(track: Track): [number, number][][] {
   const entries = poses(track)
   return (track.barriers ?? []).map((b) => {
@@ -110,9 +129,11 @@ function barrierLines(track: Track): [number, number][][] {
     const to = b.to ?? 1
     const length = segmentLength(seg)
     const n = Math.max(1, Math.ceil((length * (to - from)) / BARRIER.step))
-    const offset = (b.side === 'left' ? 1 : -1) * (CELL / 2 + (b.gap ?? BARRIER.gap) + BARRIER.halfWidth)
+    const side = b.side === 'left' ? 1 : -1
     return Array.from({ length: n + 1 }, (_, k) => {
-      const p = partialPose(entries[b.segment], seg, from + ((to - from) * k) / n)
+      const f = from + ((to - from) * k) / n
+      const p = partialPose(entries[b.segment], seg, f)
+      const offset = side * (widthAt(seg, f) / 2 + (b.gap ?? BARRIER.gap) + BARRIER.halfWidth)
       // Heading 0 faces +z with +x on the left.
       return [p.x + Math.cos(p.heading) * offset, p.z - Math.sin(p.heading) * offset] as [number, number]
     })

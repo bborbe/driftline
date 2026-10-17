@@ -3,7 +3,7 @@
 // source for the body, deck and pillar meshes (src/render/track/geometry.ts, mesh.ts) and their
 // colliders (src/physics/surface.ts). Pure TypeScript: no three, no browser APIs.
 import { bankRise } from './bank'
-import { poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, type Sample } from './pose'
+import { poses, ROAD_WIDTH, sampleSegment, segmentLength, turnSign, widthAt, type Sample } from './pose'
 import type { Pillar, Segment, Track } from './schema'
 
 /** Rows to sample: about one every 1.5 m, never fewer than 13. Surface patches follow the same rows (zones.ts). */
@@ -24,8 +24,12 @@ export const roadPoint = (p: Sample, u: number, s: number): [number, number, num
 export const RAISED_MIN = 0.05
 /** Height a road below needs under a raised row before that row has to stay open: a car plus the deck. */
 export const SPAN_HEADROOM = 2
-/** A lower road this close (centreline to centreline) to a raised row keeps that row an open bridge span. */
+/**
+ * A lower road this close (centreline to centreline) to a raised row keeps that row an open bridge
+ * span, for two default-width roads: half of each plus 1 m. spanClear is the same for any two widths.
+ */
 export const SPAN_CLEAR = ROAD_WIDTH + 1
+const spanClear = (upper: number, lower: number): number => (upper + lower) / 2 + 1
 /** Lap distance within which a lower road is the piece's own approach (a ramp's foot), not a road underneath. */
 export const SPAN_PATH_SKIP = 50
 /** Thickness of a bridge deck's concrete box under the road: the pillars reach up to its underside. */
@@ -56,7 +60,7 @@ const lapGap = (a: number, b: number, lap: number): number => {
  */
 export const planBodies = (track: Track): (BodyPlan | null)[] => {
   const ps = poses(track)
-  const road: (Sample & { s: number })[] = []
+  const road: (Sample & { s: number; w: number })[] = []
   const starts: number[] = []
   let at = 0
   track.segments.forEach((seg, i) => {
@@ -64,7 +68,7 @@ export const planBodies = (track: Track): (BodyPlan | null)[] => {
     const len = segmentLength(seg)
     if (seg.type !== 'gap') {
       const n = Math.max(1, Math.ceil(len / 1.5))
-      for (let k = 0; k <= n; k++) road.push({ ...sampleSegment(ps[i], seg, k / n), s: at + (len * k) / n })
+      for (let k = 0; k <= n; k++) road.push({ ...sampleSegment(ps[i], seg, k / n), s: at + (len * k) / n, w: widthAt(seg, k / n) })
     }
     at += len
   })
@@ -79,7 +83,8 @@ export const planBodies = (track: Track): (BodyPlan | null)[] => {
       const p = sampleSegment(ps[i], seg, t)
       if (p.y > RAISED_MIN) raised = true
       const s = starts[i] + len * t
-      const under = road.some((q) => q.y < p.y - SPAN_HEADROOM && Math.hypot(q.x - p.x, q.z - p.z) < SPAN_CLEAR && lapGap(q.s, s, lap) > SPAN_PATH_SKIP)
+      const w = widthAt(seg, t)
+      const under = road.some((q) => q.y < p.y - SPAN_HEADROOM && Math.hypot(q.x - p.x, q.z - p.z) < spanClear(w, q.w) && lapGap(q.s, s, lap) > SPAN_PATH_SKIP)
       return under || p.y >= BRIDGE_MIN_HEIGHT ? 'span' : 'fill'
     })
     return raised ? out : null
@@ -110,15 +115,15 @@ export const planBodies = (track: Track): (BodyPlan | null)[] => {
  */
 export const bodyBoxes = (track: Track): Pillar[] => {
   const ps = poses(track)
-  const half = ROAD_WIDTH / 2
   return planBodies(track).flatMap((plan, i) => {
     if (!plan) return []
     const seg = track.segments[i]
     const s = turnSign(seg)
     const rows = rowCount(seg)
+    const halves = Array.from({ length: rows }, (_, r) => widthAt(seg, r / (rows - 1)) / 2)
     const edges = Array.from({ length: rows }, (_, r) => {
       const p = sampleSegment(ps[i], seg, r / (rows - 1))
-      return [roadPoint(p, half, s), roadPoint(p, -half, s)]
+      return [roadPoint(p, halves[r], s), roadPoint(p, -halves[r], s)]
     })
     const out: Pillar[] = []
     for (let r = 0; r < rows - 1; r++) {
@@ -132,7 +137,7 @@ export const bodyBoxes = (track: Track): Pillar[] => {
       const bx = (bl[0] + br[0]) / 2
       const bz = (bl[2] + br[2]) / 2
       const length = Math.max(Math.hypot(bl[0] - al[0], bl[2] - al[2]), Math.hypot(br[0] - ar[0], br[2] - ar[2]))
-      out.push({ x: (ax + bx) / 2, y: 0, z: (az + bz) / 2, heading: Math.atan2(bx - ax, bz - az), halfWidth: half, halfDepth: length / 2, height: top })
+      out.push({ x: (ax + bx) / 2, y: 0, z: (az + bz) / 2, heading: Math.atan2(bx - ax, bz - az), halfWidth: Math.max(halves[r], halves[r + 1]), halfDepth: length / 2, height: top })
     }
     return out
   })
@@ -158,7 +163,6 @@ export const deckRows = (kinds: readonly BodyKind[]): boolean[] => kinds.slice(0
  */
 export const parapetBoxes = (track: Track): Pillar[] => {
   const ps = poses(track)
-  const half = ROAD_WIDTH / 2
   return planBodies(track).flatMap((plan, i) => {
     const seg = track.segments[i]
     if (!plan || seg.type === 'loop') return []
@@ -170,9 +174,10 @@ export const parapetBoxes = (track: Track): Pillar[] => {
     const out: Pillar[] = []
     for (let r = 0; r < rows - 1; r++) {
       if (!decked[r]) continue
-      for (const u of [half, -half]) {
-        const w = Math.sign(u) * PARAPET_WIDTH
-        const [ai, ao, bi, bo] = [roadPoint(samples[r], u, s), roadPoint(samples[r], u + w, s), roadPoint(samples[r + 1], u, s), roadPoint(samples[r + 1], u + w, s)]
+      const [ha, hb] = [widthAt(seg, r / (rows - 1)) / 2, widthAt(seg, (r + 1) / (rows - 1)) / 2]
+      for (const side of [1, -1]) {
+        const w = side * PARAPET_WIDTH
+        const [ai, ao, bi, bo] = [roadPoint(samples[r], side * ha, s), roadPoint(samples[r], side * ha + w, s), roadPoint(samples[r + 1], side * hb, s), roadPoint(samples[r + 1], side * hb + w, s)]
         const ax = (ai[0] + ao[0]) / 2
         const az = (ai[2] + ao[2]) / 2
         const bx = (bi[0] + bo[0]) / 2
@@ -187,7 +192,7 @@ export const parapetBoxes = (track: Track): Pillar[] => {
   })
 }
 
-/** Target spacing of the pillars under a bridge, and the clearance they keep from any road below. */
+/** Target spacing of the pillars under a bridge, and the clearance they keep from a default-width road below (its half width + 2 m). */
 export const DECK_PILLAR_STEP = 12
 export const DECK_PILLAR_CLEAR = ROAD_WIDTH / 2 + 2
 /** Side of a deck pillar's square section: it carries a whole road. */
@@ -204,11 +209,11 @@ export type DeckPillar = { x: number; z: number; top: number }
  */
 export const planDeckPillars = (track: Track): DeckPillar[] => {
   const ps = poses(track)
-  const road: Sample[] = []
+  const road: (Sample & { w: number })[] = []
   track.segments.forEach((seg, i) => {
     if (seg.type === 'gap') return
     const n = Math.max(1, Math.ceil(segmentLength(seg) / 1.5))
-    for (let k = 0; k <= n; k++) road.push(sampleSegment(ps[i], seg, k / n))
+    for (let k = 0; k <= n; k++) road.push({ ...sampleSegment(ps[i], seg, k / n), w: widthAt(seg, k / n) })
   })
   const plans = planBodies(track)
   // Every geometry row in lap order: a span row, or null for anything that breaks a run.
@@ -243,7 +248,7 @@ export const planDeckPillars = (track: Track): DeckPillar[] => {
       const near = r.reduce((best, row) => (Math.abs(row.s - want) < Math.abs(best.s - want) ? row : best))
       const p = sampleSegment(ps[near.seg], track.segments[near.seg], near.t)
       const top = p.y - DECK_DEPTH
-      const blocked = road.some((q) => q.y < top - 1 && Math.hypot(q.x - p.x, q.z - p.z) < DECK_PILLAR_CLEAR)
+      const blocked = road.some((q) => q.y < top - 1 && Math.hypot(q.x - p.x, q.z - p.z) < q.w / 2 + 2)
       if (!blocked) out.push({ x: p.x, z: p.z, top })
     }
   }

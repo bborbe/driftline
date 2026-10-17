@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { CAMPAIGN, menuOrder, STYLES, TEST_TRACKS } from '../../track/catalogue'
-import { gatePillars, gateUp, poses, SEGMENT_TYPES, validate } from '../../track/schema'
+import { CELL, gatePillars, gateScale, gateUp, poses, SEGMENT_TYPES, validate, widthAt } from '../../track/schema'
 import { turnSign } from '../../track/pose'
 import { FIXTURE_TRACK } from '../../track/fixture'
 import { resolveTrack } from '../../track/kit'
@@ -110,7 +110,7 @@ describe('render track geometry', () => {
     expect(bands[bands.length - 1]).toBe('grass')
     const road = PROFILE.filter(([, , b]) => b === 'road').map(([u]) => u)
     expect(Math.max(...road) - Math.min(...road)).toBeCloseTo(6.9, 6) // Kenney road band, ±3.45 m
-    expect(Math.max(...PROFILE.map(([u]) => u))).toBe(TRACK_WIDTH / 2)
+    expect(Math.max(...PROFILE.map(([u]) => u))).toBe(CELL / 2) // a CELL-wide road; roadScale stretches it to the segment's width
   })
 
   it('banked apron is zero-width at both joints, so it never pokes past the neighbouring segments', () => {
@@ -354,7 +354,7 @@ describe('multi-level decks', () => {
   const road = (track: Track) => {
     const ps = poses(track)
     return track.segments.flatMap((seg, i) =>
-      seg.type === 'gap' ? [] : Array.from({ length: 41 }, (_, k) => ({ ...sampleSegment(ps[i], seg, k / 40), seg: i })),
+      seg.type === 'gap' ? [] : Array.from({ length: 41 }, (_, k) => ({ ...sampleSegment(ps[i], seg, k / 40), seg: i, w: widthAt(seg, k / 40) })),
     )
   }
 
@@ -378,7 +378,9 @@ describe('multi-level decks', () => {
     const pts = road(track)
     for (const a of pts.filter((p) => ['ramp', 'drop'].includes(track.segments[p.seg].type))) {
       for (const b of pts) {
-        if (Math.abs(a.seg - b.seg) > 1 && b.y < a.y - 1) expect(Math.hypot(a.x - b.x, a.z - b.z), `seg ${a.seg} over ${b.seg}`).toBeGreaterThanOrEqual(TRACK_WIDTH)
+        // Edge to edge: half of each road's own width (widthAt). A jump's own landing, across its gap, is the same road.
+        const ownLanding = Math.abs(a.seg - b.seg) === 2 && track.segments[Math.min(a.seg, b.seg) + 1].type === 'gap'
+        if (Math.abs(a.seg - b.seg) > 1 && !ownLanding && b.y < a.y - 1) expect(Math.hypot(a.x - b.x, a.z - b.z), `seg ${a.seg} over ${b.seg}`).toBeGreaterThanOrEqual((a.w + b.w) / 2)
       }
     }
   })
@@ -401,7 +403,7 @@ describe('multi-level decks', () => {
         expect(mine, at).toHaveLength(2)
         for (const l of mine) {
           expect(Math.abs(l.height - pillars[0].y), at).toBeLessThan(0.001) // ground up to the piece's base
-          expect(l.halfWidth, at).toBeCloseTo((CHECKPOINT_LEG.outer - CHECKPOINT_LEG.inner) / 2, 9) // 1.3 m: the drawn leg, not GATE_PILLAR's 1.13 m
+          expect(l.halfWidth, at).toBeCloseTo((gateScale(track, gate) * (CHECKPOINT_LEG.outer - CHECKPOINT_LEG.inner)) / 2, 9) // 1.3 m stretched with the road: the drawn leg, not GATE_PILLAR's collider
           expect(l.halfDepth, at).toBeCloseTo(CHECKPOINT_LEG.depth / 2, 9)
           expect(l.heading, at).toBe(pillars[0].heading)
         }

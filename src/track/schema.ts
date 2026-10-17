@@ -3,17 +3,16 @@
 // no browser APIs, so physics may import it. The centreline (pose.ts), the shapes built on it
 // (shapes.ts), validation (validate.ts) and the layout id (layout-id.ts) live in their own modules
 // and are re-exported here, so every importer of the format keeps one entry point.
-import { ROAD_WIDTH } from './pose'
 import type { Theme } from './theme'
 
-export { exitPose, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, type Sample } from './pose'
-export { BARRIER, barrierPillars, barrierPosts, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, gateUp, padForward, zoneCorners, type Pillar } from './shapes'
+export { constantWidth, exitPose, MAX_ROAD_WIDTH, maxWidth, MIN_ROAD_WIDTH, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, widthAt, type Sample } from './pose'
+export { BARRIER, barrierPillars, barrierPosts, GATE_LEG_MIN_HEIGHT, GATE_PILLAR, gateLegs, gateLine, gatePillars, gateScale, gateUp, gateWidth, padForward, zoneCorners, type Pillar } from './shapes'
 export { layoutId } from './layout-id'
 export { validate } from './validate'
 export { isColour, SKIES, validateTheme, type Sky, type Theme } from './theme'
 
-/** Grid cell size in metres: one road width. Every piece's footprint is a multiple of it. */
-export const CELL = ROAD_WIDTH
+/** Kit grid cell size in metres (the 10 m Kenney piece). Every piece's footprint is a multiple of it; road width is per segment (widthAt). */
+export const CELL = 10
 
 /** World pose at a piece connection edge: bottom-center, heading in radians (0 = +z, CCW positive). */
 export interface Pose {
@@ -25,7 +24,13 @@ export interface Pose {
 
 export type Turn = 'left' | 'right'
 
-export type Segment =
+/**
+ * Road width of one segment in metres, shoulder to shoulder: a number holds it, [entry, exit]
+ * tapers between the two (widthAt, src/track/pose.ts). Omitted: ROAD_WIDTH.
+ */
+export type Width = number | [number, number]
+
+export type Segment = (
   | { type: 'straight'; length: number }
   | { type: 'curve'; turn: Turn; radius: number; angle: 90 | 45 }
   | { type: 'hairpin'; turn: Turn; radius: number }
@@ -45,6 +50,7 @@ export type Segment =
    * rides at speed, velodrome-style (src/track/pose.ts wallPoint): v²/r presses it into the wall.
    */
   | { type: 'wallride'; turn: Turn; radius: number; angle: 90 | 180 }
+) & { width?: Width }
 
 export type SegmentType = Segment['type']
 

@@ -24,8 +24,9 @@ export const OPEN_MODELS: readonly string[] = ['tree_pineRoundC']
 /** Rocks and stones are scaled smaller than trees and plants. */
 const isRock = (model: string) => model.startsWith('rock') || model.startsWith('stone')
 
-/** Nothing closer than this to the centreline: half the road, the verge, and room to run wide. */
+/** Nothing closer than this to the centreline of a default-width road: half the road, the verge, and room to run wide (clearanceAt for any width). */
 export const CLEARANCE = TRACK_WIDTH / 2 + 8
+const clearanceAt = (width: number): number => width / 2 + 8
 
 // mulberry32: tiny deterministic PRNG, so every load places the same scenery.
 const rng = (seed: number) => () => {
@@ -39,11 +40,11 @@ const rng = (seed: number) => () => {
 export const planScenery = (track: Track, spacing = 9, seed = 7, models: readonly string[] = SCENERY_MODELS): Prop[] => {
   const rand = rng(seed)
   const line = centreline(track, 2)
-  const clear = (x: number, z: number, r: number) => line.every((p) => (p.x - x) ** 2 + (p.z - z) ** 2 >= r * r)
+  const clear = (x: number, z: number, extra: number) => line.every((p) => (p.x - x) ** 2 + (p.z - z) ** 2 >= (clearanceAt(p.width) + extra) ** 2)
   const props: Prop[] = []
   for (const [i, p] of centreline(track, spacing).entries()) {
     const side = i % 2 === 0 ? 1 : -1
-    const off = CLEARANCE + 2 + rand() * 28
+    const off = clearanceAt(p.width) + 2 + rand() * 28
     // Lateral (left of heading) is (cos h, -sin h) in x/z, as in schema.ts's turn centre.
     const x = p.x + Math.cos(p.heading) * off * side
     const z = p.z - Math.sin(p.heading) * off * side
@@ -51,7 +52,7 @@ export const planScenery = (track: Track, spacing = 9, seed = 7, models: readonl
     const scale = isRock(model) ? 2 + rand() * 2 : 4 + rand() * 3
     const heading = rand() * Math.PI * 2
     // Other parts of the lap may pass nearby (hairpins, lap crossings): keep their clearance too.
-    if (clear(x, z, CLEARANCE + scale)) props.push({ model, x, y: 0, z, heading, scale })
+    if (clear(x, z, scale)) props.push({ model, x, y: 0, z, heading, scale })
   }
   return props
 }

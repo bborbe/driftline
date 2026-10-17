@@ -4,15 +4,17 @@
 import {
   createCarAt, NO_INPUT, TICK_HZ, TRACK_WIDTH, wheelContacts, type CarInput, type CarState, type FixedStepper, type Surface, type Vec3,
 } from '../physics'
-import { gateLine, gateUp, type Pose, type Track } from '../track/schema'
+import { gateLine, gateUp, gateWidth, type Gate, type Pose, type Track } from '../track/schema'
 import { loopTubes, partialPose, poses } from '../track/pose'
 import { Effects } from './effects'
 
 /** Steps announced before GO: 3, 2, 1. */
 export const COUNTDOWN_STEPS = 3
 export const COUNTDOWN_TICKS = COUNTDOWN_STEPS * TICK_HZ
-/** Half the gate width in metres: a crossing counts within this lateral distance of the gate centre. */
+/** Half the gate width on a default-width road, in metres: a crossing counts within this lateral distance of the gate centre. */
 export const GATE_HALF_WIDTH = TRACK_WIDTH / 2 + 1
+/** Half a gate's width: its road's half width (gateWidth) plus GATE_HALF_WIDTH's 1 m margin. */
+export const gateHalfWidth = (track: Track, gate: Gate): number => gateWidth(track, gate) / 2 + 1
 /**
  * A crossing counts only from GATE_BELOW under the gate's road to GATE_ABOVE over it, so a road
  * passing under a gate on a deck never triggers it. The upper bound is generous: a full-throttle
@@ -69,6 +71,7 @@ interface GatePose {
   up?: 1 | -1
   /** Where a respawn after this gate puts the car at rest, when not on its line: a loop's exit for its top. */
   respawn?: Pose
+  halfWidth: number
 }
 
 export class LapLoop {
@@ -116,10 +119,10 @@ export class LapLoop {
         const up = gateUp(track, g)
         // At rest upside down 30 m up would only fall: past a loop's top, respawn at its exit instead.
         const respawn = up === -1 ? partialPose(entries[g.segment], track.segments[g.segment], 1) : undefined
-        return { pose: gateLine(track, g), up, respawn }
+        return { pose: gateLine(track, g), up, respawn, halfWidth: gateHalfWidth(track, g) }
       })
     const sf = track.gates.find((g) => g.kind === 'start-finish')
-    this.finish = { pose: sf ? gateLine(track, sf) : track.start }
+    this.finish = sf ? { pose: gateLine(track, sf), halfWidth: gateHalfWidth(track, sf) } : { pose: track.start, halfWidth: GATE_HALF_WIDTH }
     this.inLoop = loopTubes(track)
   }
 
@@ -203,14 +206,14 @@ export class LapLoop {
     this.lastPosition = car.position
     if (this.passed < this.checkpoints.length) {
       const gate = this.checkpoints[this.passed]
-      if (crosses(gate.pose, prev, car.position, gate.up)) {
+      if (crosses(gate.pose, prev, car.position, gate.up, gate.halfWidth)) {
         this.passed++
         const index = this.passed
         this.emit((l) => l.checkpoint?.(tick, index))
       }
       return null
     }
-    if (crosses(this.finish.pose, prev, car.position)) {
+    if (crosses(this.finish.pose, prev, car.position, 1, this.finish.halfWidth)) {
       const lap = this.lap
       const lapMs = ((tick - this.lapStartTick) * 1000) / TICK_HZ
       this.lapTimes = [...this.lapTimes, lapMs]
@@ -297,8 +300,9 @@ export function advanceRace(loop: LapLoop, sim: FixedStepper, elapsedSeconds: nu
 /**
  * Did the segment prev→cur cross the gate plane forwards, within the gate width and under its arch?
  * `up` -1 is a gate hanging from its road (a loop's top, gateUp): the window flips below the road.
+ * `halfWidth` is the gate's own (gateHalfWidth); default a default-width road's.
  */
-export function crosses(gate: Pose, prev: Vec3, cur: Vec3, up: 1 | -1 = 1): boolean {
+export function crosses(gate: Pose, prev: Vec3, cur: Vec3, up: 1 | -1 = 1, halfWidth = GATE_HALF_WIDTH): boolean {
   const fx = Math.sin(gate.heading)
   const fz = Math.cos(gate.heading)
   const before = (prev.x - gate.x) * fx + (prev.z - gate.z) * fz
@@ -308,5 +312,5 @@ export function crosses(gate: Pose, prev: Vec3, cur: Vec3, up: 1 | -1 = 1): bool
   const x = prev.x + (cur.x - prev.x) * t - gate.x
   const z = prev.z + (cur.z - prev.z) * t - gate.z
   const y = up * (prev.y + (cur.y - prev.y) * t - gate.y)
-  return Math.abs(x * fz - z * fx) <= GATE_HALF_WIDTH && y >= -GATE_BELOW && y <= GATE_ABOVE
+  return Math.abs(x * fz - z * fx) <= halfWidth && y >= -GATE_BELOW && y <= GATE_ABOVE
 }

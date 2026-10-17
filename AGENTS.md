@@ -44,9 +44,9 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 
 The why for each rule is in the PR it cites and in the operator's *3D Browser Game Development Guide*.
 
-- **One shape, one function:** collider and mesh come from the same function in `src/track/` (`pose.ts` for every segment's length, pose, roll and `ROAD_WIDTH`; `bank.ts`, `gatePillars()`, `gateLine()`). A new segment type is one case in `pose.ts`, not a copy in render, physics or the autopilot. Never draw a second formula for a shape physics already knows; render vertices match physics raycasts within 1 mm (#21, #25, #38, #45).
+- **One shape, one function:** collider and mesh come from the same function in `src/track/` (`pose.ts` for every segment's length, pose, roll and width — `widthAt()`, default `ROAD_WIDTH`; `bank.ts`, `gatePillars()`, `gateLine()`). A new segment type is one case in `pose.ts`, not a copy in render, physics or the autopilot. Never draw a second formula for a shape physics already knows; render vertices match physics raycasts within 1 mm (#21, #25, #38, #45).
 - **Render interpolates:** draw `FixedStepper.render()` (blends the last two ticks by `alpha = accumulator / DT`), never the latest tick; snap when state is replaced outside `advance()` (#37).
-- **Constant road width:** never scale a corner model by radius; draw non-native radii procedurally (#23).
+- **Road width is per segment, never by radius:** a segment's `width` (a number, or `[entry, exit]` to taper; kit placements take it too) is read only through `widthAt()`. Change width with a taper inside a segment, never a step at a joint (`kenney-plan.test.ts`). Never scale a corner model by radius; draw non-native radii and any non-CELL-wide corner procedurally (#23). The kit grid `CELL` stays 10 m whatever the road width.
 - **Decals sit above the road:** road top + 3 mm, `polygonOffset(-1,-1)`, `depthWrite` off, clipped to the asphalt (#47). Double-sided casters use `shadowSide = BackSide` (#26).
 - **Assets resolve on Pages:** bundle every texture a glb references (`import.meta.glob(?url)` + `setURLModifier`); check with `vite preview` under `/driftline/`, not only `make run` (#26).
 - **Tests drive the real path:** no hand-set flags the game never produces; go through `advanceRace` / the autopilot lap (#12, #17, #22).

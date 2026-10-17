@@ -3,7 +3,7 @@ import { centreline } from '../../track/centreline'
 import type { Track } from '../../track/schema'
 import { FIXTURE_TRACK } from '../../track/fixture'
 import { LAP_NAMES, loadLap } from '../../track/registry'
-import { GROUND_LEVEL, planSigns, SIGN_CLEARANCE } from './signs'
+import { GROUND_LEVEL, planSigns, SIGN_CLEAR_EDGE } from './signs'
 
 // Every shipped track (campaign, test and multi-level) plus the all-segment-types fixture.
 const tracks: Record<string, Track> = { ...Object.fromEntries(LAP_NAMES.map((n) => [n, loadLap(n)])), fixture: FIXTURE_TRACK }
@@ -14,8 +14,9 @@ describe('planSigns', () => {
       const line = centreline(track, 1)
       for (const s of planSigns(track)) {
         const near = line.filter((c) => Math.abs(c.y - s.y) <= 4)
-        const nearest = Math.min(...near.map((c) => Math.hypot(c.x - s.x, c.z - s.z)))
-        expect(nearest).toBeGreaterThanOrEqual(SIGN_CLEARANCE - 1) // 1 m: sampling step
+        // Past each road's own edge (its width there), not a default-width one.
+        const nearest = Math.min(...near.map((c) => Math.hypot(c.x - s.x, c.z - s.z) - c.width / 2))
+        expect(nearest).toBeGreaterThanOrEqual(SIGN_CLEAR_EDGE - 1) // 1 m: sampling step
       }
     })
   }

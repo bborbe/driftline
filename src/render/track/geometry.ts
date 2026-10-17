@@ -1,14 +1,21 @@
 // Track mesh generation from the shared schema. Pure TypeScript (no three) so it
 // is unit-testable in Node; src/render/track/mesh.ts wraps the arrays for three.js.
 import { DECK_DEPTH, deckRows, PARAPET_HEIGHT, PARAPET_WIDTH, roadPoint, rowCount, type BodyKind, type BodyPlan } from '../../track/bodies'
-import { loopPoint, poses, ROAD_WIDTH, sampleSegment, turnSign, wallPoint, wallTop as wallrideTop, type LoopSegment, type Sample, type WallrideSegment } from '../../track/pose'
-import type { Pose, Segment, Track } from '../../track/schema'
+import { loopPoint, poses, ROAD_WIDTH, sampleSegment, turnSign, wallPoint, wallTop as wallrideTop, widthAt, type LoopSegment, type Sample, type WallrideSegment } from '../../track/pose'
+import { CELL, type Pose, type Segment, type Track } from '../../track/schema'
 
 export { sampleSegment, segmentLength, type Sample } from '../../track/pose'
 export { BRIDGE_MIN_HEIGHT, DECK_DEPTH, DECK_PILLAR_CLEAR, DECK_PILLAR_SIZE, DECK_PILLAR_STEP, PARAPET_HEIGHT, PARAPET_WIDTH, planBodies, planDeckPillars, RAISED_MIN, rowCount, SPAN_CLEAR, SPAN_HEADROOM, SPAN_PATH_SKIP, type BodyKind, type BodyPlan, type DeckPillar } from '../../track/bodies'
 
-/** Road width in metres (ROAD_WIDTH, src/track/pose.ts). */
+/** Default road width in metres (ROAD_WIDTH, src/track/pose.ts); a segment's own is widthAt. */
 export const TRACK_WIDTH = ROAD_WIDTH
+
+/**
+ * Sideways stretch of PROFILE at t along a segment: its road width (widthAt) over the 10 m
+ * (CELL) Kenney straight PROFILE copies. Road, curbs and shoulders widen together, the way an
+ * x-scaled Kenney straight does, so glb pieces and procedural road still meet edge to edge.
+ */
+export const roadScale = (seg: Segment, t: number): number => widthAt(seg, t) / CELL
 /**
  * Lift of the procedural surface above the schema pose. Zero: it must sit exactly at the
  * Kenney pieces' height, or the step at every glb/procedural joint draws a dark seam line.
@@ -37,8 +44,8 @@ export const lateralPoint = (p: Sample, u: number, s: number): [number, number, 
 export type Band = 'grass' | 'curb' | 'road'
 
 /**
- * Cross-section, left edge to right edge: (lateral offset m, height m, band). It copies the
- * Kenney straight (assets/pieces/straight.glb): 6.9 m of road at y 0.1, grey curbs out to
+ * Cross-section of a CELL-wide road, left edge to right edge: (lateral offset m, height m, band),
+ * stretched across by roadScale on a wider or narrower segment. It copies the Kenney straight (assets/pieces/straight.glb): 6.9 m of road at y 0.1, grey curbs out to
  * ±4.18 m raised to 0.2, grass shoulders out to ±5 m at y 0 — so procedural segments and
  * glb pieces meet with the same road, curbs and edges. Repeated offsets make crisp steps.
  */
@@ -72,7 +79,10 @@ export const buildSegment = (entry: Pose, seg: Segment): SegmentGeometry => {
     // The same cross-section and winding as below, wrapped round the loop: it faces the loop's axis.
     const perRow = PROFILE.length
     const positions = new Float32Array(rows * perRow * 3)
-    for (let r = 0; r < rows; r++) PROFILE.forEach(([u, h], c) => positions.set(loopVertex(entry, seg, r, rows, u, SURFACE_LIFT + h), (r * perRow + c) * 3))
+    for (let r = 0; r < rows; r++) {
+      const k = roadScale(seg, r / (rows - 1))
+      PROFILE.forEach(([u, h], c) => positions.set(loopVertex(entry, seg, r, rows, u * k, SURFACE_LIFT + h), (r * perRow + c) * 3))
+    }
     return { positions, indices: gridIndices(rows, perRow), rows, perRow }
   }
   const s = turnSign(seg)
@@ -80,8 +90,9 @@ export const buildSegment = (entry: Pose, seg: Segment): SegmentGeometry => {
   const positions = new Float32Array(rows * perRow * 3)
   for (let r = 0; r < rows; r++) {
     const p = sampleSegment(entry, seg, r / (rows - 1))
+    const k = roadScale(seg, r / (rows - 1))
     PROFILE.forEach(([u, h], c) => {
-      const [x, y, z] = lateralPoint(p, u, s)
+      const [x, y, z] = lateralPoint(p, u * k, s)
       positions.set([x, y + h, z], (r * perRow + c) * 3)
     })
   }
@@ -128,11 +139,11 @@ export const buildApron = (entry: Pose, seg: Segment, kinds: readonly BodyKind[]
   if (seg.type !== 'banked') return null
   const rows = rowCount(seg)
   const s = turnSign(seg)
-  const half = TRACK_WIDTH / 2
   const perRow = 4 // inner edge, apron rim, outer edge, skirt foot
   const positions = new Float32Array(rows * perRow * 3)
   for (let r = 0; r < rows; r++) {
     const p = sampleSegment(entry, seg, r / (rows - 1))
+    const half = widthAt(seg, r / (rows - 1)) / 2
     const inner = lateralPoint(p, s * half, s) // the inner side is toward the turn centre
     const dip = Math.max(0, p.y + SURFACE_LIFT - inner[1])
     const rim = lateralPoint({ ...p, roll: 0 }, s * (half + APRON_RUN * dip), s)
@@ -176,11 +187,12 @@ const wallTop = (p: Sample, seg: Segment, u: number, s: number): [number, number
 export const buildBody = (entry: Pose, seg: Segment, plan: BodyPlan): SegmentGeometry => {
   const rows = rowCount(seg)
   const s = turnSign(seg)
-  const half = TRACK_WIDTH / 2
   const perRow = 6
   const pos: number[] = []
   const samples = Array.from({ length: rows }, (_, r) => sampleSegment(entry, seg, r / (rows - 1)))
-  for (const p of samples) {
+  const halves = samples.map((_, r) => widthAt(seg, r / (rows - 1)) / 2)
+  samples.forEach((p, r) => {
+    const half = halves[r]
     for (const u of [half, -half]) {
       const [x, y, z] = wallTop(p, seg, u, s)
       pos.push(x, y, z, x, 0, z)
@@ -190,7 +202,7 @@ export const buildBody = (entry: Pose, seg: Segment, plan: BodyPlan): SegmentGeo
       const [x, y, z] = lateralPoint(p, u, s)
       pos.push(x, Math.max(0, y - LID_DROP), z)
     }
-  }
+  })
   const idx: number[] = []
   for (let r = 0; r < rows - 1; r++) {
     if (plan.kinds[r] !== 'fill' || plan.kinds[r + 1] !== 'fill') continue
@@ -202,12 +214,13 @@ export const buildBody = (entry: Pose, seg: Segment, plan: BodyPlan): SegmentGeo
   }
   for (const r of plan.caps) {
     const p = samples[r]
+    const k = roadScale(seg, r / (rows - 1))
     const tops: [number, number, number][] = PROFILE.map(([u, h]) => {
-      const [x, y, z] = lateralPoint(p, u, s)
+      const [x, y, z] = lateralPoint(p, u * k, s)
       return [x, y + h, z]
     })
     // A banked turn's apron rim is the body's inner edge: close the cap out to it.
-    const rimTop = wallTop(p, seg, s * half, s)
+    const rimTop = wallTop(p, seg, s * halves[r], s)
     if (s > 0) tops.unshift(rimTop)
     else tops.push(rimTop)
     const base = pos.length / 3
@@ -220,12 +233,11 @@ export const buildBody = (entry: Pose, seg: Segment, plan: BodyPlan): SegmentGeo
   return { positions: new Float32Array(pos), indices: new Uint32Array(idx), rows, perRow }
 }
 
-// A bridge deck's cross-section, left to right, as (lateral offset, height above the road edge):
-// the left parapet's inner foot and top, its outer top, the deck's outer foot, then the same
-// mirrored on the right. The lid back to the first column closes it in the road edges' plane, under
-// the curbs and the road (supportMaterial is pushed back in depth, so the road draws over it).
-const DECK_SECTION: readonly [number, number][] = (() => {
-  const half = TRACK_WIDTH / 2
+// A bridge deck's cross-section for a road `half` wide each side, left to right, as (lateral offset,
+// height above the road edge): the left parapet's inner foot and top, its outer top, the deck's outer
+// foot, then the same mirrored on the right. The lid back to the first column closes it in the road
+// edges' plane, under the curbs and the road (supportMaterial is pushed back in depth, so the road draws over it).
+const deckSection = (half: number): [number, number][] => {
   const out = half + PARAPET_WIDTH
   return [
     [half, 0],
@@ -237,16 +249,16 @@ const DECK_SECTION: readonly [number, number][] = (() => {
     [-half, PARAPET_HEIGHT],
     [-half, 0],
   ]
-})()
-/** Vertices per row of a bridge deck (DECK_SECTION). */
-export const DECK_PER_ROW = DECK_SECTION.length
-/** DECK_SECTION columns at the deck's foot (soffit corners), for the darker concrete. */
+}
+/** Vertices per row of a bridge deck (deckSection). */
+export const DECK_PER_ROW = 8
+/** deckSection columns at the deck's foot (soffit corners), for the darker concrete. */
 export const DECK_FOOT_COLUMNS: readonly number[] = [3, 4]
 
 /**
  * Bridge deck under a raised segment's span rows: a closed concrete box DECK_DEPTH deep
  * under the road, with a parapet PARAPET_WIDTH thick and PARAPET_HEIGHT tall along each road edge
- * (DECK_SECTION), drawn between a span row and its neighbours so it runs into the abutment caps
+ * (deckSection), drawn between a span row and its neighbours so it runs into the abutment caps
  * (buildBody). The lid under the road and an end face at both ends of every stretch close the
  * box, so it is solid from every side and never a free-edged sheet. Open underneath: the pillars
  * (planDeckPillars) carry it; its parapets collide (parapetBoxes, src/track/bodies.ts, from the same deckRows).
@@ -262,7 +274,7 @@ export const buildDeck = (entry: Pose, seg: Segment, kinds: readonly BodyKind[] 
   const pos: number[] = []
   for (let r = 0; r < rows; r++) {
     const p = sampleSegment(entry, seg, r / (rows - 1))
-    for (const [u, h] of DECK_SECTION) {
+    for (const [u, h] of deckSection(widthAt(seg, r / (rows - 1)) / 2)) {
       // The parapet and the deck sides follow the road's bank, extended past its edge.
       const [x, y, z] = lateralPoint(p, u, s)
       pos.push(x, y + h, z)
@@ -309,10 +321,10 @@ export const buildDeck = (entry: Pose, seg: Segment, kinds: readonly BodyKind[] 
  */
 const buildLoopShell = (entry: Pose, seg: LoopSegment): SegmentGeometry => {
   const rows = rowCount(seg)
-  const half = TRACK_WIDTH / 2
   const perRow = 4
   const positions = new Float32Array(rows * perRow * 3)
   for (let r = 0; r < rows; r++) {
+    const half = widthAt(seg, r / (rows - 1)) / 2
     for (const [k, u] of [[0, half], [2, -half]]) {
       positions.set(loopVertex(entry, seg, r, rows, u, SURFACE_LIFT), (r * perRow + k) * 3)
       positions.set(loopVertex(entry, seg, r, rows, u, SURFACE_LIFT - DECK_DEPTH), (r * perRow + k + 1) * 3)

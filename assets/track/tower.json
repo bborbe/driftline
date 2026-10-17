@@ -35,19 +35,22 @@
     },
     {
       "type": "straight",
-      "length": 90
+      "length": 90,
+      "width": [14, 20]
     },
     {
       "type": "drop",
       "length": 80,
-      "fall": 12
+      "fall": 12,
+      "width": 20
     },
     {
       "type": "banked",
       "turn": "left",
       "radius": 25,
       "angle": 90,
-      "bank": 0.3
+      "bank": 0.3,
+      "width": [20, 14]
     },
     {
       "type": "straight",
@@ -61,39 +64,46 @@
     },
     {
       "type": "straight",
-      "length": 20.147
+      "length": 20.147,
+      "width": [14, 10]
     },
     {
       "type": "curve",
       "turn": "left",
       "radius": 30,
-      "angle": 45
+      "angle": 45,
+      "width": 10
     },
     {
       "type": "curve",
       "turn": "right",
       "radius": 30,
-      "angle": 45
+      "angle": 45,
+      "width": 10
     },
     {
       "type": "straight",
-      "length": 10
+      "length": 10,
+      "width": 10
     },
     {
       "type": "curve",
       "turn": "right",
       "radius": 30,
-      "angle": 45
+      "angle": 45,
+      "width": 10
     },
     {
       "type": "curve",
       "turn": "left",
       "radius": 30,
-      "angle": 45
+      "angle": 45,
+      "width": 10
     },
     {
       "type": "straight",
-      "length": 10
+      "length": 10,
+      "width": [10, 14]
     },
     {
       "type": "curve",

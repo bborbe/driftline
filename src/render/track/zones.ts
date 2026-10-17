@@ -11,7 +11,7 @@ import * as THREE from 'three/webgpu'
 import { isEffect, poses, sampleSegment, segmentLength, SURFACE_KINDS, turnSign, zoneCorners, type Pose, type SurfaceKind, type Track, type Zone, type ZoneKind } from '../../track/schema'
 import { EFFECT_LOOK, effectIcon } from './effect-pads'
 import { flat } from '../tags'
-import { lateralPoint, PROFILE, rowCount } from './geometry'
+import { lateralPoint, PROFILE, roadScale, rowCount } from './geometry'
 
 const roadColumns = PROFILE.filter(([, , band]) => band === 'road')
 /** Lateral offsets of the road mesh's asphalt columns, left to right (PROFILE order). */
@@ -20,9 +20,14 @@ const ROAD_COLUMNS = roadColumns.map(([u]) => u)
 export const ROAD_HALF_WIDTH = Math.max(...roadColumns.map(([u]) => Math.abs(u)))
 /** Height of the asphalt above the segment's pose (the Kenney road top). */
 export const ROAD_TOP = roadColumns[0][1]
-/** Turbo pads: a little inside the asphalt, so a strip of road shows before the curb. */
+/** Turbo pads: a little inside the asphalt, so a strip of road shows before the curb (CELL-wide road; padWidth for any). */
 export const ZONE_WIDTH = 2 * ROAD_HALF_WIDTH - 0.5
-/** Surfaces: the whole asphalt; the ragged fade keeps them off the curbs. */
+/** A pad's width on its own segment: the asphalt there, at its narrower end, less ZONE_WIDTH's 0.5 m. */
+export const padWidth = (track: Track, zone: Zone): number => {
+  const seg = track.segments[zone.segment]
+  return 2 * ROAD_HALF_WIDTH * Math.min(roadScale(seg, zone.from), roadScale(seg, zone.to)) - 0.5
+}
+/** Surfaces: the whole asphalt of a CELL-wide road, stretched by roadScale; the ragged fade keeps them off the curbs. */
 export const SURFACE_WIDTH = 2 * ROAD_HALF_WIDTH
 /** Decal height over the segment's pose: the road top plus 3 mm (polygonOffset does the rest). */
 export const ZONE_LIFT = ROAD_TOP + 0.003
@@ -56,7 +61,7 @@ const lerp = (a: Pose, b: Pose, t: number): Pose => ({
 })
 
 /** Flat quad of a zone as triangle positions (two triangles). */
-export const zoneQuad = (track: Track, zone: Zone, width = ZONE_WIDTH): Float32Array => {
+export const zoneQuad = (track: Track, zone: Zone, width = padWidth(track, zone)): Float32Array => {
   const [l0, r0, l1, r1] = zoneCorners(track, zone, width)
   return new Float32Array([...lift(l0, ZONE_LIFT), ...lift(r0, ZONE_LIFT), ...lift(l1, ZONE_LIFT), ...lift(r0, ZONE_LIFT), ...lift(r1, ZONE_LIFT), ...lift(l1, ZONE_LIFT)])
 }
@@ -65,7 +70,7 @@ export const zoneQuad = (track: Track, zone: Zone, width = ZONE_WIDTH): Float32A
  * Chevrons on a turbo pad pointing along its arrow (padForward: the direction physics boosts), as
  * triangle positions slightly above its quad. A reversed pad swaps the ends so the tips point back.
  */
-export const turboChevrons = (track: Track, zone: Zone, count = 3, width = ZONE_WIDTH): Float32Array => {
+export const turboChevrons = (track: Track, zone: Zone, count = 3, width = padWidth(track, zone)): Float32Array => {
   const [c0, c1, c2, c3] = zoneCorners(track, zone, width * 0.7)
   const [l0, r0, l1, r1] = zone.reverse ? [c3, c2, c1, c0] : [c0, c1, c2, c3]
   const out: number[] = []
@@ -156,10 +161,12 @@ export const surfacePatch = (track: Track, zone: Zone & { kind: SurfaceKind }, o
     const l = Math.min(ROAD_COLUMNS[0], Math.max(ROAD_COLUMNS[ROAD_COLUMNS.length - 1], lat))
     const c = Math.max(0, ROAD_COLUMNS.findIndex((u, i) => i < ROAD_COLUMNS.length - 1 && l <= u && l >= ROAD_COLUMNS[i + 1]))
     const w = (ROAD_COLUMNS[c] - l) / (ROAD_COLUMNS[c] - ROAD_COLUMNS[c + 1])
-    const A = lateralPoint(road[r0], ROAD_COLUMNS[c], s)
-    const B = lateralPoint(road[r0], ROAD_COLUMNS[c + 1], s)
-    const C = lateralPoint(road[r0 + 1], ROAD_COLUMNS[c], s)
-    const D = lateralPoint(road[r0 + 1], ROAD_COLUMNS[c + 1], s)
+    // `lat` is on a CELL-wide road; each road row is stretched by its own roadScale, as buildSegment draws it.
+    const [k0, k1] = [roadScale(seg, r0 / (roadRows - 1)), roadScale(seg, (r0 + 1) / (roadRows - 1))]
+    const A = lateralPoint(road[r0], ROAD_COLUMNS[c] * k0, s)
+    const B = lateralPoint(road[r0], ROAD_COLUMNS[c + 1] * k0, s)
+    const C = lateralPoint(road[r0 + 1], ROAD_COLUMNS[c] * k1, s)
+    const D = lateralPoint(road[r0 + 1], ROAD_COLUMNS[c + 1] * k1, s)
     return k + w <= 1 ? A.map((a, i) => a + w * (B[i] - a) + k * (C[i] - a)) : D.map((d, i) => d + (1 - w) * (C[i] - d) + (1 - k) * (B[i] - d))
   }
   const along = (to - from) * length
@@ -175,15 +182,17 @@ export const surfacePatch = (track: Track, zone: Zone & { kind: SurfaceKind }, o
     const f = from + (to - from) * t
     const v = t * along // metres along this patch
     const lapV = lapBefore + from * length + v // metres along the lap
+    const k = roadScale(seg, f) // the road's stretch here: `cu` is on a CELL-wide road, `u` in metres
     for (let c = 0; c < cols; c++) {
-      const u = (c / (cols - 1)) * SURFACE_WIDTH // metres across, from the left edge
-      const [x, y, z] = roadPoint(f, SURFACE_WIDTH / 2 - u)
+      const cu = (c / (cols - 1)) * SURFACE_WIDTH
+      const u = cu * k // metres across, from the left edge
+      const [x, y, z] = roadPoint(f, SURFACE_WIDTH / 2 - cu)
       const i = r * cols + c
       positions.set([x, y + ZONE_LIFT, z], i * 3)
       uvs.set([u, lapV], i * 2)
       // Distance to the nearest edge. The fade starts a noisy 0..EDGE_FADE/2 in from the edge and
       // takes another EDGE_FADE/2 to reach opaque, so the border frays but the outline is always clear.
-      const edge = Math.min(u, SURFACE_WIDTH - u, open.start ? Infinity : v, open.end ? Infinity : along - v)
+      const edge = Math.min(u, SURFACE_WIDTH * k - u, open.start ? Infinity : v, open.end ? Infinity : along - v)
       const start = fbm(u * 0.9, lapV * 0.9, seed + 3) * (EDGE_FADE / 2)
       const alpha = Math.min(1, Math.max(0, (edge - start) / (EDGE_FADE / 2)))
       const n = fbm(u * 0.6, lapV * (0.6 / look.streak), seed)
@@ -299,7 +308,7 @@ export const createZoneMeshes = (track: Track): THREE.Group => {
         materials.set(kind, new THREE.MeshStandardMaterial({ ...DECAL, color: look.color, emissive: look.color, emissiveIntensity: look.emissive, roughness: 0.4 }))
       }
       group.add(flat(padMesh(zoneQuad(track, zone), materials.get(kind)!, 2), 'effect-pad'))
-      group.add(flat(padMesh(effectIcon(track, { ...zone, kind }, ZONE_WIDTH, ZONE_LIFT + 0.002), chevron, 3), 'decal'))
+      group.add(flat(padMesh(effectIcon(track, { ...zone, kind }, padWidth(track, zone), ZONE_LIFT + 0.002), chevron, 3), 'decal'))
     } else {
       if (!materials.has(kind)) materials.set(kind, surfaceMaterial(kind))
       group.add(flat(patchMesh(surfacePatch(track, { ...zone, kind }), materials.get(kind)!), 'decal'))

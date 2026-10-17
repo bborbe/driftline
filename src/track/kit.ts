@@ -4,7 +4,7 @@
 // can never disagree. A kit track is a list of placed pieces; compileKit() turns it into a
 // plain Track, so everything downstream (lap loop, ghost, render) is unchanged.
 // Pure TypeScript: no three, no browser APIs, so physics may import it.
-import { CELL, exitPose, type Barrier, type Gate, type GateKind, type Pose, type Segment, type Track, type Turn, type Zone, type ZoneKind } from './schema'
+import { CELL, exitPose, segmentLength, widthAt, type Barrier, type Gate, type GateKind, type Pose, type Segment, type Track, type Turn, type Width, type Zone, type ZoneKind } from './schema'
 
 /** Height of one kit level in metres. Every connector sits on a multiple of it. */
 export const LEVEL = 4
@@ -258,6 +258,12 @@ export interface Placement {
    * stand on y = 0). Closes a cut that pays, e.g. across the grass beside a dirt or ice corner.
    */
   walls?: 'both' | Turn
+  /**
+   * Road width of the piece (see Segment `width`): a number for every segment it expands to, or
+   * [entry, exit] to taper across the whole piece, split over its segments by length. Omitted:
+   * ROAD_WIDTH, or one LOOP_SHIFT lane on a loop. The grid stays CELL.
+   */
+  width?: Width
 }
 
 /** Kit track start: grid cell [x, z], level, and direction in quarter turns (0 = +z, CCW). */
@@ -280,8 +286,21 @@ export const isKitTrack = (data: unknown): data is KitTrack => {
   return typeof kit === 'object' && kit !== null
 }
 
-/** Barrier offset from the centreline: just outside the road edge (TRACK_WIDTH 10 → 5 m). */
-const WALL_OFFSET = CELL / 2 + 0.6
+/** Barrier offset past the road edge for the `walled` piece's own walls (road half width + this). */
+const WALL_OFFSET = 0.6
+
+// A placement's width on each of its segments: a number on every one, a taper split by length.
+function pieceWidths(segments: Segment[], width: Width): Segment[] {
+  if (typeof width === 'number') return segments.map((seg) => ({ ...seg, width }))
+  const total = segments.reduce((d, seg) => d + segmentLength(seg), 0)
+  const at = (d: number) => width[0] + ((width[1] - width[0]) * d) / total
+  let d = 0
+  return segments.map((seg) => {
+    const from = at(d)
+    d += segmentLength(seg)
+    return { ...seg, width: [from, at(d)] }
+  })
+}
 
 export interface CompiledKit {
   track: Track
@@ -314,7 +333,8 @@ export function compileKit(kt: KitTrack): CompiledKit {
     const entry = ps[ps.length - 1]
     if (!onGrid(entry)) throw new Error(`kit piece ${i}: entry is off the grid`)
     const turn = pl.turn ?? 'left'
-    const ex = def.expand(turn)
+    const expanded = def.expand(turn)
+    const ex = pl.width === undefined ? expanded : { ...expanded, segments: pieceWidths(expanded.segments, pl.width) }
     const base = segments.length
     firstSegment.push(base)
     let pose = entry
@@ -351,9 +371,10 @@ export function compileKit(kt: KitTrack): CompiledKit {
       if (Math.abs(entry.y) > 1e-9 || Math.abs(pose.y) > 1e-9) throw new Error(`kit piece ${i}: ${def.id} walls stand on the ground only`)
       const fx = Math.sin(entry.heading)
       const fz = Math.cos(entry.heading)
+      const offset = widthAt(ex.segments[0], 0) / 2 + WALL_OFFSET
       for (const side of [1, -1]) {
-        const ox = fz * side * WALL_OFFSET
-        const oz = -fx * side * WALL_OFFSET
+        const ox = fz * side * offset
+        const oz = -fx * side * offset
         barriers.push({ from: [entry.x + ox, entry.z + oz], to: [pose.x + ox, pose.z + oz] })
       }
     }

@@ -1,6 +1,6 @@
 // Drivable surfaces for the wheel raycasts. Pure and deterministic: no three.js,
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
-import { barrierPillars, barrierPosts, gateLegs, gatePillars, isPad, padForward, poses, ROAD_WIDTH, turnCentre, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
+import { barrierPillars, barrierPosts, gateLegs, gatePillars, isPad, padForward, poses, ROAD_WIDTH, turnCentre, widthAt, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
 import { bodyBoxes, parapetBoxes, pillarBoxes } from '../track/bodies'
 import { loopShift, wallFrame, wallTop, WALL_RADIUS, type LoopSegment, type WallrideSegment } from '../track/pose'
 import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
@@ -27,8 +27,11 @@ export interface Surface {
   obstacles?: readonly Pillar[]
 }
 
-// Driving width of every track piece (ROAD_WIDTH, src/track/pose.ts); pieces sit on a CELL grid.
+// Default driving width of a track piece (ROAD_WIDTH, src/track/pose.ts); a segment's own width is widthAt.
 export const TRACK_WIDTH = ROAD_WIDTH
+
+// Road width at t (0..1) along a piece.
+type WidthAt = (t: number) => number
 
 const UP = v3(0, 1, 0)
 
@@ -52,7 +55,7 @@ type Piece = (x: number, z: number) => Shape | null
 const TWO_PI = 2 * Math.PI
 
 // straight / ramp / drop: a planar strip from the entry pose, rising linearly by `dy`.
-const strip = (p: Pose, length: number, dy: number, width: number): Piece => {
+const strip = (p: Pose, length: number, dy: number, width: WidthAt): Piece => {
   const fx = Math.sin(p.heading)
   const fz = Math.cos(p.heading)
   const slope = dy / length
@@ -61,7 +64,7 @@ const strip = (p: Pose, length: number, dy: number, width: number): Piece => {
     const rz = z - p.z
     const u = rx * fx + rz * fz
     const lat = rx * fz - rz * fx
-    if (u < 0 || u > length || Math.abs(lat) > width / 2) return null
+    if (u < 0 || u > length || Math.abs(lat) > width(u / length) / 2) return null
     return { y: p.y + slope * u, gx: slope * fx, gz: slope * fz, t: u / length }
   }
 }
@@ -69,19 +72,20 @@ const strip = (p: Pose, length: number, dy: number, width: number): Piece => {
 // curve / hairpin / banked: an annular sector around the turn centre (turnCentre, the same
 // circle pose.ts sweeps the centreline on). `bank` raises the outer edge about the centreline,
 // easing in and out at both ends (src/track/bank.ts — shared with the renderer).
-const sector = (p: Pose, left: boolean, radius: number, angle: number, bank: number, width: number): Piece => {
+const sector = (p: Pose, left: boolean, radius: number, angle: number, bank: number, width: WidthAt): Piece => {
   const s = left ? 1 : -1
   const [cx, cz] = turnCentre(p, left ? 'left' : 'right', radius)
   return (x, z) => {
     const rx = x - cx
     const rz = z - cz
     const r = Math.hypot(rx, rz)
-    if (r < 1e-9 || Math.abs(r - radius) > width / 2) return null
+    if (r < 1e-9) return null
     // The arc point at sweep θ is centre + radius · (-s·cos(h + sθ), s·sin(h + sθ)).
     let theta = s * (Math.atan2(s * rz, -s * rx) - p.heading)
     theta = ((theta % TWO_PI) + TWO_PI) % TWO_PI
     if (theta > angle) return null
     const t = theta / angle
+    if (Math.abs(r - radius) > width(t) / 2) return null
     if (bank === 0) return { y: p.y, gx: 0, gz: 0, t }
     const b = bankAngleAt(bank, t)
     const tb = Math.tan(b)
@@ -96,7 +100,7 @@ const sector = (p: Pose, left: boolean, radius: number, angle: number, bank: num
   }
 }
 
-const piece = (p: Pose, seg: Segment, width: number): Piece => {
+const piece = (p: Pose, seg: Segment, width: WidthAt): Piece => {
   switch (seg.type) {
     case 'straight':
       return strip(p, seg.length, 0, width)
@@ -127,7 +131,7 @@ const piece = (p: Pose, seg: Segment, width: number): Piece => {
  * car's own down, sideways or upwards — and only from inside the tube, where the road faces them.
  * Gravity stays world −y, so a car stays on only while its speed presses the wheels into the road.
  */
-const loopRaycast = (p: Pose, seg: LoopSegment, width: number): Surface['raycast'] => {
+const loopRaycast = (p: Pose, seg: LoopSegment, width: WidthAt): Surface['raycast'] => {
   const fx = Math.sin(p.heading)
   const fz = Math.cos(p.heading)
   const r = seg.radius
@@ -150,7 +154,7 @@ const loopRaycast = (p: Pose, seg: LoopSegment, width: number): Surface['raycast
     const hu = ou + distance * du
     let theta = Math.atan2(hf, -hu)
     if (theta < 0) theta += TWO_PI
-    if (Math.abs(ol + distance * (dir.x * fz - dir.z * fx) - loopShift(seg, theta)) > width / 2) return null
+    if (Math.abs(ol + distance * (dir.x * fz - dir.z * fx) - loopShift(seg, theta)) > width(theta / TWO_PI) / 2) return null
     return { distance, normal: v3((-hf / r) * fx, -hu / r, (-hf / r) * fz), loop: true }
   }
 }
@@ -210,7 +214,7 @@ const wallRaycast = (p: Pose, seg: WallrideSegment): Surface['raycast'] => {
 }
 
 export type TrackSurfaceOptions = {
-  width?: number // default TRACK_WIDTH
+  width?: number // every piece this wide; default each segment's own (widthAt)
   groundY?: number | null // infinite ground plane under the track; null = none
 }
 
@@ -221,10 +225,10 @@ const ITERATIONS = 8
 const ABOVE = 0.1
 
 export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): Surface => {
-  const width = options.width ?? TRACK_WIDTH
+  const widthOf = (seg: Segment): WidthAt => (options.width !== undefined ? () => options.width as number : (t) => widthAt(seg, t))
   const groundY = options.groundY === undefined ? 0 : options.groundY
   const entries = poses(track)
-  const pieces = track.segments.map((seg, i) => piece(entries[i], seg, width))
+  const pieces = track.segments.map((seg, i) => piece(entries[i], seg, widthOf(seg)))
   const zones = track.zones ?? []
   const padDirs = zones.map((z) => {
     const [x, z2] = padForward(track, z)
@@ -272,7 +276,7 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
     return isPad(material) ? { distance: t, normal, material, padForward: padDirs[zi] } : { distance: t, normal, material }
   }
   const loops = track.segments.flatMap((seg, i) =>
-    seg.type === 'loop' ? [loopRaycast(entries[i], seg, width)] : seg.type === 'wallride' ? [wallRaycast(entries[i], seg)] : [],
+    seg.type === 'loop' ? [loopRaycast(entries[i], seg, widthOf(seg))] : seg.type === 'wallride' ? [wallRaycast(entries[i], seg)] : [],
   )
   // A track without a loop or a wallride keeps the height field's raycast itself, so it drives bit-identically.
   const raycast: Surface['raycast'] =
