@@ -32,11 +32,13 @@ export interface Theme {
   sign?: string
   /** Arena screen background (default navy-blue gradient). */
   screen?: string
+  /** Grandstand seat and trim colour, also worn by part of the crowd (default: the `curb` accent, else the stands' own red). */
+  stand?: string
   /** Kenney Nature Kit model names (assets/nature-kit/<name>.glb) the scenery picks from. */
   scenery?: string[]
 }
 
-const COLOUR_KEYS = ['fog', 'sun', 'ground', 'curb', 'sign', 'screen'] as const
+const COLOUR_KEYS = ['fog', 'sun', 'ground', 'curb', 'sign', 'screen', 'stand'] as const
 const NUMBER_KEYS = ['skyLight', 'exposure', 'fogNear', 'fogFar', 'sunIntensity'] as const
 const KEYS: readonly string[] = ['sky', 'scenery', ...COLOUR_KEYS, ...NUMBER_KEYS]
 
