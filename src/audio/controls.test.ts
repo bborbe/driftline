@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isBeginKey } from './controls'
+import { beginAllowed, isBeginKey } from './controls'
 
 describe('Begin keys', () => {
   it.each(['Enter', 'NumpadEnter', 'Space'])('%s starts the countdown', (code) => {
@@ -20,5 +20,14 @@ describe('Begin keys', () => {
 
   it('still fires with the volume slider focused', () => {
     expect(isBeginKey('Space', false, { tagName: 'INPUT', type: 'range' })).toBe(true)
+  })
+})
+
+describe('beginAllowed', () => {
+  it('refuses Begin while paused or flying, so Space in fly mode only rises', () => {
+    expect(beginAllowed(false, false)).toBe(true)
+    expect(beginAllowed(true, false)).toBe(false)
+    expect(beginAllowed(false, true)).toBe(false)
+    expect(beginAllowed(true, true)).toBe(false)
   })
 })

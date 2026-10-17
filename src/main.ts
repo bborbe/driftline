@@ -6,7 +6,7 @@ import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
-import { GameAudio, mountAudioControls } from './audio'
+import { beginAllowed, GameAudio, mountAudioControls } from './audio'
 import { initRace } from './race'
 import { lapCount } from './race/lap'
 import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
@@ -93,8 +93,8 @@ const race = initRace(sim, track, {
   },
   laps,
 })
-// Begin is ignored while paused (Esc); unpause first.
-mountAudioControls(audio, () => race.start(), () => !race.paused, settings.volume, (volume) =>
+// Begin is ignored while paused (Esc; unpause first) and while flying (Space rises there).
+mountAudioControls(audio, () => race.start(), () => beginAllowed(race.paused, cam.fly !== null), settings.volume, (volume) =>
   saveSettings(localStorage, { ...loadSettings(localStorage), volume }),
 )
 audio.setVolume(settings.volume)
@@ -151,7 +151,7 @@ view.renderer.setAnimationLoop(() => {
   const f = cam.fly
   debug.setText(
     f
-      ? `${backend}  ${track.name}  FLY${cam.orbiting ? ' ORBIT' : ''}  x ${f.position.x.toFixed(1)}  y ${f.position.y.toFixed(1)}  z ${f.position.z.toFixed(1)}  yaw ${wrapDeg((f.yaw * 180) / Math.PI).toFixed(0)}  pitch ${((f.pitch * 180) / Math.PI).toFixed(0)}  ·  WASD move  drag look  E/Q up/down  Shift fast  O orbit  C exit`
+      ? `${backend}  ${track.name}  FLY${cam.orbiting ? ' ORBIT' : ''}  x ${f.position.x.toFixed(1)}  y ${f.position.y.toFixed(1)}  z ${f.position.z.toFixed(1)}  yaw ${wrapDeg((f.yaw * 180) / Math.PI).toFixed(0)}  pitch ${((f.pitch * 180) / Math.PI).toFixed(0)}  ·  WASD move  drag look  Space/Ctrl up/down (E/Q)  Shift fast  O orbit  C exit`
       : `${backend}  ${track.name}  x ${s.position.x.toFixed(1)}  y ${s.position.y.toFixed(1)}  z ${s.position.z.toFixed(1)}  yaw ${yawDeg(forwardOf(s)).toFixed(0)}${inLoop(s.position) ? `  up ${rotate(s.orientation, v3(0, 1, 0)).y.toFixed(2)}` : ''}${material === 'road' ? '' : `  ${material}`}${s.turbo > 0 ? '  TURBO' : ''}`,
   )
   view.frame(s, elapsed, material)

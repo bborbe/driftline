@@ -7,6 +7,7 @@ import {
   flyToggleKey,
   FLY_FAST,
   FLY_SPEED,
+  isFlyKey,
   look,
   lookDir,
   MAX_PITCH,
@@ -17,6 +18,7 @@ import {
   orbitRequested,
   orbitToggleKey,
   pitchParam,
+  startsLook,
   updateFly,
   wrapDeg,
 } from './fly'
@@ -47,10 +49,27 @@ describe('free-fly camera', () => {
     expect(orbitRequested('?cam=fly')).toBe(false)
   })
 
-  it('maps WASD / arrows, E/Q up/down and Shift fast; leaves Space to Begin', () => {
+  it('maps WASD / arrows, Space/E up, Ctrl/Q down and Shift fast', () => {
     expect(flyInputFrom(new Set(['KeyW', 'KeyD', 'KeyE', 'ShiftLeft']))).toEqual({ forward: 1, right: 1, up: 1, fast: true })
     expect(flyInputFrom(new Set(['ArrowDown', 'ArrowLeft', 'KeyQ']))).toEqual({ forward: -1, right: -1, up: -1, fast: false })
-    expect(flyInputFrom(new Set(['Space']))).toEqual(idle)
+    expect(flyInputFrom(new Set(['Space']))).toEqual({ ...idle, up: 1 })
+    expect(flyInputFrom(new Set(['ControlLeft']))).toEqual({ ...idle, up: -1 })
+    expect(flyInputFrom(new Set(['ControlRight']))).toEqual({ ...idle, up: -1 })
+    expect(flyInputFrom(new Set(['Space', 'ControlLeft']))).toEqual(idle)
+  })
+
+  it('claims its own keys while flying and leaves the rest', () => {
+    for (const k of ['Space', 'ControlLeft', 'ControlRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'KeyQ', 'ShiftLeft', 'ArrowUp'])
+      expect(isFlyKey(k)).toBe(true)
+    for (const k of ['KeyC', 'KeyO', 'KeyP', 'Escape', 'Enter', 'Digit1', 'Backquote', 'KeyH']) expect(isFlyKey(k)).toBe(false)
+  })
+
+  it('starts a drag-look on the left button and on a macOS Ctrl+click reported as button 2', () => {
+    expect(startsLook(0, false)).toBe(true)
+    expect(startsLook(0, true)).toBe(true)
+    expect(startsLook(2, true)).toBe(true)
+    expect(startsLook(2, false)).toBe(false)
+    expect(startsLook(1, false)).toBe(false)
   })
 
   it('accelerates smoothly to the cruise speed and to the fast speed with Shift', () => {

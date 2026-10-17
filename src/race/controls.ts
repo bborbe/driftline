@@ -41,7 +41,7 @@ export const CONTROLS: ControlGroup[] = [
       { keys: 'C', action: 'Free-fly camera on / off' },
       { keys: 'W A S D', action: 'Fly: move' },
       { keys: 'Mouse drag', action: 'Fly: look' },
-      { keys: 'E / Q', action: 'Fly: up / down' },
+      { keys: 'Space / Ctrl, E / Q', action: 'Fly: up / down' },
       { keys: 'Shift', action: 'Fly: fast' },
       { keys: 'O', action: 'Fly: orbit the track' },
     ],
