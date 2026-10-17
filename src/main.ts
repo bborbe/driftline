@@ -18,6 +18,9 @@ import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
 import { effectiveFxQuery, loadSettings, saveSettings } from './menu/settings'
 import { settingsPanel } from './menu/settings-panel'
+import { devMode, RunTaint } from './debug/tuning'
+import { mountTuningPanel } from './debug/tuning-panel'
+import { isTuned } from './physics/handling'
 
 // A bare URL opens the start screen; ?track= and debug-spawn links go straight in (shared links, `make shots`).
 const fromMenu = !skipMenu(location.search)
@@ -40,6 +43,11 @@ const debug = mountDebugOverlay({
   },
 })
 
+// Dev tuning (?dev=1): F2 opens the handling sliders, the stored tune is loaded before the first tick, and a run that
+// ran tuned at any point sets no records or ghosts (src/debug/tuning.ts).
+const tuning = devMode(location.search) ? mountTuningPanel(localStorage) : null
+const taint = new RunTaint()
+taint.runStart(isTuned())
 const input = new KeyboardInput()
 const audio = new GameAudio()
 const laps = lapCount(location.search, settings.laps)
@@ -47,6 +55,7 @@ const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
 // Inside a loop the overlay adds the car's up.y (−1 = upside down at the apex), so a shot can show it.
 const inLoop = loopTubes(track)
 const ghostRecorder = new GhostRecorder()
+ghostRecorder.locked = () => taint.locked
 const ghostCar = await createGhostCar()
 view.scene.add(ghostCar.object)
 let ghost: GhostReplayer | null = null
@@ -63,6 +72,12 @@ const race = initRace(sim, track, {
       raceFinish: () => audio.onFinish(),
       respawn: () => audio.onRespawn(),
       restart: () => audio.onRestart(),
+    },
+    {
+      lapStart: (_tick, lap) => {
+        if (lap === 1) taint.runStart(isTuned())
+      },
+      restart: () => taint.runStart(isTuned()),
     },
     ghostRecorder.listener(() => sim.state),
     {
@@ -92,6 +107,7 @@ const race = initRace(sim, track, {
     settings: () => settingsPanel({ onVolume: (v) => audio.setVolume(v) }),
   },
   laps,
+  recordsLocked: () => taint.locked,
 })
 // Begin is ignored while paused (Esc; unpause first) and while flying (Space rises there).
 mountAudioControls(audio, () => race.start(), () => beginAllowed(race.paused, cam.fly !== null), settings.volume, (volume) =>
@@ -123,6 +139,7 @@ const cam = createCameraController({
 window.addEventListener('keydown', (e) => {
   debug.onKeyDown(e)
   cam.onKeyDown(e)
+  tuning?.onKeyDown(e)
 })
 ;(window as unknown as { driftline: object }).driftline = { centreline: (step: number) => centreline(track, step), ready: true }
 let last = performance.now()
@@ -134,6 +151,7 @@ view.renderer.setAnimationLoop(() => {
   const fly = cam.fly
 
   const carInput = input.read()
+  taint.observe(isTuned())
   if (!freeze && !fly) race.frame(elapsed, carInput)
   if (!fly) ghostRecorder.consume(sim.fed)
   if (ghost && !fly) {

@@ -29,6 +29,8 @@ export interface RaceOptions {
   menu?: Pick<MenuActions, 'backToMenu' | 'nextTrack' | 'settings'>
   /** Laps per run (default 1); `?laps=N` via lapCount, or the menu's Laps setting. Records are kept per lap count. */
   laps?: number
+  /** True while the run may not set records (a dev-tuned run, src/debug/tuning.ts). */
+  recordsLocked?: () => boolean
 }
 
 export interface Race {
@@ -43,7 +45,7 @@ export interface Race {
 
 export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}): Race {
   const laps = opts.laps ?? 1
-  const store = new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track), laps)
+  const store = new RaceStore(opts.storage ?? localStorage, track.name, layoutId(track), laps, opts.recordsLocked)
   const loop = new LapLoop(track, (ms) => store.recordLap(ms), laps)
   // Medal targets are single-lap times.
   const medals = laps === 1 ? track.medals : undefined
