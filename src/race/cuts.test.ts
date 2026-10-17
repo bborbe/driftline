@@ -312,8 +312,9 @@ describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap', 'flatout'])('%s d
     const drop = runs.filter(fell).reduce((m, r) => (r.ticks < m.ticks ? r : m), { out: 0, ticks: Infinity, grass: 0 })
     expect(drop.ticks, `${name} tick ${k}: drop ${drop.out} m reached gate ${next + 1} in ${drop.ticks} vs road ${roadBest}`).toBeGreaterThan(roadBest)
   })
-  // Runs right before a gate cross its line before they land; the search as a whole must not be vacuous.
+  // Runs right before a gate cross its line before they land, and a bridge's parapets hold most runs
+  // aimed at its edge on the deck (parapetBoxes); the search as a whole must not be vacuous.
   it('the search really drops off the deck', () => {
-    expect(drops).toBeGreaterThan(points.length)
+    expect(drops).toBeGreaterThan(points.length / 4)
   })
 })

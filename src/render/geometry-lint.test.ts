@@ -1,10 +1,12 @@
 // Scene geometry lint over every shipped track: builds the same static world the game shows
 // (createWorld + createPieceTrack, as createScene / createView do), minus the renderer, and fails on
-// paper-thin parts and on structural parts floating with nothing under them (lint.ts). The checker's
+// paper-thin parts, on structural parts floating with nothing under them, and on structural parts with
+// no collider the car hits (trackSurface().obstacles) and no noCollide reason (lint.ts). The checker's
 // own bite is proven on fixtures in lint.test.ts.
 import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it } from 'vitest'
 import * as THREE from 'three/webgpu'
+import { trackSurface } from '../physics'
 import { LAP_NAMES, loadLap } from '../track/registry'
 import { lintScene, type Offender } from './lint'
 import { createWorld } from './scene'
@@ -45,6 +47,9 @@ const buildScene = async (name: string): Promise<THREE.Group> => {
   return root
 }
 
+/** The boxes the car collides with on `name` — the same list physics drives against. */
+const colliders = (name: string) => trackSurface(loadLap(name)).obstacles ?? []
+
 const known = (track: string, o: Offender) => KNOWN.some((k) => k.track === track && k.check === o.check && k.mesh === o.mesh)
 
 describe('scene geometry lint', () => {
@@ -54,15 +59,15 @@ describe('scene geometry lint', () => {
 
   for (const k of KNOWN) it.todo(`${k.track}: ${k.check} ${k.mesh} — ${k.followUp}`)
 
-  it.each(LAP_NAMES)('%s: no paper-thin or floating geometry', async (name) => {
+  it.each(LAP_NAMES)('%s: no paper-thin, floating or non-solid geometry', async (name) => {
     const scene = await buildScene(name)
-    const result = lintScene(scene)
+    const result = lintScene(scene, colliders(name))
     // Independent of the lint's own walk: a raw traverse over the same scene.
     let traversed = 0
     scene.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) traversed++
     })
-    process.stdout.write(`geometry-lint ${name}: ${result.meshes} meshes checked, ${traversed} traversed, ${result.structural} structural, flat ${JSON.stringify(result.flatByReason)}\n`)
+    process.stdout.write(`geometry-lint ${name}: ${result.meshes} meshes checked, ${traversed} traversed, ${result.structural} structural, flat ${JSON.stringify(result.flatByReason)}, noCollide ${JSON.stringify(result.noCollideByReason)}\n`)
     expect(result.meshes).toBe(traversed)
     expect(result.structural).toBeGreaterThan(0)
     // A known offender that no longer offends was fixed: drop it from KNOWN.

@@ -2,7 +2,7 @@
 // Pure TypeScript: no three, so placements are unit-testable.
 // Piece convention (scripts/build-pieces.mjs): entry edge bottom-center at the origin,
 // running along +z, so a piece sits at a schema Pose with rotation.y = heading.
-import { exitPose, poses, ROAD_WIDTH, TILE_LENGTH, tileLength, type Pose, type Segment, type Track } from '../../track/schema'
+import { exitPose, GATE_LEG_MIN_HEIGHT, poses, ROAD_WIDTH, TILE_LENGTH, tileLength, type Pose, type Segment, type Track } from '../../track/schema'
 
 /** Native dimensions of the normalized pieces, from assets/track/pieces.json. */
 const STRAIGHT_LENGTH = TILE_LENGTH
@@ -101,12 +101,12 @@ export const planPieces = (track: Track): PiecePlan => {
 /**
  * The checkpoint piece's legs, measured from assets/pieces/checkpoint.glb: straight boxes from
  * the piece origin up to the arch, 5.0–6.3 m either side of the centreline and 0–1.9 m along.
- * This is the drawn leg; the collider (GATE_PILLAR) is a little narrower and stays as it is.
+ * This is the drawn leg; the collider (GATE_PILLAR) is 0.17 m narrower on the road side and stays as it is.
  */
 export const CHECKPOINT_LEG = { inner: 5, outer: 6.3, depth: 1.9 } as const
 
 /** Lowest checkpoint base that gets its legs carried down to the ground. */
-export const GATE_LEG_MIN_HEIGHT = 1
+export { GATE_LEG_MIN_HEIGHT }
 
 /** A leg carried from the ground up to the base of an elevated checkpoint piece: an upright box centred on (x, z). */
 export type GateLeg = { x: number; z: number; heading: number; halfWidth: number; halfDepth: number; height: number }

@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { centreline } from '../../track/centreline'
 import type { Track } from '../../track/schema'
 import { bakeModel, merged, placement, prepared } from './instance'
-import { flat, structural } from '../tags'
+import { flat, noCollide, structural } from '../tags'
 
 const MODEL_URLS = import.meta.glob('/assets/racing-kit/*.glb', { query: '?url', import: 'default', eager: true }) as Record<string, string>
 
@@ -167,7 +167,7 @@ export const createStadium = async (track: Track, screen?: string): Promise<THRE
   // Three draw calls for the whole arena (body, banner cloth, screen faces). Fully rough (still lit by the HDRI, unlike Lambert, which
   // left every shaded side black), and no shadows: it stands far outside the car's shadow frustum
   // (scene.ts, ±60 m).
-  group.add(structural(merged([...parts.flat(), ...screens.body], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })), 'stand'))
+  group.add(noCollide(structural(merged([...parts.flat(), ...screens.body], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })), 'stand'), 'backdrop'))
   group.add(flat(merged(baked.flatMap((b) => b.cloth), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })), 'screen-face'))
   group.add(flat(merged(screens.faces, new THREE.MeshBasicMaterial({ map: screenTexture(screen), polygonOffset: true, polygonOffsetFactor: SCREEN_FACE.polygonOffsetFactor, polygonOffsetUnits: SCREEN_FACE.polygonOffsetUnits })), 'screen-face'))
   return group

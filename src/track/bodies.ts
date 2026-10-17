@@ -138,6 +138,55 @@ export const bodyBoxes = (track: Track): Pillar[] => {
   })
 }
 
+/** A bridge's parapet either side of the road: thickness outward from the road edge, and height above it. */
+export const PARAPET_WIDTH = 0.5
+export const PARAPET_HEIGHT = 0.8
+
+/**
+ * Which row pairs (r, r + 1) of a segment carry a bridge deck and its parapets: those with a span row
+ * at either end, so the deck runs into the abutment caps (buildBody). The single source for the deck
+ * mesh (render/track/geometry.ts buildDeck) and the parapet colliders (parapetBoxes).
+ */
+export const deckRows = (kinds: readonly BodyKind[]): boolean[] => kinds.slice(0, -1).map((k, r) => k === 'span' || kinds[r + 1] === 'span')
+
+/**
+ * The bridge parapets as solid upright boxes, one per side between each pair of deck rows (deckRows):
+ * PARAPET_WIDTH thick outward from the road edge, as long as the longer of its two faces (so a curve's
+ * outer parapet has no gap), standing on the lower road edge of the pair up to PARAPET_HEIGHT above the
+ * higher one. A car on the deck that drives at the edge hits it like a barrier wall; a car under the
+ * bridge passes below its foot. Loops have no parapets (their own shell).
+ */
+export const parapetBoxes = (track: Track): Pillar[] => {
+  const ps = poses(track)
+  const half = ROAD_WIDTH / 2
+  return planBodies(track).flatMap((plan, i) => {
+    const seg = track.segments[i]
+    if (!plan || seg.type === 'loop') return []
+    const decked = deckRows(plan.kinds)
+    if (!decked.includes(true)) return []
+    const s = turnSign(seg)
+    const rows = rowCount(seg)
+    const samples = Array.from({ length: rows }, (_, r) => sampleSegment(ps[i], seg, r / (rows - 1)))
+    const out: Pillar[] = []
+    for (let r = 0; r < rows - 1; r++) {
+      if (!decked[r]) continue
+      for (const u of [half, -half]) {
+        const w = Math.sign(u) * PARAPET_WIDTH
+        const [ai, ao, bi, bo] = [roadPoint(samples[r], u, s), roadPoint(samples[r], u + w, s), roadPoint(samples[r + 1], u, s), roadPoint(samples[r + 1], u + w, s)]
+        const ax = (ai[0] + ao[0]) / 2
+        const az = (ai[2] + ao[2]) / 2
+        const bx = (bi[0] + bo[0]) / 2
+        const bz = (bi[2] + bo[2]) / 2
+        const foot = Math.min(ai[1], ao[1], bi[1], bo[1])
+        const top = Math.max(ai[1], ao[1], bi[1], bo[1]) + PARAPET_HEIGHT
+        const length = Math.max(Math.hypot(bi[0] - ai[0], bi[2] - ai[2]), Math.hypot(bo[0] - ao[0], bo[2] - ao[2]))
+        out.push({ x: (ax + bx) / 2, y: foot, z: (az + bz) / 2, heading: Math.atan2(bx - ax, bz - az), halfWidth: PARAPET_WIDTH / 2, halfDepth: length / 2, height: top - foot })
+      }
+    }
+    return out
+  })
+}
+
 /** Target spacing of the pillars under a bridge, and the clearance they keep from any road below. */
 export const DECK_PILLAR_STEP = 12
 export const DECK_PILLAR_CLEAR = ROAD_WIDTH / 2 + 2

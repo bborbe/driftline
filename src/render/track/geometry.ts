@@ -1,11 +1,11 @@
 // Track mesh generation from the shared schema. Pure TypeScript (no three) so it
 // is unit-testable in Node; src/render/track/mesh.ts wraps the arrays for three.js.
-import { DECK_DEPTH, roadPoint, rowCount, type BodyKind, type BodyPlan } from '../../track/bodies'
+import { DECK_DEPTH, deckRows, PARAPET_HEIGHT, PARAPET_WIDTH, roadPoint, rowCount, type BodyKind, type BodyPlan } from '../../track/bodies'
 import { loopPoint, poses, ROAD_WIDTH, sampleSegment, turnSign, type LoopSegment, type Sample } from '../../track/pose'
 import type { Pose, Segment, Track } from '../../track/schema'
 
 export { sampleSegment, segmentLength, type Sample } from '../../track/pose'
-export { BRIDGE_MIN_HEIGHT, DECK_DEPTH, DECK_PILLAR_CLEAR, DECK_PILLAR_SIZE, DECK_PILLAR_STEP, planBodies, planDeckPillars, RAISED_MIN, rowCount, SPAN_CLEAR, SPAN_HEADROOM, SPAN_PATH_SKIP, type BodyKind, type BodyPlan, type DeckPillar } from '../../track/bodies'
+export { BRIDGE_MIN_HEIGHT, DECK_DEPTH, DECK_PILLAR_CLEAR, DECK_PILLAR_SIZE, DECK_PILLAR_STEP, PARAPET_HEIGHT, PARAPET_WIDTH, planBodies, planDeckPillars, RAISED_MIN, rowCount, SPAN_CLEAR, SPAN_HEADROOM, SPAN_PATH_SKIP, type BodyKind, type BodyPlan, type DeckPillar } from '../../track/bodies'
 
 /** Road width in metres (ROAD_WIDTH, src/track/pose.ts). */
 export const TRACK_WIDTH = ROAD_WIDTH
@@ -153,10 +153,6 @@ export const buildApron = (entry: Pose, seg: Segment, kinds: readonly BodyKind[]
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }
 
-/** A bridge's parapet either side of the road: thickness outward from the road edge, and height above it. */
-export const PARAPET_WIDTH = 0.5
-export const PARAPET_HEIGHT = 0.8
-
 /** Depth of a filled body's lid below the road edges: under the road, so the road always draws over it. */
 export const LID_DROP = 0.05
 
@@ -248,12 +244,13 @@ export const DECK_PER_ROW = DECK_SECTION.length
 export const DECK_FOOT_COLUMNS: readonly number[] = [3, 4]
 
 /**
- * Visual-only bridge deck under a raised segment's span rows: a closed concrete box DECK_DEPTH deep
+ * Bridge deck under a raised segment's span rows: a closed concrete box DECK_DEPTH deep
  * under the road, with a parapet PARAPET_WIDTH thick and PARAPET_HEIGHT tall along each road edge
  * (DECK_SECTION), drawn between a span row and its neighbours so it runs into the abutment caps
  * (buildBody). The lid under the road and an end face at both ends of every stretch close the
  * box, so it is solid from every side and never a free-edged sheet. Open underneath: the pillars
- * (planDeckPillars) carry it. A loop gets its shell instead. Returns null when no row is a span.
+ * (planDeckPillars) carry it; its parapets collide (parapetBoxes, src/track/bodies.ts, from the same deckRows).
+ * A loop gets its shell instead. Returns null when no row is a span.
  */
 export const buildDeck = (entry: Pose, seg: Segment, kinds: readonly BodyKind[] | null): SegmentGeometry | null => {
   if (seg.type === 'loop') return buildLoopShell(entry, seg)
@@ -272,7 +269,8 @@ export const buildDeck = (entry: Pose, seg: Segment, kinds: readonly BodyKind[] 
   }
   const idx: number[] = []
   const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, b, d, c)
-  const drawn = (r: number) => kinds[r] === 'span' || kinds[r + 1] === 'span'
+  const decked = deckRows(kinds) // the same rows parapetBoxes collides with
+  const drawn = (r: number) => decked[r]
   for (let r = 0; r < rows - 1; r++) {
     if (!drawn(r)) continue
     const a = r * perRow
