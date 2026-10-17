@@ -11,8 +11,6 @@ import { Effects } from './effects'
 /** Steps announced before GO: 3, 2, 1. */
 export const COUNTDOWN_STEPS = 3
 export const COUNTDOWN_TICKS = COUNTDOWN_STEPS * TICK_HZ
-/** Restart (Backspace) runs the same 3-2-1 compressed: control is back in under a second. */
-export const RESTART_COUNTDOWN_TICKS = Math.round(0.8 * TICK_HZ)
 /** Half the gate width in metres: a crossing counts within this lateral distance of the gate centre. */
 export const GATE_HALF_WIDTH = TRACK_WIDTH / 2 + 1
 /**
@@ -61,7 +59,7 @@ export interface RaceEvents {
   /** The run is over after the last lap: total time, whether it beats the stored best, each lap's time. */
   raceFinish?(tick: number, totalMs: number, isNewBest: boolean, lapTimes: number[]): void
   respawn?(tick: number): void
-  /** Backspace restart: the car is back on the start line, the short countdown begins. */
+  /** Restart (Backspace, Esc → Restart, finish → Improve): the car is back on the start line, the countdown begins. */
   restart?(tick: number): void
 }
 
@@ -94,7 +92,6 @@ export class LapLoop {
   private readonly track: Track
   private readonly isNewBest: (totalMs: number) => boolean
   private countdownEndTick = 0
-  private countdownTicks = COUNTDOWN_TICKS
   private lastCountdown = -1
   private airborneTicks = 0
   private loopFallTicks = 0
@@ -131,7 +128,6 @@ export class LapLoop {
   start(tick: number): void {
     if (this.phase !== 'ready') return
     this.phase = 'countdown'
-    this.countdownTicks = COUNTDOWN_TICKS
     this.countdownEndTick = tick + COUNTDOWN_TICKS
     this.announceCountdown(tick)
   }
@@ -236,7 +232,7 @@ export class LapLoop {
     return car
   }
 
-  /** Back to a short countdown at the start line, lap 1; `tick` is the current tick. */
+  /** Back to the full countdown at the start line, lap 1; `tick` is the current tick. */
   restart(tick: number): CarState {
     if (this.phase === 'ready') return { ...this.spawn(), tick } // still waiting for Begin
     this.phase = 'countdown'
@@ -247,18 +243,17 @@ export class LapLoop {
     this.airborneTicks = 0
     this.loopFallTicks = 0
     this.effects.clear()
-    this.countdownTicks = RESTART_COUNTDOWN_TICKS
-    this.countdownEndTick = tick + RESTART_COUNTDOWN_TICKS
+    this.countdownEndTick = tick + COUNTDOWN_TICKS
     this.lastCountdown = -1
     this.emit((l) => l.restart?.(tick))
     this.announceCountdown(tick)
     return { ...this.spawn(), tick }
   }
 
-  // Emits countdown(n) once per step: 3 at the start, 2, 1, then 0 on GO. The steps split the countdown into
-  // equal thirds, so the full one ticks once a second and the restart one runs the same 3-2-1 compressed.
+  // Emits countdown(n) once per step: 3 at the start, 2, 1, then 0 on GO, one second apart on every path
+  // (Begin and restart alike). Tick-driven, so the steps do not depend on the display frame rate.
   private announceCountdown(tick: number): void {
-    const n = Math.ceil((COUNTDOWN_STEPS * Math.max(0, this.countdownEndTick - tick)) / this.countdownTicks)
+    const n = Math.ceil((COUNTDOWN_STEPS * Math.max(0, this.countdownEndTick - tick)) / COUNTDOWN_TICKS)
     if (n === this.lastCountdown) return
     this.lastCountdown = n
     this.emit((l) => l.countdown?.(tick, n))

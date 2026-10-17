@@ -1,7 +1,7 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
-// Keys: R = respawn at last checkpoint, Backspace = instant restart (short countdown), L = toggle leaderboard, F = fullscreen, H = controls help, Esc = pause menu (not when it only leaves fullscreen)
+// Keys: R = respawn at last checkpoint, Backspace = restart (full 3-2-1-GO countdown), L = toggle leaderboard, F = fullscreen, H = controls help, Esc = pause menu (not when it only leaves fullscreen)
 // (Resume / Restart / Settings / Back to menu, arrows + Enter or mouse; Esc again resumes).
 // Checkpoints, lap lines and the finish flash the split delta vs the personal best; the finish panel shows
 // medals (single-lap runs only) and, in a multi-lap run (`laps`), each lap time with the best one marked.
