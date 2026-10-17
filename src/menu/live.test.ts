@@ -17,6 +17,8 @@ describe('settingsChange', () => {
     expect(settingsChange(base, { ...base, weather: 'rain' })).toEqual({ environment: true })
     expect(settingsChange(base, { ...base, laps: 3 })).toEqual({ laps: 3 })
     expect(settingsChange(base, { ...base, volume: 0.2 })).toEqual({ volume: 0.2 })
+    expect(settingsChange(base, { ...base, sfxVolume: 0.3 })).toEqual({ sfxVolume: 0.3 })
+    expect(settingsChange(base, { ...base, uiVolume: 0 })).toEqual({ uiVolume: 0 })
     expect(settingsChange(base, { ...base, fx: ['smoke'] })).toEqual({ fx: new Set(['smoke']) })
   })
   it('ignores the always-on effects, which no toggle changes', () => {

@@ -11,7 +11,8 @@ export const FLAT_REASONS = ['road', 'curb', 'decal', 'effect-pad', 'screen-face
 export type FlatReason = (typeof FLAT_REASONS)[number]
 
 /** Structural pieces: each must touch the ground, or rest on something within CONTACT_TOLERANCE. */
-export const STRUCTURAL_KINDS = ['wall', 'pillar', 'gate-leg', 'deck', 'ramp-body', 'stand', 'sign'] as const
+/** `brace`: a truss strut or diagonal (render/track/truss.ts), held by the legs it ties, not by its own foot. */
+export const STRUCTURAL_KINDS = ['wall', 'pillar', 'gate-leg', 'deck', 'ramp-body', 'stand', 'sign', 'brace'] as const
 export type StructuralKind = (typeof STRUCTURAL_KINDS)[number]
 
 /**
@@ -25,8 +26,10 @@ export type StructuralKind = (typeof STRUCTURAL_KINDS)[number]
  * `backdrop`: the stadium ring, STADIUM_GAP outside the lap and past the trees, out of reach of the open ground.
  * `roadside-sign`: turn and turbo boards on the grass shoulder 1.5 m past the road edge, where the shipped
  * autopilot lines on plunge and knot run wide; a collider there would change the racing line.
+ * `trackside`: flag poles, start totems and the start screen (decor/dressing.ts), ≥ 4 m past the road edge,
+ * behind the edge rail that lines every road edge (track/rails.ts), so the car cannot reach them.
  */
-export const NO_COLLIDE_REASONS = ['loop-shell', 'wallride-shell', 'backdrop', 'roadside-sign'] as const
+export const NO_COLLIDE_REASONS = ['loop-shell', 'wallride-shell', 'backdrop', 'roadside-sign', 'trackside'] as const
 export type NoCollideReason = (typeof NO_COLLIDE_REASONS)[number]
 
 /** Mark `obj` (and every mesh under it) solid-looking but deliberately not collided with, and say why. */

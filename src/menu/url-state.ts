@@ -40,6 +40,9 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
   const refl = q.get('refl')
   return {
     volume: Number.isFinite(vol) ? Math.min(1, Math.max(0, vol)) : stored.volume,
+    // The SFX and UI buses stay out of the URL: they are a player's own mix, not part of a shared setup.
+    sfxVolume: stored.sfxVolume,
+    uiVolume: stored.uiVolume,
     fx: q.has('fx') ? FX.filter((f) => (q.get('fx') ?? '').split(',').includes(f)) : [...stored.fx],
     laps: clampLaps(laps, stored.laps),
     time: oneOf(q.get('time'), TIME_CHOICES, stored.time),
