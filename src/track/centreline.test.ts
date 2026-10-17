@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { centreline, partialPose, segmentLength } from './centreline'
-import { exitPose, poses, type Track } from './schema'
+import { exitPose, poses, ROAD_WIDTH, type Track } from './schema'
 
 const track: Track = {
   name: 't',
@@ -35,7 +35,7 @@ describe('centreline', () => {
     const total = track.segments.reduce((s, seg) => s + segmentLength(seg), 0)
     const pts = centreline(track, 5)
     expect(pts).toHaveLength(Math.ceil(total / 5))
-    expect(pts[0]).toEqual(track.start)
+    expect(pts[0]).toEqual({ ...track.start, width: ROAD_WIDTH })
     expect(pts[4].z).toBeCloseTo(20) // segment boundary lands on the curve entry
     expect(pts[4].heading).toBeCloseTo(poses(track)[1].heading)
   })

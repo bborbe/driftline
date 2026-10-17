@@ -5,8 +5,16 @@
 import { bankAngleAt } from './bank'
 import type { Pose, Segment, Track, Turn } from './schema'
 
-/** Road width in metres: the driving width of every piece, shoulder to shoulder (the Kenney road pieces). */
-export const ROAD_WIDTH = 10
+/**
+ * Default road width in metres, shoulder to shoulder: the driving width of a segment that sets no
+ * `width`. 14 m (1.4 × the 10 m Kenney piece) gives about five car widths of asphalt, nearer a
+ * Trackmania road than the old 10 m; a segment widens it for a platform or narrows it for a tech
+ * section (widthAt). Never the kit grid: CELL (schema.ts) stays 10 m.
+ */
+export const ROAD_WIDTH = 14
+/** Narrowest and widest road a segment may set (validate.ts). */
+export const MIN_ROAD_WIDTH = 8
+export const MAX_ROAD_WIDTH = 32
 
 /** A point on a segment's centreline: world pose and road roll (radians; non-zero on banked turns only). */
 export type Sample = Pose & { roll: number }
@@ -38,6 +46,26 @@ export function segmentLength(seg: Segment): number {
       return 2 * Math.PI * seg.radius
   }
 }
+
+/**
+ * Road width (m) at t (0..1) of the way through a segment — the one width function for physics,
+ * render, gates, walls and bodies. `width: w` holds w along the segment; `width: [a, b]` tapers
+ * linearly from a at the entry to b at the exit, so a road can widen into a platform and narrow
+ * again. No `width`: ROAD_WIDTH, except a loop, which is at most one shift lane (loopShiftOf) so its
+ * climb and its exit never share road.
+ */
+export function widthAt(seg: Segment, t: number): number {
+  const w = seg.width
+  if (w === undefined) return seg.type === 'loop' ? Math.min(ROAD_WIDTH, loopShiftOf(seg)) : ROAD_WIDTH
+  if (typeof w === 'number') return w
+  return w[0] + (w[1] - w[0]) * Math.min(1, Math.max(0, t))
+}
+
+/** Widest point of a segment's road. */
+export const maxWidth = (seg: Segment): number => Math.max(widthAt(seg, 0), widthAt(seg, 1))
+
+/** True when a segment's width is the same all along (no taper). */
+export const constantWidth = (seg: Segment): boolean => widthAt(seg, 0) === widthAt(seg, 1)
 
 /** Pose `f` (0..1) of the way through a segment; f = 1 is exactly its exit pose. */
 export function partialPose(entry: Pose, seg: Segment, f: number): Pose {
@@ -101,8 +129,8 @@ function arc(p: Pose, turn: Turn, radius: number, angle: number): Pose {
 /** A loop segment. */
 export type LoopSegment = Extract<Segment, { type: 'loop' }>
 
-/** Default sideways offset of a loop's exit from its entry: one road width, so its climb and its exit never share road. */
-export const LOOP_SHIFT = ROAD_WIDTH
+/** Default sideways offset of a loop's exit from its entry: one kit CELL (10 m), so its climb and its exit never share road and a kit loop exits on the grid. */
+export const LOOP_SHIFT = 10
 
 /** Sideways offset (m) of a loop's exit from its entry: its `shift`, else LOOP_SHIFT. */
 export const loopShiftOf = (seg: LoopSegment): number => seg.shift ?? LOOP_SHIFT
@@ -169,7 +197,7 @@ export function loopTubes(track: Track): (p: { x: number; y: number; z: number }
     if (seg.type !== 'loop') return []
     const e = entries[i]
     const shift = turnSign(seg) * loopShiftOf(seg)
-    return [{ e, r: seg.radius, fx: Math.sin(e.heading), fz: Math.cos(e.heading), lo: Math.min(0, shift) - ROAD_WIDTH / 2, hi: Math.max(0, shift) + ROAD_WIDTH / 2 }]
+    return [{ e, r: seg.radius, fx: Math.sin(e.heading), fz: Math.cos(e.heading), lo: Math.min(0, shift) - maxWidth(seg) / 2, hi: Math.max(0, shift) + maxWidth(seg) / 2 }]
   })
   if (tubes.length === 0) return () => false
   return (p) =>
@@ -208,7 +236,7 @@ export function wallTop(t: number): number {
 /** A wallride's quarter-pipe in its turn's frame: turn centre, the road's outer edge radius and its height. */
 export function wallFrame(entry: Pose, seg: WallrideSegment): { cx: number; cz: number; edge: number; y: number } {
   const [cx, cz] = turnCentre(entry, seg.turn, seg.radius)
-  return { cx, cz, edge: seg.radius + ROAD_WIDTH / 2, y: entry.y }
+  return { cx, cz, edge: seg.radius + widthAt(seg, 0) / 2, y: entry.y } // a wallride holds one width (validate.ts)
 }
 
 /**

@@ -3,8 +3,8 @@
 // autopilot's fast road line (racingLine) through the same two lines. Runs that never reach the
 // line within twice the road time count as slower.
 import { describe, expect, it } from 'vitest'
-import { FixedStepper, forwardOf, MATERIALS, materialUnder, NO_INPUT, step, TICK_HZ, TRACK_WIDTH, trackSurface, type CarInput, type CarState, type Surface } from '../physics'
-import { exitPose, gateLine, poses, type Pose, type Segment, type Track } from '../track/schema'
+import { FixedStepper, forwardOf, MATERIALS, materialUnder, NO_INPUT, step, TICK_HZ, trackSurface, type CarInput, type CarState, type Surface } from '../physics'
+import { exitPose, gateLine, gateWidth, maxWidth, poses, widthAt, type Pose, type Segment, type Track } from '../track/schema'
 import { advanceRace, COUNTDOWN_TICKS, crosses, LapLoop } from './lap'
 import { autopilot, hasLoop, loadTrack, racingLine, type Sample } from './autopilot.test-driver'
 import { STYLES } from '../track/catalogue'
@@ -15,10 +15,13 @@ const STYLE_TRACKS = STYLES.map((l) => l.track)
 // Each case drives up to ~15 full-physics runs over a leg; well past vitest's 5 s default under load.
 const CUT_TIMEOUT = 30_000
 const LOOKAHEAD = 0.5 // s
+// Tracks whose every corner is also driven on the grass inside it ('skilled grass lines').
+const ARC_TRACKS = ['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', 'test-wallride', 'test-spiral', ...STYLE_TRACKS]
 // A run counts as a grass cut once this share of its ticks is off the road.
 const GRASS_SHARE = 0.1
-// Aim points across the target line: the cutter may cross it anywhere a gate would count.
-const AIM_OFFSETS = [-5, -2.5, 0, 2.5, 5]
+// Aim points across the target line (m) for a road `half` wide each side: the cutter may cross it
+// anywhere a gate would count, out to its edge 1 m past the road's.
+const aimOffsets = (half: number): number[] => [-(half + 1), -half / 2, 0, half / 2, half + 1]
 // How far before the line the cutter lines up (m): 0 = straight at it.
 const APPROACH = [0, 10, 20]
 
@@ -55,7 +58,7 @@ type Point = { x: number; z: number }
 
 // Full throttle from `start` straight at `approach`, then on through `target` (gates only count
 // forwards); stops when the car crosses `target`'s line.
-function cut(start: CarState, approach: Point, target: Pose, surface: Surface, limit: number): Run {
+function cut(start: CarState, approach: Point, target: Pose, half: number, surface: Surface, limit: number): Run {
   const beyond = { x: target.x + 10 * Math.sin(target.heading), z: target.z + 10 * Math.cos(target.heading) }
   let aim = approach
   let s = start
@@ -69,19 +72,21 @@ function cut(start: CarState, approach: Point, target: Pose, surface: Surface, l
     const input: CarInput = { throttle: 1, brake: 0, steer: Math.max(-1, Math.min(1, 2.5 * angle)), handbrake: false }
     const next = step(s, input, surface)
     if (materialUnder(next, surface) === 'offroad') grass++
-    if (crosses(target, s.position, next.position)) return { ticks: t, grass }
+    if (crosses(target, s.position, next.position, 1, half)) return { ticks: t, grass }
     s = next
   }
   return { ticks: Infinity, grass }
 }
 
 // The lines to compare between: consecutive gates (start → checkpoints → finish), then each run of
-// consecutive corner pieces (split at gates) from its entry to its exit.
-function legs(track: Track): { name: string; from: Pose; to: Pose }[] {
+// consecutive corner pieces (split at gates) from its entry to its exit. `width` is the road's width
+// on the target line (widthAt): a crossing counts within its half plus 1 m, as a gate does (gateHalfWidth).
+function legs(track: Track): { name: string; from: Pose; to: Pose; width: number }[] {
   const entries = poses(track)
   const sf = track.gates.find((g) => g.kind === 'start-finish')!
-  const gates = [track.start, ...track.gates.filter((g) => g.kind === 'checkpoint').map((g) => gateLine(track, g)), gateLine(track, sf)]
-  const out = gates.slice(1).map((to, i) => ({ name: `gate ${i} → ${i + 1}`, from: gates[i], to }))
+  const lines = [...track.gates.filter((g) => g.kind === 'checkpoint'), sf].map((g) => ({ pose: gateLine(track, g), width: gateWidth(track, g) }))
+  const gates = [{ pose: track.start, width: 0 }, ...lines]
+  const out = gates.slice(1).map((to, i) => ({ name: `gate ${i} → ${i + 1}`, from: gates[i].pose, to: to.pose, width: to.width }))
   // A run stops at a checkpoint: a cut that skips a gate is not a lap at all.
   const gated = (k: number) => track.gates.some((g) => g.segment === k)
   let i = 0
@@ -92,7 +97,7 @@ function legs(track: Track): { name: string; from: Pose; to: Pose }[] {
     }
     let j = i
     while (j + 1 < track.segments.length && CORNER.has(track.segments[j + 1].type) && !gated(j + 1)) j++
-    out.push({ name: `corner ${i}-${j}`, from: entries[i], to: exitPose(entries[j], track.segments[j]) })
+    out.push({ name: `corner ${i}-${j}`, from: entries[i], to: exitPose(entries[j], track.segments[j]), width: widthAt(track.segments[j], 1) })
     i = j + 1
   }
   return out
@@ -104,15 +109,15 @@ describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap',
   const road = roadRun(track)
   let grassLegs = 0 // legs whose search had at least one run really reach the grass
 
-  it.each(legs(track))('$name: no straight cut across the grass beats the road line', ({ from, to }) => {
+  it.each(legs(track))('$name: no straight cut across the grass beats the road line', ({ from, to, width }) => {
     const a = from === track.start ? 0 : crossingTick(road, from, 0)
     expect(a).toBeGreaterThanOrEqual(0)
     const b = crossingTick(road, to, a + 1)
     expect(b).toBeGreaterThan(a)
     const fwd = { x: Math.sin(to.heading), z: Math.cos(to.heading) }
     const across = { x: fwd.z, z: -fwd.x }
-    const runs = AIM_OFFSETS.flatMap((o) =>
-      APPROACH.map((d) => cut(road[a], { x: to.x + across.x * o - fwd.x * d, z: to.z + across.z * o - fwd.z * d }, to, surface, 2 * (b - a))),
+    const runs = aimOffsets(width / 2).flatMap((o) =>
+      APPROACH.map((d) => cut(road[a], { x: to.x + across.x * o - fwd.x * d, z: to.z + across.z * o - fwd.z * d }, to, width / 2 + 1, surface, 2 * (b - a))),
     )
     // A run that stays on the asphalt is a faster road line, not a cut: it raises the bar.
     const onGrass = (r: Run) => r.grass >= GRASS_SHARE * r.ticks
@@ -125,7 +130,11 @@ describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap',
   // reach the grass, unless walls line every corner so no run can (a walled channel, e.g. glacier).
   it('the search really reaches the grass, or walls line every corner', () => {
     const walled = track.segments.every((seg, k) => !CORNER.has(seg.type) || (track.barriers ?? []).some((b) => 'segment' in b && b.segment === k && 'turn' in seg && b.side === seg.turn))
-    expect(grassLegs > 0 || walled, `${name}: ${grassLegs} of ${legs(track).length} legs reached the grass`).toBe(true)
+    // Where the road is wide enough that every straight run stays on the asphalt (switchback and
+    // washboard on the 14 m road), the inside-arc search ('skilled grass lines' below) still drives
+    // the grass inside every corner of the same track.
+    const arcs = ARC_TRACKS.includes(name) && track.segments.some((seg) => CORNER.has(seg.type))
+    expect(grassLegs > 0 || walled || arcs, `${name}: ${grassLegs} of ${legs(track).length} legs reached the grass`).toBe(true)
   })
 })
 
@@ -170,7 +179,7 @@ function follow(start: CarState, samples: Sample[], target: Pose, surface: Surfa
   return { ticks: Infinity, grass }
 }
 
-describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', 'test-wallride', 'test-spiral', ...STYLE_TRACKS])('%s skilled grass lines', (name) => {
+describe.each(ARC_TRACKS)('%s skilled grass lines', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -184,7 +193,7 @@ describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap',
     expect(a).toBeGreaterThanOrEqual(0)
     const b = crossingTick(road, to, a + 1)
     expect(b).toBeGreaterThan(a)
-    const inner = seg.radius - TRACK_WIDTH / 2
+    const inner = seg.radius - maxWidth(seg) / 2
     const runs = INSIDE.filter((d) => inner - d > 2).map((d) => ({
       inside: d,
       ...follow(road[a], insideLine(from, seg, inner - d), to, surface, 2 * (b - a)),

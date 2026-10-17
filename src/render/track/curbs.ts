@@ -6,7 +6,7 @@ import * as THREE from 'three/webgpu'
 import { poses, turnSign, type Segment, type Track } from '../../track/schema'
 import { CURB_RED, CURB_WHITE } from '../look'
 import { flat } from '../tags'
-import { lateralPoint, PROFILE, sampleSegment, segmentLength } from './geometry'
+import { lateralPoint, PROFILE, roadScale, sampleSegment, segmentLength } from './geometry'
 
 const curbColumns = PROFILE.filter(([, , band]) => band === 'curb')
 const roadColumns = PROFILE.filter(([, , band]) => band === 'road')
@@ -29,16 +29,18 @@ export type Ribbons = { positions: Float32Array; indices: Uint32Array }
 class RibbonBuilder {
   private pos: number[] = []
   private idx: number[] = []
-  /** A ribbon from lateral u0 to u1 at height h, along a segment from t0 to t1 (fractions). */
+  /** A ribbon from lateral u0 to u1 (on a CELL-wide road; stretched by roadScale) at height h, along a segment from t0 to t1 (fractions). */
   add(entry: Parameters<typeof sampleSegment>[0], seg: Segment, u0: number, u1: number, h: number, t0: number, t1: number) {
     const len = segmentLength(seg)
     const rows = Math.max(2, Math.ceil(((t1 - t0) * len) / ROW_STEP) + 1)
     const s = turnSign(seg)
     const base = this.pos.length / 3
     for (let r = 0; r < rows; r++) {
-      const p = sampleSegment(entry, seg, t0 + ((t1 - t0) * r) / (rows - 1))
+      const t = t0 + ((t1 - t0) * r) / (rows - 1)
+      const p = sampleSegment(entry, seg, t)
+      const k = roadScale(seg, t)
       for (const u of [u0, u1]) {
-        const [x, y, z] = lateralPoint(p, u, s)
+        const [x, y, z] = lateralPoint(p, u * k, s)
         this.pos.push(x, y + h, z)
       }
     }

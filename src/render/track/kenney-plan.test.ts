@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { exitPose, poses, type Pose, type Track } from '../../track/schema'
+import { exitPose, poses, ROAD_WIDTH, widthAt, type Pose, type Track } from '../../track/schema'
 import { FIXTURE_TRACK } from '../../track/fixture'
-import { TRACK_WIDTH } from './geometry'
 import { placedRoadWidth, planPieces } from './kenney-plan'
 
 const lap = JSON.parse(readFileSync('assets/track/test1.json', 'utf8')) as Track
@@ -60,10 +59,19 @@ describe('piece placement', () => {
   })
 
   it('mirrors corners for left turns and splits a hairpin into two', () => {
-    const t: Track = { name: 't', start: { x: 0, y: 0, z: 0, heading: 0 }, segments: [{ type: 'hairpin', turn: 'left', radius: 15 }], gates: [] }
+    const t: Track = { name: 't', start: { x: 0, y: 0, z: 0, heading: 0 }, segments: [{ type: 'hairpin', turn: 'left', radius: 15, width: 10 }], gates: [] }
     const corners = planPieces(t).placements
     expect(corners.map((c) => c.piece)).toEqual(['corner', 'corner'])
     expect(corners[0].scale).toEqual([-1, 1, 1])
+  })
+
+  it('stretches a straight across to its road width, and draws a corner or a taper wider than the piece procedurally', () => {
+    const at = (segments: Track['segments']) => planPieces({ name: 't', start: { x: 0, y: 0, z: 0, heading: 0 }, segments, gates: [] })
+    const wide = at([{ type: 'straight', length: 20, width: 20 }])
+    expect(wide.placements.map(placedRoadWidth)).toEqual([20])
+    expect(at([{ type: 'straight', length: 20 }]).placements.map(placedRoadWidth)).toEqual([ROAD_WIDTH])
+    expect(at([{ type: 'straight', length: 20, width: [14, 20] }]).procedural).toEqual([0])
+    expect(at([{ type: 'hairpin', turn: 'left', radius: 15 }]).procedural).toEqual([0])
   })
 
   it('renders a non-native corner radius procedurally instead of scaling the road wider', () => {
@@ -75,11 +83,20 @@ describe('piece placement', () => {
     it(`${name}: road width is the same on both sides of every segment joint`, () => {
       const t = JSON.parse(readFileSync(`assets/track/${name}.json`, 'utf8')) as Track
       const plan = planPieces(t)
-      // Every road piece and every procedural segment draws the same width, so both sides
-      // of every joint match.
-      for (const p of plan.placements.filter((p) => p.piece !== 'checkpoint')) {
-        expect(placedRoadWidth(p), `${name} ${p.piece} at (${p.pose.x.toFixed(1)}, ${p.pose.z.toFixed(1)})`).toBeCloseTo(TRACK_WIDTH, 6)
-      }
+      const ps = poses(t)
+      // A width change is a taper inside a segment (widthAt), never a step at a joint; a gap has no road.
+      t.segments.forEach((seg, i) => {
+        const next = t.segments[(i + 1) % t.segments.length]
+        if (seg.type === 'gap' || next.type === 'gap') return
+        expect(widthAt(next, 0), `${name} joint ${i} → ${i + 1}`).toBeCloseTo(widthAt(seg, 1), 6)
+      })
+      // Every road piece draws its own segment's width, so it meets the procedural road beside it.
+      t.segments.forEach((seg, i) => {
+        if (plan.procedural.includes(i)) return
+        for (const p of planPieces({ ...t, start: ps[i], segments: [seg], gates: [] }).placements) {
+          expect(placedRoadWidth(p), `${name} ${p.piece} on segment ${i}`).toBeCloseTo(widthAt(seg, 0), 6)
+        }
+      })
       expect(plan.procedural.every((i) => i >= 0 && i < t.segments.length)).toBe(true)
     })
   }

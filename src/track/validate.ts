@@ -1,5 +1,6 @@
 // Structural validation of untrusted track JSON.
-import { ZONE_KINDS, zoneSegments, type Medals, type Pose, type Segment, type Track } from './schema'
+import { loopShiftOf, type LoopSegment } from './pose'
+import { MAX_ROAD_WIDTH, maxWidth, MIN_ROAD_WIDTH, ZONE_KINDS, zoneSegments, type Medals, type Pose, type Segment, type Track } from './schema'
 import { validateTheme } from './theme'
 
 /** Structural validation of untrusted JSON. Returns a list of problems, empty when valid. */
@@ -89,6 +90,28 @@ function pos(v: unknown): boolean {
 function segmentError(s: unknown): string | null {
   const o = s as Record<string, unknown>
   if (typeof o !== 'object' || o === null) return 'not an object'
+  return shapeError(o) ?? widthError(o)
+}
+
+const inWidth = (v: unknown): boolean => Number.isFinite(v) && (v as number) >= MIN_ROAD_WIDTH && (v as number) <= MAX_ROAD_WIDTH
+
+// A width is a number or an [entry, exit] pair in MIN_ROAD_WIDTH..MAX_ROAD_WIDTH; a turn keeps 1 m
+// of radius inside its inner edge, a loop is at most one shift lane wide (loopShiftOf), and a
+// wallride holds one width (its quarter-pipe stands on the road's outer edge, wallFrame).
+function widthError(o: Record<string, unknown>): string | null {
+  const w = o.width
+  if (w === undefined) return null
+  const ok = Array.isArray(w) ? w.length === 2 && w.every(inWidth) : inWidth(w)
+  if (!ok) return `width must be a number or [entry, exit] in ${MIN_ROAD_WIDTH}..${MAX_ROAD_WIDTH} m`
+  const widest = maxWidth(o as unknown as Segment)
+  if ('radius' in o && o.type !== 'loop' && widest / 2 > (o.radius as number) - 1) return `width ${widest} m leaves no road inside radius ${String(o.radius)} m`
+  const lane = o.type === 'loop' ? loopShiftOf(o as unknown as LoopSegment) : Infinity
+  if (widest > lane) return `a loop's road is at most ${lane} m wide`
+  if (o.type === 'wallride' && Array.isArray(w)) return 'a wallride cannot taper: give it one width'
+  return null
+}
+
+function shapeError(o: Record<string, unknown>): string | null {
   const turnOk = o.turn === 'left' || o.turn === 'right'
   switch (o.type) {
     case 'straight':

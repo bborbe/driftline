@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Track } from '../../track/schema'
+import { CELL, ROAD_WIDTH, type Track } from '../../track/schema'
 import { CURB_INNER, CURB_OUTER, CURB_TOP, curbDecals, DECAL_LIFT, EDGE_LINE, STRIPE_LENGTH } from './curbs'
 import { LAP_NAMES, loadLap } from '../../track/registry'
 
@@ -10,6 +10,9 @@ const straight = (...lengths: number[]): Track => ({
   gates: [],
 })
 
+// Curbs on a default-width road: PROFILE stretched by ROAD_WIDTH / CELL (geometry.ts roadScale).
+const K = ROAD_WIDTH / CELL
+
 const vertices = (p: Float32Array) => Array.from({ length: p.length / 3 }, (_, i) => [p[3 * i], p[3 * i + 1], p[3 * i + 2]])
 
 describe('curbDecals', () => {
@@ -18,8 +21,8 @@ describe('curbDecals', () => {
     const vs = vertices(red.positions)
     expect(vs.length).toBeGreaterThan(0)
     for (const [x, y, z] of vs) {
-      expect(Math.abs(x)).toBeGreaterThanOrEqual(CURB_INNER - 1e-6)
-      expect(Math.abs(x)).toBeLessThanOrEqual(CURB_OUTER + 1e-6)
+      expect(Math.abs(x)).toBeGreaterThanOrEqual(K * CURB_INNER - 1e-5)
+      expect(Math.abs(x)).toBeLessThanOrEqual(K * CURB_OUTER + 1e-5)
       expect(y).toBeCloseTo(CURB_TOP + DECAL_LIFT, 6)
       // Red blocks start at 0, 4, 8 … m: every vertex lies in the first half of a 2-block period.
       const phase = z % (2 * STRIPE_LENGTH)
@@ -36,8 +39,8 @@ describe('curbDecals', () => {
     expect(lines.length).toBeGreaterThan(0)
     const outer = CURB_INNER - EDGE_LINE.inset
     for (const [x] of lines) {
-      expect(Math.abs(x)).toBeGreaterThanOrEqual(outer - EDGE_LINE.width - 1e-6)
-      expect(Math.abs(x)).toBeLessThanOrEqual(outer + 1e-6)
+      expect(Math.abs(x)).toBeGreaterThanOrEqual(K * (outer - EDGE_LINE.width) - 1e-5)
+      expect(Math.abs(x)).toBeLessThanOrEqual(K * outer + 1e-5)
     }
   })
 

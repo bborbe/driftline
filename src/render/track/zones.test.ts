@@ -1,11 +1,14 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { isEffect, isPad, padForward, poses, turnCentre, type Segment, type Track, type Zone } from '../../track/schema'
+import { CELL, isEffect, isPad, padForward, poses, ROAD_WIDTH, turnCentre, type Segment, type Track, type Zone } from '../../track/schema'
 import { createCarAt, trackSurface, type CarState } from '../../physics'
 import { dustIntensity, DustPool } from '../fx/dust'
 import { effectIcon } from './effect-pads'
 import { buildSegment, type SegmentGeometry } from './geometry'
 import { EDGE_FADE, ROAD_HALF_WIDTH, ROAD_TOP, SURFACE_OVERRUN, surfaceJoins, surfacePatch, turboChevrons, valueNoise, ZONE_LIFT, ZONE_WIDTH, zoneQuad } from './zones'
+
+// Asphalt half width on a default-width segment: ROAD_HALF_WIDTH (a CELL-wide road) stretched by ROAD_WIDTH / CELL.
+const HALF = (ROAD_HALF_WIDTH * ROAD_WIDTH) / CELL
 
 const lap2 = JSON.parse(readFileSync(new URL('../../../assets/track/test2.json', import.meta.url), 'utf8')) as Track
 
@@ -41,7 +44,7 @@ describe('lap2 zone decals', () => {
           : [surfacePatch(lap2, { ...zone, kind }).positions]
     for (const b of buffers) {
       for (const p of local(lap2, zone, b)) {
-        expect(Math.abs(p.lat)).toBeLessThanOrEqual(ROAD_HALF_WIDTH + 1e-4)
+        expect(Math.abs(p.lat)).toBeLessThanOrEqual(HALF + 1e-4)
         expect(p.along).toBeGreaterThanOrEqual(-1e-4)
         expect(p.along).toBeLessThanOrEqual(length + 1e-4)
         // Just above the road top: never coplanar with it, never a visible lift.
@@ -114,14 +117,14 @@ describe('surface patch', () => {
 
   it('fades to transparent at its edges and is opaque inside', () => {
     const pts = local(lap2, zone, patch.positions)
-    const edges = pts.map((p, i) => ({ p, i })).filter(({ p }) => Math.abs(Math.abs(p.lat) - ROAD_HALF_WIDTH) < 1e-4)
+    const edges = pts.map((p, i) => ({ p, i })).filter(({ p }) => Math.abs(Math.abs(p.lat) - HALF) < 1e-4)
     expect(edges.length).toBeGreaterThan(0)
     for (const { i } of edges) expect(alpha(i)).toBe(0)
     // Opaque over the whole physics extent along the road (the fade lives in the overrun), away from the sides.
     const length = 120
     const inner = pts
       .map((p, i) => ({ p, i }))
-      .filter(({ p }) => Math.abs(p.lat) < ROAD_HALF_WIDTH - EDGE_FADE && p.along >= zone.from * length && p.along <= zone.to * length)
+      .filter(({ p }) => Math.abs(p.lat) < HALF - EDGE_FADE && p.along >= zone.from * length && p.along <= zone.to * length)
     expect(inner.length).toBeGreaterThan(100)
     expect(inner.every(({ i }) => alpha(i) > 0.99)).toBe(true)
   })
@@ -211,7 +214,7 @@ describe('surface patch on arcs', () => {
     for (let i = 0; i < positions.length; i += 3) {
       const [x, y, z] = [positions[i], positions[i + 1], positions[i + 2]]
       // Rows are chords of the arc like the road mesh's, so allow the chord sag.
-      expect(Math.abs(Math.hypot(x - cx, z - cz) - radius)).toBeLessThanOrEqual(ROAD_HALF_WIDTH + 0.05)
+      expect(Math.abs(Math.hypot(x - cx, z - cz) - radius)).toBeLessThanOrEqual(HALF + 0.05)
       const roadY = drawnRoadY(geo, x, z)
       expect(roadY, `vertex ${i / 3} over the road mesh`).not.toBeNull()
       expect(y - roadY!).toBeGreaterThan(0.002)

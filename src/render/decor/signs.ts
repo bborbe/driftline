@@ -7,16 +7,19 @@ import { poses, turnSign, zoneCorners, type Track } from '../../track/schema'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
 import { noCollide, structural } from '../tags'
 import { lateralPoint, sampleSegment, segmentLength, TRACK_WIDTH } from '../track/geometry'
+import { widthAt } from '../../track/pose'
 import { merged, placement, prepared } from './instance'
 
 export type SignKind = 'left' | 'right' | 'turbo' | 'turbo-red'
 /** A board standing at (x, y, z), its printed face looking toward `heading` (0 = +z). */
 export type Sign = { kind: SignKind; x: number; y: number; z: number; heading: number }
 
-/** Boards stand this far from the centreline: past the grass shoulder, clear of the curb. */
-export const SIGN_OFFSET = TRACK_WIDTH / 2 + 1.5
-/** No board within this distance of any road at a similar height (hairpins, crossings). */
-export const SIGN_CLEARANCE = TRACK_WIDTH / 2 + 1
+/** Boards stand this far past the road edge: past the grass shoulder, clear of the curb (SIGN_OFFSET on a default-width road). */
+export const SIGN_EDGE = 1.5
+export const SIGN_OFFSET = TRACK_WIDTH / 2 + SIGN_EDGE
+/** No board within this distance of any road at a similar height (hairpins, crossings), beyond that road's half width (SIGN_CLEARANCE on a default-width one). */
+export const SIGN_CLEAR_EDGE = 1
+export const SIGN_CLEARANCE = TRACK_WIDTH / 2 + SIGN_CLEAR_EDGE
 /** One chevron board per this many metres of turn, at most MAX_TURN_SIGNS per turn. */
 export const TURN_SIGN_SPACING = 12
 const MAX_TURN_SIGNS = 4
@@ -32,7 +35,7 @@ export const GROUND_LEVEL = 1
 export const planSigns = (track: Track): Sign[] => {
   const line = centreline(track, 1)
   const clear = (s: Sign) =>
-    line.every((c) => Math.abs(c.y - s.y) > LEVEL || (c.x - s.x) ** 2 + (c.z - s.z) ** 2 >= SIGN_CLEARANCE ** 2)
+    line.every((c) => Math.abs(c.y - s.y) > LEVEL || (c.x - s.x) ** 2 + (c.z - s.z) ** 2 >= (c.width / 2 + SIGN_CLEAR_EDGE) ** 2)
   const signs: Sign[] = []
   const ps = poses(track)
   track.segments.forEach((seg, i) => {
@@ -41,17 +44,19 @@ export const planSigns = (track: Track): Sign[] => {
     const count = Math.min(MAX_TURN_SIGNS, Math.max(1, Math.round(segmentLength(seg) / TURN_SIGN_SPACING)))
     for (let k = 0; k < count; k++) {
       const p = sampleSegment(ps[i], seg, k / count)
+      const half = widthAt(seg, k / count) / 2
       if (p.y >= GROUND_LEVEL) continue
       // The outside of the turn is away from its centre (u = +s·r): u = -s·offset. Stand at the
       // road edge's height, so a board on a banked turn's raised side is not buried.
-      const [x, , z] = lateralPoint(p, -s * SIGN_OFFSET, s)
-      const y = lateralPoint(p, -s * (TRACK_WIDTH / 2), s)[1]
+      const [x, , z] = lateralPoint(p, -s * (half + SIGN_EDGE), s)
+      const y = lateralPoint(p, -s * half, s)[1]
       signs.push({ kind: s > 0 ? 'left' : 'right', x, y, z, heading: p.heading + Math.PI })
     }
   })
   for (const zone of track.zones ?? []) {
     if (zone.kind !== 'turbo' && zone.kind !== 'turbo-red') continue
-    const [left, right] = zoneCorners(track, zone, 2 * SIGN_OFFSET)
+    const seg = track.segments[zone.segment]
+    const [left, right] = zoneCorners(track, zone, Math.max(widthAt(seg, zone.from), widthAt(seg, zone.to)) + 2 * SIGN_EDGE)
     if (left.y >= GROUND_LEVEL) continue
     for (const c of [left, right]) signs.push({ kind: zone.kind, x: c.x, y: c.y, z: c.z, heading: c.heading + Math.PI })
   }

@@ -72,7 +72,7 @@ Screenshots: live site, `?track=test-kit-all&cam=fly&freeze=1&renderer=webgl2` p
 
 ## loop
 
-The loop's road is the inner face of a cylinder of r 15 m (`KIT_LOOP_RADIUS`). Its axis runs across the entry heading, r above the entry. The road is the band of that face that drifts one road width sideways (`LOOP_SHIFT`), eased as θ − sin θ, so it leaves and rejoins the ground running straight ahead. `loopPoint()` in `src/track/pose.ts` is the one shape: physics raycasts the cylinder (`src/physics/surface.ts`), and the mesh and its outer shell sample `loopPoint()`.
+The loop's road is the inner face of a cylinder of r 15 m (`KIT_LOOP_RADIUS`). Its axis runs across the entry heading, r above the entry. The road is the band of that face that drifts one kit cell (10 m, `LOOP_SHIFT`) sideways, and is that wide, eased as θ − sin θ, so it leaves and rejoins the ground running straight ahead. `loopPoint()` in `src/track/pose.ts` is the one shape: physics raycasts the cylinder (`src/physics/surface.ts`), and the mesh and its outer shell sample `loopPoint()`.
 
 - **Real physics.** The wheels cast along the car's own down and gravity stays world −y, so the car stays on only while its speed presses it into the road. Measured with a full-throttle car placed 2 m before the loop at speed v, and bisected on "≥ 3 wheels down everywhere inside, upside down at the top":
   - v_min = 12.1 m/s (43.7 km/h), about √(g·r)
