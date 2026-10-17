@@ -80,6 +80,32 @@ describe('speed drift through a medium corner', () => {
     }
   })
 
+  it('hold with steer: a tap at the entry, steer held into the turn to 75°, then straightened, stays on the road at speed', () => {
+    for (const tap of [0.25, 0.4]) {
+      for (const steer of [0.7, 1]) {
+        const track = corner(40, 90)
+        const surface = trackSurface(track)
+        let s: CarState = createCarAt(poses(track)[0])
+        for (let t = 0; t < TICK_HZ; t++) s = step(s, NO_INPUT, surface)
+        while (s.position.z < RUN_IN) s = step(s, { ...NO_INPUT, throttle: speedOf(s) < 25 ? 1 : 0, steer: -0.1 * s.position.x }, surface)
+        let offroad = 0
+        let minSpeed = speedOf(s)
+        let turned = 0
+        for (let t = 0; t < 6 * TICK_HZ && !(turned >= 75 && slipAngleDeg(s) < 5); t++) {
+          const f = forwardOf(s)
+          turned = -Math.atan2(f.x, f.z) * (180 / Math.PI)
+          const input = t < tap * TICK_HZ ? 1 : turned < 75 ? steer : 0
+          s = step(s, { ...NO_INPUT, throttle: 1, steer: input, handbrake: t < tap * TICK_HZ }, surface)
+          if (materialUnder(s, surface) !== 'road') offroad++
+          minSpeed = Math.min(minSpeed, speedOf(s))
+        }
+        expect(turned, `tap ${tap} steer ${steer}`).toBeGreaterThan(75)
+        expect(offroad, `tap ${tap} steer ${steer}`).toBe(0)
+        expect(minSpeed * 3.6, `tap ${tap} steer ${steer}`).toBeGreaterThan(75)
+      }
+    }
+  })
+
   it('the 15 m hairpin: braked to ~68 km/h, a held drift gets round on the road', () => {
     for (const hold of [0.4, 0.8]) {
       for (const into of [-5, 0]) {
