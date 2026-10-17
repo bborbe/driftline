@@ -113,6 +113,20 @@ const DRIFT_CARRY_MAX_G = 1.2
 const DRIFT_CARRY_MAX_G_FREE = 0.6
 const DRIFT_CARRY_SLIP_LO = 10
 const DRIFT_CARRY_SLIP_HI = 15
+// Hold with steer: once the slide is past DRIFT_HOLD_SLIP_LO degrees and Space is up, steer into the
+// turn holds the body slip at DRIFT_HOLD_SLIP degrees x steer, by a yaw torque on the slip error
+// (DRIFT_HOLD_KP, 1/s² per rad) damped by its rate (DRIFT_HOLD_KD, 1/s). With the steer inside
+// DRIFT_HOLD_NEUTRAL (straightened) it pulls the slip back to 0 at DRIFT_HOLD_RELEASE x that rate,
+// so letting go ends the slide in ~0.3 s; countersteer ends it on the tyres. Grip cornering slips
+// under DRIFT_HOLD_SLIP_LO, so row 1 grip is untouched.
+const DRIFT_HOLD_SLIP = 20
+const DRIFT_HOLD_SLIP_LO = 10
+const DRIFT_HOLD_SLIP_MAX = 45 // past this it is a crash or a spin, not a drift: hands off
+const DRIFT_HOLD_MIN_SPEED = 18 // m/s; below it a slide is a scrape (a wall or pillar glance), not a drift
+const DRIFT_HOLD_KP = 80
+const DRIFT_HOLD_KD = 10
+const DRIFT_HOLD_RELEASE = 0.5
+const DRIFT_HOLD_NEUTRAL = 0.2
 // Material grip at which the drift fades out (dirt 0.6) and is full (road 1).
 const DRIFT_GRIP_LO = 0.6
 const DRIFT_GRIP_HI = 1
@@ -445,6 +459,15 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
       const kick = clamp((DRIFT_KICK_SLIP_HI - betaDeg) / (DRIFT_KICK_SLIP_HI - DRIFT_KICK_SLIP_LO), 0, 1)
       // Positive steer = right = yaw toward -x, so a negative torque about y.
       torque = add(torque, v3(0, -DRIFT_KICK * kick * drift * INERTIA.y * clamp(input.steer, -1, 1), 0))
+    }
+    // Steer into the slide: + when the steer turns the same way the nose leads (beta < 0 is a right-hand slide).
+    const into = -Math.sign(beta) * clamp(input.steer, -1, 1)
+    const straightened = Math.abs(input.steer) < DRIFT_HOLD_NEUTRAL
+    if (!input.handbrake && betaDeg > DRIFT_HOLD_SLIP_LO && betaDeg < DRIFT_HOLD_SLIP_MAX && vFlat > DRIFT_HOLD_MIN_SPEED && (into > 0 || straightened)) {
+      const error = (((into > 0 ? DRIFT_HOLD_SLIP * into : 0) - betaDeg) * Math.PI) / 180
+      const gain = into > 0 ? 1 : DRIFT_HOLD_RELEASE
+      // A torque along sign(beta) grows |beta|; sign(beta) * growth is the rate |beta| grows at.
+      torque = add(torque, v3(0, Math.sign(beta) * drift * INERTIA.y * gain * (DRIFT_HOLD_KP * error - DRIFT_HOLD_KD * Math.sign(beta) * growth), 0))
     }
     const carry = clamp((betaDeg - DRIFT_CARRY_SLIP_LO) / (DRIFT_CARRY_SLIP_HI - DRIFT_CARRY_SLIP_LO), 0, 1)
     if (carry > 0) {
