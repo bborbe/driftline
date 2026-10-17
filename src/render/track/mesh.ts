@@ -4,7 +4,7 @@ import { ASPHALT } from '../look'
 import { flat, structural, type StructuralKind } from '../tags'
 import { barrierPillars, barrierPosts, gatePillars, poses, type Pillar, type Track } from '../../track/schema'
 import { GATE_LEG_MIN_HEIGHT } from './kenney-plan'
-import { buildApron, buildBody, buildDeck, buildTrack, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
+import { buildApron, buildBody, buildDeck, buildTrack, DECK_FOOT_COLUMNS, DECK_PILLAR_SIZE, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road; the road itself is the shared ASPHALT.
@@ -78,14 +78,15 @@ export const createTrackMesh = (track: Track, segments?: number[], gates?: numbe
   const group = new THREE.Group()
   group.name = `track:${track.name}`
   const ps = poses(track)
+  const plans = planBodies(track)
   buildTrack(track).forEach((g, i) => {
     if (segments && !segments.includes(i)) return
     if (track.segments[i].type === 'gap') return // no road to draw
     const mesh = flat(new THREE.Mesh(toBufferGeometry(g), roadMaterial), 'road')
     mesh.receiveShadow = true
     group.add(mesh)
-    const apron = buildApron(ps[i], track.segments[i])
-    if (apron) {
+    const apron = buildApron(ps[i], track.segments[i], plans[i]?.kinds ?? null)
+    if (apron && apron.indices.length > 0) {
       const geo = new THREE.BufferGeometry()
       geo.setAttribute('position', new THREE.BufferAttribute(apron.positions, 3))
       geo.setIndex(new THREE.BufferAttribute(apron.indices, 1))
@@ -145,16 +146,16 @@ const CONCRETE_FOOT = linear(0.32, 0.33, 0.36)
 // Pushed back in depth: where a banked turn's verge skirt (buildApron) shares a body wall's plane, the skirt draws, not a z-fight.
 const supportMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
 const pillarMaterial = new THREE.MeshStandardMaterial({ color: linear(0.45, 0.46, 0.5), roughness: 0.85 })
-/** Deck pillars carry a whole road. */
-const DECK_PILLAR_SIZE = 1.6
 
-const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kind: StructuralKind): THREE.Mesh => {
-  const geo = new THREE.BufferGeometry()
+// `crisp`: one normal per face, so a bridge deck reads as a box with sharp edges, not a rounded pipe.
+const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kind: StructuralKind, crisp = false): THREE.Mesh => {
+  let geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(g.positions, 3))
   geo.setIndex(new THREE.BufferAttribute(g.indices, 1))
   const colors = new Float32Array(g.positions.length)
   for (let v = 0; v < g.positions.length / 3; v++) (foot(v) ? CONCRETE_FOOT : CONCRETE_TOP).toArray(colors, v * 3)
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  if (crisp) geo = geo.toNonIndexed()
   geo.computeVertexNormals()
   const mesh = structural(new THREE.Mesh(geo, supportMaterial), kind)
   mesh.castShadow = mesh.receiveShadow = true
@@ -162,9 +163,11 @@ const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kin
 }
 
 /**
- * Solid bodies down to the ground under every raised row (ramps, drops, raised road), a deck box
- * on pillars only where another road passes underneath (planBodies). Elevated gates carry their own
- * legs to the ground (gateArch, createGateLegs). Visual only: physics drives the road strip and never sees any of them.
+ * Filled embankments down to the ground under low raised rows (ramp and drop ends), an open bridge
+ * deck with parapets on pillars where the road is high or another road passes underneath
+ * (planBodies). Elevated gates carry their own legs to the ground (gateArch, createGateLegs). The
+ * embankments and the pillars collide (bodyBoxes, pillarBoxes in src/track/bodies.ts); the deck and
+ * its parapets are visual: the car drives on the road strip above them.
  */
 export const createRampSupports = (track: Track): THREE.Group => {
   const group = new THREE.Group()
@@ -179,7 +182,11 @@ export const createRampSupports = (track: Track): THREE.Group => {
       if (body.indices.length > 0) group.add(concreteMesh(body, (v) => body.positions[v * 3 + 1] === 0, 'ramp-body'))
     }
     const deck = buildDeck(ps[i], seg, plan?.kinds ?? null)
-    if (deck) group.add(concreteMesh(deck, (v) => v % deck.perRow === 1 || v % deck.perRow === 3, 'deck'))
+    if (deck) {
+      // A bridge deck (DECK_SECTION) or a loop's shell (left top, left foot, right top, right foot).
+      const feet = seg.type === 'loop' ? [1, 3] : DECK_FOOT_COLUMNS
+      group.add(concreteMesh(deck, (v) => feet.includes(v % deck.perRow), 'deck', seg.type !== 'loop'))
+    }
   })
   for (const p of planDeckPillars(track)) {
     pillars.push(

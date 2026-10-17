@@ -1,9 +1,10 @@
 // Filled bodies under raised road are solid: a car offroad beside a ramp, a drop or a raised
-// road hits the body's side walls and end caps like a wall instead of driving inside it.
+// road hits the body's side walls and end caps like a wall instead of driving inside it. Under a
+// bridge the ground is open, and only its pillars stop the car.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { debugPose } from '../race/debug-pose'
-import { bodyBoxes } from '../track/bodies'
+import { bodyBoxes, pillarBoxes } from '../track/bodies'
 import { CAMPAIGN, STYLES, TEST_TRACKS } from '../track/catalogue'
 import { resolveTrack } from '../track/kit'
 import type { Pillar, Track } from '../track/schema'
@@ -48,15 +49,28 @@ const drive = (surface: Surface, boxes: readonly Pillar[], start: ReturnType<typ
   return { entered, closest, position: sim.state.position }
 }
 
-describe('crossover ramp body at the operator offroad pose', () => {
+describe('crossover at the operator offroad pose', () => {
   const track = load('crossover')
   const surface = trackSurface(track)
   const boxes = bodyBoxes(track)
+  const pillars = pillarBoxes(track)
 
-  it('stops the car at the body wall instead of letting it drive inside', () => {
-    // The live debug spawn the operator reported: ?track=crossover&x=67.7&y=0.8&z=-87.7&yaw=165.
+  it('drives in under the bridge, where no body stands, and stops at a pillar instead of passing through it', () => {
+    // The live debug spawn the operator reported against the old filled ramp (#92): ?track=crossover&x=67.7&y=0.8&z=-87.7&yaw=165.
+    // That road is now a bridge, 7 m up on pillars, so the car rolls in under the deck.
     const pose = debugPose('?x=67.7&y=0.8&z=-87.7&yaw=165')
     expect(pose).not.toBeNull()
+    const run = drive(surface, [...boxes, ...pillars], createCarAt(pose!), null, 3 * TICK_HZ)
+    expect(boxes.every((o) => gap(o, pose!.x, pose!.z) > 10), 'no filled body near the bridge').toBe(true)
+    expect(Math.min(...pillars.map((o) => gap(o, run.position.x, run.position.z))), 'the car reaches a pillar').toBeLessThan(REACHED)
+    expect(run.entered, `inside a body or pillar at tick ${run.entered}, ended at ${JSON.stringify(run.position)}`).toBe(-1)
+  })
+
+  it('stops the car at the drop embankment wall instead of letting it drive inside', () => {
+    // Offroad 6 m east of the drop's filled foot (x 70, z -155, 2.7 m high), facing west at its side wall.
+    const pose = debugPose('?x=81&y=0.8&z=-156&yaw=-90')
+    expect(pose).not.toBeNull()
+    expect(openGround(surface, boxes, pose!.x, pose!.z)).toBe(true)
     const run = drive(surface, boxes, createCarAt(pose!), null, 3 * TICK_HZ)
     expect(run.closest, 'the car reaches a body wall').toBeLessThan(REACHED)
     expect(run.entered, `inside a body at tick ${run.entered}, ended at ${JSON.stringify(run.position)}`).toBe(-1)

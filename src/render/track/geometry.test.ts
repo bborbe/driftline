@@ -8,7 +8,9 @@ import { resolveTrack } from '../../track/kit'
 import { trackSurface } from '../../physics'
 import type { Segment, Track } from '../../track/schema'
 import { CHECKPOINT_LEG, GATE_LEG_MIN_HEIGHT, planGateLegs, planPieces } from './kenney-plan'
-import { buildApron, buildBody, buildDeck, buildTrack, CENTRE_COLUMN, DECK_DEPTH, DECK_PILLAR_CLEAR, lateralPoint, planBodies, planDeckPillars, PROFILE, RAISED_MIN, rowCenter, rowCount, SPAN_HEADROOM, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import { pillarBoxes } from '../../track/bodies'
+import { closed, MIN_THICKNESS, thickness } from '../lint'
+import { BRIDGE_MIN_HEIGHT, buildApron, buildBody, buildDeck, buildTrack, CENTRE_COLUMN, DECK_DEPTH, DECK_PILLAR_CLEAR, DECK_PILLAR_STEP, lateralPoint, PARAPET_HEIGHT, PARAPET_WIDTH, planBodies, planDeckPillars, PROFILE, RAISED_MIN, rowCenter, rowCount, SPAN_HEADROOM, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
@@ -133,7 +135,7 @@ describe('raised bodies', () => {
     expect(CATALOGUE).toEqual(expect.arrayContaining(['crossover', 'tower', 'plunge', 'knot', 'leap', 'switchback', 'flatout', 'dustbowl', 'glacier', 'washboard', 'looping', 'test1', 'test2', 'test-ramp']))
   })
 
-  it.each(CATALOGUE)('%s: every raised row stands on a solid body to the ground or is a bridge deck', (name) => {
+  it.each(CATALOGUE)('%s: every raised row is a filled embankment to the ground or a bridge deck', (name) => {
     const track = loadTrack(name)
     const ps = poses(track)
     const plans = planBodies(track)
@@ -153,10 +155,13 @@ describe('raised bodies', () => {
         if (p.y <= RAISED_MIN) return
         const at = `${name} seg ${i} ${seg.type} row ${r} y ${p.y.toFixed(2)}`
         if (plan.kinds[r] === 'span') {
+          // A concrete box DECK_DEPTH under the road edge, a parapet PARAPET_HEIGHT above it and PARAPET_WIDTH thick.
           expect(deck, at).not.toBeNull()
-          const top = vertex(deck!, r * deck!.perRow)
-          const foot = vertex(deck!, r * deck!.perRow + 1)
-          expect(top[1] - foot[1], at).toBeGreaterThanOrEqual(0.3)
+          const [edge, top, outerTop, foot] = [0, 1, 2, 3].map((k) => vertex(deck!, r * deck!.perRow + k))
+          // The box follows the road's bank: measure its depth at the foot's own lateral offset.
+          expect(lateralPoint(p, TRACK_WIDTH / 2 + PARAPET_WIDTH, s)[1] - foot[1], at).toBeCloseTo(DECK_DEPTH, 3)
+          expect(top[1] - edge[1], at).toBeCloseTo(PARAPET_HEIGHT, 3)
+          expect(Math.hypot(outerTop[0] - top[0], outerTop[2] - top[2]), at).toBeCloseTo(PARAPET_WIDTH, 3)
           return
         }
         // Filled: both wall feet on the ground, tops at the road edge, a body at least 0.3 m wide.
@@ -235,17 +240,101 @@ describe('raised bodies', () => {
     })
   })
 
-  it("crossover's bridge over the start straight stays an open span on pillars, with abutments either side", () => {
+  it("crossover's raised road is one bridge over the start straight, on an embankment at either end", () => {
     const track = loadTrack('crossover')
     const plans = planBodies(track)
-    const spans = plans.flatMap((pl, i) => (pl?.kinds.includes('span') ? [i] : []))
-    expect(spans).toEqual([5]) // the straight at y 8 crossing x 0
-    expect(plans[5]!.kinds[0]).toBe('fill')
-    expect(plans[5]!.kinds.at(-1)).toBe('fill')
+    // seg 2 climbs to y 8, segs 3-9 stay up (seg 5 crosses the start straight at x 0), seg 10 drops back.
+    for (let i = 3; i <= 9; i++) if (plans[i]) expect(plans[i]!.kinds.every((k) => k === 'span'), `seg ${i}`).toBe(true)
+    expect(plans[5]!.kinds.every((k) => k === 'span')).toBe(true)
+    // Abutments: the ramp's foot and the drop's foot stay filled, each closed by a cap facing the bridge.
+    const up = plans[2]!
+    const down = plans[10]!
+    expect(up.kinds[0]).toBe('fill')
+    expect(up.kinds.at(-1)).toBe('span')
+    expect(up.caps).toContain(up.kinds.lastIndexOf('fill'))
+    expect(down.kinds[0]).toBe('span')
+    expect(down.kinds.at(-1)).toBe('fill')
+    expect(down.caps).toContain(down.kinds.indexOf('fill'))
     const pillars = planDeckPillars(track)
     expect(pillars.length).toBeGreaterThanOrEqual(1)
     for (const p of pillars) expect(Math.abs(p.x)).toBeGreaterThanOrEqual(DECK_PILLAR_CLEAR) // never on the start straight (x 0)
     expect(DECK_DEPTH).toBeGreaterThanOrEqual(0.3)
+  })
+})
+
+describe('bridges and embankments', () => {
+  // A road passing under (x, z) at least SPAN_HEADROOM below `y`, from another part of the lap.
+  const roadUnder = (track: Track, x: number, z: number, y: number): boolean => {
+    const ps = poses(track)
+    return track.segments.some((seg, i) => seg.type !== 'gap' && Array.from({ length: 41 }, (_, k) => sampleSegment(ps[i], seg, k / 40)).some((q) => q.y < y - SPAN_HEADROOM && Math.hypot(q.x - x, q.z - z) < DECK_PILLAR_CLEAR))
+  }
+
+  it.each(CATALOGUE)('%s: rows at or above BRIDGE_MIN_HEIGHT are open bridges on pillars to the ground, lower rows are filled', (name) => {
+    const track = loadTrack(name)
+    const ps = poses(track)
+    const plans = planBodies(track)
+    const pillars = planDeckPillars(track)
+    track.segments.forEach((seg, i) => {
+      const plan = plans[i]
+      if (!plan) return
+      const rows = plan.kinds.length
+      const body = buildBody(ps[i], seg, plan)
+      const used = new Set(body.indices)
+      plan.kinds.forEach((kind, r) => {
+        const p = sampleSegment(ps[i], seg, r / (rows - 1))
+        const at = `${name} seg ${i} ${seg.type} row ${r} y ${p.y.toFixed(2)}`
+        if (p.y >= BRIDGE_MIN_HEIGHT) expect(kind, at).toBe('span')
+        if (kind !== 'span') return
+        // Open underneath: no body wall, lid or cap uses this row's vertices.
+        for (let k = 0; k < body.perRow; k++) expect(used.has(r * body.perRow + k), `${at}: filled under a bridge`).toBe(false)
+        expect(plan.caps, at).not.toContain(r)
+        // Carried: a pillar within DECK_PILLAR_STEP, unless a road below keeps the ground clear here.
+        if (roadUnder(track, p.x, p.z, p.y)) return
+        const nearest = Math.min(...pillars.map((q) => Math.hypot(q.x - p.x, q.z - p.z)))
+        expect(nearest, `${at}: no pillar near the bridge`).toBeLessThanOrEqual(DECK_PILLAR_STEP)
+      })
+      // Below the threshold and with no road under it, a raised row stays an embankment.
+      plan.kinds.forEach((kind, r) => {
+        const p = sampleSegment(ps[i], seg, r / (rows - 1))
+        if (p.y > RAISED_MIN && p.y < BRIDGE_MIN_HEIGHT && !roadUnder(track, p.x, p.z, p.y)) expect(kind, `${name} seg ${i} row ${r} y ${p.y.toFixed(2)}`).toBe('fill')
+      })
+    })
+  })
+
+  it.each(CATALOGUE)('%s: every pillar stands on the ground and reaches the deck underside above it', (name) => {
+    const track = loadTrack(name)
+    const ps = poses(track)
+    const road = track.segments.flatMap((seg, i) => (seg.type === 'gap' ? [] : Array.from({ length: 81 }, (_, k) => sampleSegment(ps[i], seg, k / 80))))
+    const boxes = pillarBoxes(track)
+    const pillars = planDeckPillars(track)
+    expect(boxes).toHaveLength(pillars.length)
+    pillars.forEach((p, k) => {
+      expect(boxes[k].y).toBe(0)
+      expect(boxes[k].height).toBeCloseTo(p.top, 6)
+      // The road straight above the pillar: the highest centreline point within a metre.
+      const above = road.filter((q) => Math.hypot(q.x - p.x, q.z - p.z) < 1).reduce((m, q) => Math.max(m, q.y), -Infinity)
+      expect(above - DECK_DEPTH - p.top, `${name} pillar ${k}`).toBeLessThan(0.3)
+      expect(p.top, `${name} pillar ${k}`).toBeGreaterThan(0)
+    })
+  })
+
+  it.each(CATALOGUE)('%s: every bridge deck is a closed solid no thinner than the lint MIN_THICKNESS', (name) => {
+    const track = loadTrack(name)
+    const ps = poses(track)
+    const plans = planBodies(track)
+    track.segments.forEach((seg, i) => {
+      if (seg.type === 'loop') return
+      const deck = buildDeck(ps[i], seg, plans[i]?.kinds ?? null)
+      if (!deck) return
+      const tris = Array.from(deck.indices)
+      expect(closed(tris), `${name} seg ${i}: deck has free edges`).toBe(true)
+      expect(thickness(Array.from(deck.positions), tris), `${name} seg ${i}`).toBeGreaterThanOrEqual(MIN_THICKNESS)
+    })
+  })
+
+  it('pins the rule: 3 m threshold, 1 m deck, 0.5 m parapets, pillars about every 12 m', () => {
+    expect([BRIDGE_MIN_HEIGHT, DECK_DEPTH, PARAPET_WIDTH, PARAPET_HEIGHT, DECK_PILLAR_STEP]).toEqual([3, 1, 0.5, 0.8, 12])
+    for (const t of [BRIDGE_MIN_HEIGHT, DECK_DEPTH, PARAPET_WIDTH]) expect(t).toBeGreaterThanOrEqual(MIN_THICKNESS)
   })
 })
 
@@ -269,7 +358,7 @@ describe('multi-level decks', () => {
     )
   }
 
-  it.each(['crossover', 'tower', 'plunge', 'knot', 'leap'])('%s: decks and their pillars only where a road passes underneath', (name) => {
+  it.each(['crossover', 'tower', 'plunge', 'knot', 'leap'])('%s: decks exactly on bridge rows, and no pillar on a road passing underneath', (name) => {
     const track = load(name)
     const ps = poses(track)
     const plans = planBodies(track)

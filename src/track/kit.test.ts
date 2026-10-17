@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { trackSurface } from '../physics'
-import { buildDeck, lateralPoint, planBodies, planDeckPillars, PROFILE, rowCount, sampleSegment } from '../render/track/geometry'
+import { buildDeck, DECK_FOOT_COLUMNS, lateralPoint, planBodies, planDeckPillars, PROFILE, rowCount, sampleSegment } from '../render/track/geometry'
 import { compileKit, connectorPose, isKitTrack, KIT_PIECES, LEVEL, onGrid, outConnector, resolveTrack, type KitTrack, type PieceDef } from './kit'
 import { CELL, exitPose, partialPose, poses, turnSign, validate, type Pose, type Turn } from './schema'
 import { loopPoint } from './pose'
@@ -272,12 +272,12 @@ describe('kit level format', () => {
         const g = buildDeck(entry, seg, Array(rowCount(seg)).fill('span'))
         expect(g, seg.type).not.toBeNull()
         expect(g!.positions.length).toBeGreaterThan(0)
-        // Soffit triangles join the two foot vertices (row offsets 1 and 3) of consecutive rows.
+        // Soffit triangles join the two foot vertices (DECK_FOOT_COLUMNS) of consecutive rows.
         const v = (i: number) => [g!.positions[3 * i], g!.positions[3 * i + 1], g!.positions[3 * i + 2]]
         let soffits = 0
         for (let t = 0; t < g!.indices.length; t += 3) {
           const [a, b, c] = [g!.indices[t], g!.indices[t + 1], g!.indices[t + 2]]
-          if (![a, b, c].every((i) => i % g!.perRow === 1 || i % g!.perRow === 3)) continue
+          if (![a, b, c].every((i) => DECK_FOOT_COLUMNS.includes(i % g!.perRow))) continue
           const [p, q, r] = [v(a), v(b), v(c)]
           const u = [q[0] - p[0], q[1] - p[1], q[2] - p[2]]
           const w = [r[0] - p[0], r[1] - p[1], r[2] - p[2]]

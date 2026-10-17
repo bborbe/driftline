@@ -14,14 +14,7 @@ import { createPieceTrack } from './track/kenney'
  * Known offenders too big to fix in the PR that added the lint: each one names its follow-up.
  * Listed here they show as `it.todo` instead of failing; they are never allow-listed with a `flat` tag.
  */
-const LID_EDGE = 'follow-up (racing-game manager, 2026-10-17): a filled body\'s lid ends in a free edge at the run\'s high end — no cap closes it'
-const DECK_EDGE = 'follow-up (racing-game manager, 2026-10-17): a deck/loop shell has free edges along its underside'
-const KNOWN: readonly { track: string; check: Offender['check']; mesh: string; followUp: string }[] = [
-  { track: 'crossover', check: 'thin', mesh: 'track:crossover/ramp-supports/BufferGeometry', followUp: LID_EDGE },
-  { track: 'test-kit-all', check: 'thin', mesh: 'track:test-kit-all/ramp-supports/BufferGeometry', followUp: LID_EDGE },
-  { track: 'knot', check: 'thin', mesh: 'track:knot/ramp-supports/BufferGeometry@2', followUp: DECK_EDGE },
-  { track: 'tower', check: 'thin', mesh: 'track:tower/ramp-supports/BufferGeometry@2', followUp: DECK_EDGE },
-]
+const KNOWN: readonly { track: string; check: Offender['check']; mesh: string; followUp: string }[] = []
 
 /**
  * Headless loading: glTF and other assets resolve from the repo's own files (Vite's `?url` gives
