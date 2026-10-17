@@ -1,6 +1,7 @@
 // Start screen: a Campaign row and a Test row of track cards (outline, personal best, best medal),
 // then settings. Resolves with the chosen track name. Arrows + Enter/Space or the mouse:
-// left/right within a row, up/down between rows.
+// left/right within a row, up/down between rows. `focus` opens on that track's card (a reload's `?sel=`), and
+// `onFocus` hears every focus move (the track, or null on the Settings button) so the URL can follow it.
 import './menu.css'
 import { MEDAL_LABEL } from '../race/medals'
 import { formatLapTime, RaceStore } from '../race/store'
@@ -9,13 +10,19 @@ import { centreline } from '../track/centreline'
 import { layoutId } from '../track/schema'
 import { loadLap } from '../track/registry'
 import { isSelectKey, moveGrid, type GridPos } from './nav'
-import { settingsPanel } from './settings-panel'
+import { labelTrackDefault, settingsPanel } from './settings-panel'
+import { trackEnvironment } from '../track/environment'
 import { outlinePath } from './thumbnail'
 
 const THUMB = 176
 const TEST_THUMB = 96
 
-export function chooseTrack(names: string[]): Promise<string> {
+export interface ChooseOptions {
+  focus?: string | null
+  onFocus?: (track: string | null) => void
+}
+
+export function chooseTrack(names: string[], opts: ChooseOptions = {}): Promise<string> {
   return new Promise((resolve) => {
     const screen = document.createElement('div')
     screen.className = 'menu-screen'
@@ -54,10 +61,15 @@ export function chooseTrack(names: string[]): Promise<string> {
     buttons.push([settingsButton])
     actions.push([toggleSettings])
 
-    let pos: GridPos = { row: 0, col: 0 }
+    const row0 = buttons.findIndex((row) => row.some((b) => b.dataset.track === opts.focus))
+    let pos: GridPos = row0 < 0 ? { row: 0, col: 0 } : { row: row0, col: buttons[row0].findIndex((b) => b.dataset.track === opts.focus) }
     const focus = (p: GridPos) => {
       pos = p
       buttons.forEach((row, r) => row.forEach((b, c) => b.classList.toggle('menu-focus', r === p.row && c === p.col)))
+      const name = buttons[p.row][p.col].dataset.track ?? null
+      // The Settings button keeps the last card's track default.
+      if (name) labelTrackDefault(settings, trackEnvironment(loadLap(name)))
+      opts.onFocus?.(name)
     }
     buttons.forEach((row, r) =>
       row.forEach((b, c) => {

@@ -6,16 +6,28 @@ import { LIVE_FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
 import { loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
-import { TIME_CHOICES, WEATHER_CHOICES, type TimeChoice, type WeatherChoice } from '../track/environment'
+import { TIME_CHOICES, WEATHER_CHOICES, type Environment, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type ControlId, type Tab } from './tabs'
 
 export interface SettingsHooks {
   /** Live volume change, e.g. GameAudio.setVolume. */
   onVolume?: (v: number) => void
+  /** The current track's own time and weather, named on the "Track default" options (labelTrackDefault updates it). */
+  trackDefault?: Environment
 }
 
 const VIEW_LABELS: Record<ViewMode, string> = { close: 'Close chase', far: 'Far chase', cockpit: 'In-car' }
-const choiceLabel = (c: string): string => (c === 'default' ? 'Track default' : c[0].toUpperCase() + c.slice(1))
+/** Option label; "Track default" names what it resolves to on the track when that is known: `Track default (snow)`. */
+export const choiceLabel = (c: string, trackDefault?: string): string =>
+  c === 'default' ? `Track default${trackDefault ? ` (${trackDefault})` : ''}` : c[0].toUpperCase() + c.slice(1)
+
+/** Rename the "Track default" Time and Weather options under `root` for the track whose environment is `env`. */
+export function labelTrackDefault(root: ParentNode, env: Environment): void {
+  for (const [id, value] of [['setting-time', env.time], ['setting-weather', env.weather]] as const) {
+    const opt = root.querySelector<HTMLOptionElement>(`#${id} option[value="default"]`)
+    if (opt) opt.textContent = choiceLabel('default', value)
+  }
+}
 
 export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   const s: Settings = loadSettings(localStorage)
@@ -62,7 +74,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   add('laps', label('Laps (from the next restart)'), laps)
   const time = document.createElement('select')
   time.id = 'setting-time'
-  for (const c of TIME_CHOICES) time.append(new Option(choiceLabel(c), c, false, c === s.time))
+  for (const c of TIME_CHOICES) time.append(new Option(choiceLabel(c, hooks.trackDefault?.time), c, false, c === s.time))
   time.addEventListener('change', () => {
     s.time = time.value as TimeChoice
     commit()
@@ -70,7 +82,7 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   add('time', label('Time of day'), time)
   const weather = document.createElement('select')
   weather.id = 'setting-weather'
-  for (const c of WEATHER_CHOICES) weather.append(new Option(choiceLabel(c), c, false, c === s.weather))
+  for (const c of WEATHER_CHOICES) weather.append(new Option(choiceLabel(c, hooks.trackDefault?.weather), c, false, c === s.weather))
   weather.addEventListener('change', () => {
     s.weather = weather.value as WeatherChoice
     commit()
