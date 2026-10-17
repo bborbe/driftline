@@ -46,7 +46,7 @@ Camera
 - `C` - Free-fly camera on / off
 - `W` `A` `S` `D` - Fly: move
 - Mouse drag - Fly: look
-- `E` / `Q` - Fly: up / down
+- `Space` / `Ctrl`, `E` / `Q` - Fly: up / down
 - `Shift` - Fly: fast
 - `O` - Fly: orbit the track
 

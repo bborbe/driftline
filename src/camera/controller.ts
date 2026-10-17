@@ -13,6 +13,7 @@ import {
   flyLooking,
   flyRequested,
   flyToggleKey,
+  isFlyKey,
   FLY_FOV,
   look,
   lookDir,
@@ -22,6 +23,7 @@ import {
   orbitPose,
   orbitRequested,
   orbitToggleKey,
+  startsLook,
   pitchParam,
   updateFly,
   type FlyCam,
@@ -121,7 +123,11 @@ export function createCameraController(o: CameraOptions): CameraController {
   // Mouse drag looks around while flying (and ends an orbit where it is).
   let dragging = false
   o.canvas.addEventListener('mousedown', (e) => {
-    if (fly && e.button === 0) dragging = true
+    if (fly && startsLook(e.button, e.ctrlKey)) dragging = true
+  })
+  // macOS turns Ctrl+click into a right-click; while flying Ctrl is "down", so no context menu.
+  o.canvas.addEventListener('contextmenu', (e) => {
+    if (fly) e.preventDefault()
   })
   window.addEventListener('mouseup', () => (dragging = false))
   window.addEventListener('mousemove', (e) => {
@@ -150,6 +156,7 @@ export function createCameraController(o: CameraOptions): CameraController {
       return viewMode
     },
     onKeyDown(e) {
+      if (fly && isFlyKey(e.code) && !(e.target instanceof HTMLInputElement)) e.preventDefault()
       switch (cameraKey(e.code, e.repeat, e.target instanceof HTMLInputElement)) {
         case 'view': {
           const mode = viewForKey(e.code)!

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { NO_INPUT, TICK_HZ, v3, type CarState } from '../physics'
 import { gateLine } from '../track/schema'
-import { COUNTDOWN_TICKS, LapLoop, lapCount, MAX_LAPS, RESTART_COUNTDOWN_TICKS, crosses } from './lap'
+import { COUNTDOWN_TICKS, LapLoop, lapCount, MAX_LAPS, crosses } from './lap'
 import { FLAT_OVAL } from './fixture.test-track'
 
 const gatePoses = () => {
@@ -77,10 +77,10 @@ describe('LapLoop', () => {
     for (let t = 7; t <= COUNTDOWN_TICKS + 50; t += 7) loop.update({ ...loop.spawn(), tick: t }) // ~14 fps
     loop.restart(COUNTDOWN_TICKS + 60)
     for (let t = COUNTDOWN_TICKS + 61; t <= 2 * COUNTDOWN_TICKS + 100; t++) loop.update({ ...loop.spawn(), tick: t })
-    expect(ns).toEqual([3, 2, 1, 0, 3, 2, 1, 0]) // restart: the same 3-2-1-GO, compressed
+    expect(ns).toEqual([3, 2, 1, 0, 3, 2, 1, 0]) // restart: the same 3-2-1-GO
   })
 
-  it('announces 3, 2, 1, GO on restart within the short countdown, evenly spaced', () => {
+  it('announces 3, 2, 1, GO on restart one second apart, like Begin', () => {
     const loop = new LapLoop(FLAT_OVAL, () => true)
     const calls: [number, number][] = []
     loop.start(0)
@@ -88,10 +88,9 @@ describe('LapLoop', () => {
     loop.on({ countdown: (t, n) => calls.push([n, t]) })
     const r = COUNTDOWN_TICKS + 20
     loop.restart(r)
-    for (let t = r + 1; t <= r + RESTART_COUNTDOWN_TICKS + 10; t++) loop.update({ ...loop.spawn(), tick: t })
+    for (let t = r + 1; t <= r + COUNTDOWN_TICKS + 10; t++) loop.update({ ...loop.spawn(), tick: t })
     expect(calls.map(([n]) => n)).toEqual([3, 2, 1, 0])
-    const third = RESTART_COUNTDOWN_TICKS / 3
-    expect(calls.map(([, t]) => t - r)).toEqual([0, Math.floor(third) + 1, Math.floor(2 * third) + 1, RESTART_COUNTDOWN_TICKS])
+    expect(calls.map(([, t]) => t - r)).toEqual([0, TICK_HZ, 2 * TICK_HZ, COUNTDOWN_TICKS])
   })
 
   it('passes input only while racing', () => {
@@ -177,13 +176,13 @@ describe('LapLoop', () => {
     const { loop, events } = race()
     const r = loop.restart(1000)
     expect(events.at(-1)).toBe('restart')
-    expect(loop.phase).toBe('countdown') // Begin already given: straight to a short countdown
+    expect(loop.phase).toBe('countdown') // Begin already given: straight to the full countdown
     expect(loop.passed).toBe(0)
-    expect(loop.countdownLeft(1000)).toBe(RESTART_COUNTDOWN_TICKS)
+    expect(loop.countdownLeft(1000)).toBe(COUNTDOWN_TICKS)
     expect(r.tick).toBe(1000)
   })
 
-  it('restart gives control back in under a second, also from the finish panel', () => {
+  it('restart gives control back after the full 3 s countdown, also from the finish panel', () => {
     const { loop, car: start } = race()
     let car = start
     for (const g of gatePoses().filter((g) => g.kind === 'checkpoint')) car = passGate(loop, car, g.pose)
@@ -191,9 +190,9 @@ describe('LapLoop', () => {
     expect(loop.phase).toBe('finished')
     loop.restart(2000)
     let t = 2000
-    while (loop.phase !== 'racing' && t < 2000 + 3 * TICK_HZ) loop.update({ ...loop.spawn(), tick: ++t })
+    while (loop.phase !== 'racing' && t < 2000 + 5 * TICK_HZ) loop.update({ ...loop.spawn(), tick: ++t })
     expect(loop.phase).toBe('racing')
-    expect(((t - 2000) * 1000) / TICK_HZ).toBeLessThan(1000)
+    expect(((t - 2000) * 1000) / TICK_HZ).toBe(3000)
     expect(loop.input({ ...NO_INPUT, throttle: 1 }).throttle).toBe(1)
   })
 })

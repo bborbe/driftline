@@ -12,6 +12,9 @@ export const isBeginKey = (code: string, repeat: boolean, target: KeyTarget): bo
   return !(tag === 'INPUT' && target?.type !== 'range')
 }
 
+/** Begin is refused while paused (Esc) and while the free-fly camera is on, where Space means "rise". */
+export const beginAllowed = (paused: boolean, flying: boolean): boolean => !paused && !flying
+
 export const mountAudioControls = (
   audio: GameAudio,
   onBegin: () => void = () => {},
