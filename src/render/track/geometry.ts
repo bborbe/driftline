@@ -164,6 +164,9 @@ export const SPAN_PATH_SKIP = 50
 /** Thickness of an elevated deck's concrete box under the road, on a bridge span. */
 export const DECK_DEPTH = 1
 
+/** Depth of a filled body's lid below the road edges: under the road, so the road always draws over it. */
+export const LID_DROP = 0.05
+
 /** How a raised row stands: `fill` is a solid body down to the ground, `span` a deck box over a road below. */
 export type BodyKind = 'fill' | 'span'
 
@@ -243,19 +246,26 @@ const wallTop = (p: Sample, seg: Segment, u: number, s: number): [number, number
  * to the ground (y 0) between consecutive filled rows, and at every cap row an end face shaped
  * like the road's cross-section (PROFILE) down to the ground, so a ramp, drop or raised road
  * reads as one solid block from beside, below and either end. Span rows get nothing here
- * (buildDeck). Rows: left top, left foot, right top, right foot; cap vertices follow the rows.
+ * (buildDeck). A lid LID_DROP under the road joins the two walls, so the body is closed on
+ * every side and a camera inside it sees concrete, not the underside of the road. Rows: left
+ * top, left foot, right top, right foot, left lid, right lid; cap vertices follow the rows.
  */
 export const buildBody = (entry: Pose, seg: Segment, plan: BodyPlan): SegmentGeometry => {
   const rows = rowCount(seg)
   const s = turnSign(seg)
   const half = TRACK_WIDTH / 2
-  const perRow = 4
+  const perRow = 6
   const pos: number[] = []
   const samples = Array.from({ length: rows }, (_, r) => sampleSegment(entry, seg, r / (rows - 1)))
   for (const p of samples) {
     for (const u of [half, -half]) {
       const [x, y, z] = wallTop(p, seg, u, s)
       pos.push(x, y, z, x, 0, z)
+    }
+    // The lid follows the road edges (the banked plane), below every PROFILE height.
+    for (const u of [half, -half]) {
+      const [x, y, z] = lateralPoint(p, u, s)
+      pos.push(x, Math.max(0, y - LID_DROP), z)
     }
   }
   const idx: number[] = []
@@ -265,6 +275,7 @@ export const buildBody = (entry: Pose, seg: Segment, plan: BodyPlan): SegmentGeo
     const b = (r + 1) * perRow
     idx.push(a, a + 1, b, a + 1, b + 1, b) // left wall
     idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3) // right wall
+    idx.push(a + 4, b + 4, a + 5, a + 5, b + 4, b + 5) // lid
   }
   for (const r of plan.caps) {
     const p = samples[r]
