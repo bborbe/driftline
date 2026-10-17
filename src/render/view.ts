@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu'
 import { pass } from 'three/tsl'
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js'
-import { dot, forwardOf, type CarState, type Material } from '../physics'
+import { dot, forwardOf, trackSurface, type CarState, type Material } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
 import { parseFx } from './fx/flags'
@@ -17,6 +17,7 @@ import { createScene } from './scene'
 import { resolveTheme } from './theme'
 import { topCamFor, topCamRequested } from './topcam'
 import { createPieceTrack } from './track/kenney'
+import { createStartDressing, type StartDressing } from './track/start-dressing'
 
 export type View = {
   renderer: THREE.WebGPURenderer
@@ -26,6 +27,8 @@ export type View = {
   car: THREE.Object3D
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
+  /** Start lights, arch screens and start road paint; main.ts feeds it race.board() each frame. Null without a start gate. */
+  start: StartDressing | null
   /** Pose the car from physics state and draw one frame; dt in seconds; `material` is the surface under the car. */
   frame: (state: CarState, dt: number, material?: Material) => void
 }
@@ -45,6 +48,8 @@ export const createView = async (track: Track, fxQuery: string = location.search
 
   const [{ scene, follow }, trackMesh, car] = await Promise.all([createScene(track), createPieceTrack(track), createCarView()])
   scene.add(trackMesh, car.object)
+  const start = createStartDressing(track)
+  if (start) scene.add(start.object)
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 3000)
   const resize = () => {
@@ -55,7 +60,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
   window.addEventListener('resize', resize)
   watchFullscreen(resize)
 
-  // Effects behind ?fx=bloom,speedlines,skid,smoke; all read car state only.
+  // Effects behind ?fx=bloom,speedlines,smoke; all read car state only.
   const fx = parseFx(fxQuery)
   let draw = () => renderer.render(scene, camera)
   if (fx.has('bloom')) {
@@ -69,8 +74,9 @@ export const createView = async (track: Track, fxQuery: string = location.search
     camera.add(speedLines.object)
     scene.add(camera) // camera children render only when the camera is in the scene
   }
-  const skid = fx.has('skid') ? createSkidMarks() : null
-  if (skid) scene.add(skid.object)
+  // Skid marks are road detail, so they are always on (`?fx=skid` still parses, for old links); they sit on the track's own surface.
+  const skid = createSkidMarks(trackSurface(track))
+  scene.add(skid.object)
   const smoke = fx.has('smoke') ? createSmoke() : null
   if (smoke) scene.add(smoke.object)
   // Dust off dirt and grass is surface feedback, so it is always on.
@@ -94,7 +100,7 @@ export const createView = async (track: Track, fxQuery: string = location.search
     car.update(s, dt)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     speedLines?.update(dot(s.velocity, forwardOf(s)), dt)
-    skid?.update(s)
+    skid.update(s)
     if (topCam) {
       // Debug override of the chase camera main.ts set this frame.
       const t = topCamFor(track, camera.fov, camera.aspect)
@@ -113,5 +119,5 @@ export const createView = async (track: Track, fxQuery: string = location.search
     }
   }
 
-  return { renderer, camera, backend, car: car.object, scene, frame }
+  return { renderer, camera, backend, car: car.object, scene, start, frame }
 }

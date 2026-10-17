@@ -13,6 +13,7 @@ import { isControlsKey } from './controls'
 import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { earnedMedal, nextMedal, SplitTracker } from './medals'
 import { formatLapTime, RaceStore } from './store'
+import { startBoard, type StartBoard } from './start-board'
 import { escapeLeavesFullscreen, toggleFullscreen } from '../fullscreen'
 import { RaceView } from './view'
 import type { MenuActions } from './view'
@@ -39,6 +40,8 @@ export interface Race {
   setPaused(paused: boolean): void
   /** Begin clicked: start the countdown. */
   start(): void
+  /** What the start lights and start-arch screens show now (src/render/track/start-dressing.ts). */
+  board(): StartBoard
   /** Advances the sim (no input before go, frozen after the finish), updates lap state, auto-respawns on a fall, draws the HUD. */
   frame(elapsedSeconds: number, input: CarInput): void
 }
@@ -58,9 +61,14 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     menu ? { ...menu, resume: () => setPaused(false), restart: () => (pending = 'restart') } : null,
   )
   const splits = new SplitTracker()
+  // Last countdown step (3, 2, 1, 0 = GO); null until the first one. Restart re-announces from 3.
+  let step: number | null = null
   for (const l of opts.listeners ?? []) loop.on(l)
   loop.on({
-    countdown: (_t, n) => view.showCountdown(n),
+    countdown: (_t, n) => {
+      step = n
+      view.showCountdown(n)
+    },
     lapStart: (_t, lap) => {
       if (lap === 1) splits.begin(store.best(), store.bestSplits())
     },
@@ -124,6 +132,9 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     setPaused,
     start() {
       loop.start(sim.state.tick)
+    },
+    board() {
+      return startBoard(loop.phase, step, loop.lapTimeMs(sim.state.tick))
     },
     frame(elapsedSeconds, input) {
       if (pending === 'respawn' && loop.phase === 'racing') sim.state = loop.respawn(sim.state.tick)
