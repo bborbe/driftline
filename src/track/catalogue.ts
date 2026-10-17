@@ -47,6 +47,8 @@ export const TEST_TRACKS: readonly string[] = [
   'test-effects',
   'test-checkpoint',
   'test-loop',
+  'test-wallride',
+  'test-spiral',
 ]
 
 /** Old track names that still resolve, so shared `?track=lap1` links keep working. */
