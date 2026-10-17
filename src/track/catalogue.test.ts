@@ -55,18 +55,19 @@ describe('track catalogue', () => {
     expect(trackGroups(shipped)[0].entries.map((e) => e.label)).toEqual(['A01', 'A02', 'A03', 'A04', 'A05'])
   })
 
-  it('splits the style tracks into their own group, between Campaign and Test, S01-S06 in order', () => {
+  it('splits the style tracks into their own group, between Campaign and Test, S01-S07 in order', () => {
     const groups = trackGroups(shipped)
     expect(groups.map((g) => g.id)).toEqual(['campaign', 'styles', 'test'])
     expect(groups[1].title).toBe('Styles')
-    expect(groups[1].entries.map((e) => e.label)).toEqual(['S01', 'S02', 'S03', 'S04', 'S05', 'S06'])
+    expect(groups[1].entries.map((e) => e.label)).toEqual(['S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07'])
     for (const l of STYLES) {
       expect(shipped).toContain(l.track)
       expect(TIERS).toContain(l.tier)
       expect(groups[0].entries.map((e) => e.track)).not.toContain(l.track)
     }
     expect(nextInGroup('washboard', shipped)).toBe('looping')
-    expect(nextInGroup('looping', shipped)).toBe('switchback')
+    expect(nextInGroup('looping', shipped)).toBe('velodrome')
+    expect(nextInGroup('velodrome', shipped)).toBe('switchback')
     expect(nextInGroup('switchback', shipped)).toBe('flatout')
   })
 

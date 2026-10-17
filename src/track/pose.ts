@@ -30,6 +30,7 @@ export function segmentLength(seg: Segment): number {
       return seg.length
     case 'curve':
     case 'banked':
+    case 'wallride':
       return (seg.radius * seg.angle * Math.PI) / 180
     case 'hairpin':
       return seg.radius * Math.PI
@@ -51,6 +52,7 @@ export function partialPose(entry: Pose, seg: Segment, f: number): Pose {
       return advance(entry, seg.length * f, -((seg.fall ?? 0) * f))
     case 'curve':
     case 'banked':
+    case 'wallride':
       return arc(entry, seg.turn, seg.radius, (seg.angle * f * Math.PI) / 180)
     case 'hairpin':
       return arc(entry, seg.turn, seg.radius, (180 * f * Math.PI) / 180)
@@ -99,15 +101,18 @@ function arc(p: Pose, turn: Turn, radius: number, angle: number): Pose {
 /** A loop segment. */
 export type LoopSegment = Extract<Segment, { type: 'loop' }>
 
-/** Sideways offset of a loop's exit from its entry: one road width, so its climb and its exit never share road. */
+/** Default sideways offset of a loop's exit from its entry: one road width, so its climb and its exit never share road. */
 export const LOOP_SHIFT = ROAD_WIDTH
+
+/** Sideways offset (m) of a loop's exit from its entry: its `shift`, else LOOP_SHIFT. */
+export const loopShiftOf = (seg: LoopSegment): number => seg.shift ?? LOOP_SHIFT
 
 /**
  * Lateral offset (m, + = left of the entry heading) of a loop's band centre at sweep θ (0..2π).
  * Eased as θ − sin θ, so the road leaves and rejoins the ground running straight ahead.
  */
 export const loopShift = (seg: LoopSegment, theta: number): number =>
-  (turnSign(seg) * LOOP_SHIFT * (theta - Math.sin(theta))) / (2 * Math.PI)
+  (turnSign(seg) * loopShiftOf(seg) * (theta - Math.sin(theta))) / (2 * Math.PI)
 
 /** A point on a loop's road surface and the unit normal there, pointing in towards the loop's axis. */
 export type LoopPoint = { x: number; y: number; z: number; nx: number; ny: number; nz: number }
@@ -139,13 +144,13 @@ export function loopPoint(entry: Pose, seg: LoopSegment, theta: number, u = 0): 
 function loopPose(entry: Pose, seg: LoopSegment, f: number): Pose {
   const s = turnSign(seg)
   if (f >= 1) {
-    const lateral = s * LOOP_SHIFT
+    const lateral = s * loopShiftOf(seg)
     return { x: entry.x + Math.cos(entry.heading) * lateral, y: entry.y, z: entry.z - Math.sin(entry.heading) * lateral, heading: entry.heading }
   }
   const theta = 2 * Math.PI * f
   const p = loopPoint(entry, seg, theta)
   const forward = seg.radius * Math.cos(theta)
-  const sideways = (s * LOOP_SHIFT * (1 - Math.cos(theta))) / (2 * Math.PI)
+  const sideways = (s * loopShiftOf(seg) * (1 - Math.cos(theta))) / (2 * Math.PI)
   return { x: p.x, y: p.y, z: p.z, heading: entry.heading + Math.atan2(sideways, forward) }
 }
 
@@ -163,7 +168,7 @@ export function loopTubes(track: Track): (p: { x: number; y: number; z: number }
   const tubes = track.segments.flatMap((seg, i) => {
     if (seg.type !== 'loop') return []
     const e = entries[i]
-    const shift = turnSign(seg) * LOOP_SHIFT
+    const shift = turnSign(seg) * loopShiftOf(seg)
     return [{ e, r: seg.radius, fx: Math.sin(e.heading), fz: Math.cos(e.heading), lo: Math.min(0, shift) - ROAD_WIDTH / 2, hi: Math.max(0, shift) + ROAD_WIDTH / 2 }]
   })
   if (tubes.length === 0) return () => false
@@ -176,4 +181,55 @@ export function loopTubes(track: Track): (p: { x: number; y: number; z: number }
       const left = ox * fz - oz * fx
       return p.y - e.y > LOOP_FOOT && along * along + up * up < r * r && left >= lo && left <= hi
     })
+}
+
+/** A wallride segment. */
+export type WallrideSegment = Extract<Segment, { type: 'wallride' }>
+
+/** Radius (m) of a wallride's quarter-pipe: the wall's cross-section is this circle's lower outer quarter. */
+export const WALL_RADIUS = 10
+
+/** Steepest a wallride's wall gets (radians from flat): 85°, near-vertical. */
+export const WALL_MAX = (85 * Math.PI) / 180
+
+/** Fraction of a wallride at each end over which its wall rises from nothing to WALL_MAX (and falls back). */
+export const WALL_EASE = 0.2
+
+/**
+ * How far up its quarter-pipe a wallride's wall reaches at fraction t (0..1) of the turn: the pipe
+ * angle (radians) of its top edge. Smoothstep up over the first WALL_EASE, down over the last, so
+ * the wall grows out of the road and sinks back into it instead of starting as a cliff.
+ */
+export function wallTop(t: number): number {
+  const e = Math.min(1, Math.max(0, Math.min(t, 1 - t) / WALL_EASE))
+  return WALL_MAX * e * e * (3 - 2 * e)
+}
+
+/** A wallride's quarter-pipe in its turn's frame: turn centre, the road's outer edge radius and its height. */
+export function wallFrame(entry: Pose, seg: WallrideSegment): { cx: number; cz: number; edge: number; y: number } {
+  const [cx, cz] = turnCentre(entry, seg.turn, seg.radius)
+  return { cx, cz, edge: seg.radius + ROAD_WIDTH / 2, y: entry.y }
+}
+
+/**
+ * The one wallride wall shape: the point at fraction t (0..1) of the turn and pipe angle φ (0 = the
+ * road's outer edge, flat; WALL_MAX = near-vertical) of the quarter-pipe that rises outward from the
+ * road's outer edge, with the unit normal there pointing in towards the pipe's centre. Physics
+ * raycasts that pipe (src/physics/surface.ts) and the render samples this function.
+ */
+export function wallPoint(entry: Pose, seg: WallrideSegment, t: number, phi: number): LoopPoint {
+  const { cx, cz, edge, y } = wallFrame(entry, seg)
+  const p = arc(entry, seg.turn, seg.radius, (seg.angle * t * Math.PI) / 180)
+  // Unit vector from the turn centre out through the centreline point.
+  const ex = (p.x - cx) / seg.radius
+  const ez = (p.z - cz) / seg.radius
+  const rho = edge + WALL_RADIUS * Math.sin(phi)
+  return {
+    x: cx + ex * rho,
+    y: y + WALL_RADIUS * (1 - Math.cos(phi)),
+    z: cz + ez * rho,
+    nx: -ex * Math.sin(phi),
+    ny: Math.cos(phi),
+    nz: -ez * Math.sin(phi),
+  }
 }

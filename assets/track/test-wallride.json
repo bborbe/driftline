@@ -1,0 +1,14 @@
+{
+  "name": "test-wallride",
+  "kit": {
+    "start": { "cell": [0, 0], "level": 0, "dir": 0 },
+    "pieces": [
+      { "piece": "start" },
+      { "piece": "straight-1" },
+      { "piece": "wallride", "turn": "left" },
+      { "piece": "checkpoint" },
+      { "piece": "straight-2" },
+      { "piece": "wallride", "turn": "left" }
+    ]
+  }
+}

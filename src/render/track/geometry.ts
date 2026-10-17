@@ -1,7 +1,7 @@
 // Track mesh generation from the shared schema. Pure TypeScript (no three) so it
 // is unit-testable in Node; src/render/track/mesh.ts wraps the arrays for three.js.
 import { DECK_DEPTH, deckRows, PARAPET_HEIGHT, PARAPET_WIDTH, roadPoint, rowCount, type BodyKind, type BodyPlan } from '../../track/bodies'
-import { loopPoint, poses, ROAD_WIDTH, sampleSegment, turnSign, type LoopSegment, type Sample } from '../../track/pose'
+import { loopPoint, poses, ROAD_WIDTH, sampleSegment, turnSign, wallPoint, wallTop as wallrideTop, type LoopSegment, type Sample, type WallrideSegment } from '../../track/pose'
 import type { Pose, Segment, Track } from '../../track/schema'
 
 export { sampleSegment, segmentLength, type Sample } from '../../track/pose'
@@ -254,6 +254,7 @@ export const DECK_FOOT_COLUMNS: readonly number[] = [3, 4]
  */
 export const buildDeck = (entry: Pose, seg: Segment, kinds: readonly BodyKind[] | null): SegmentGeometry | null => {
   if (seg.type === 'loop') return buildLoopShell(entry, seg)
+  if (seg.type === 'wallride') return buildWall(entry, seg)
   if (!kinds || !kinds.includes('span')) return null
   const rows = rowCount(seg)
   const s = turnSign(seg)
@@ -324,6 +325,53 @@ const buildLoopShell = (entry: Pose, seg: LoopSegment): SegmentGeometry => {
     idx.push(a, a + 1, b, a + 1, b + 1, b)
     idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3)
     idx.push(a + 1, b + 1, a + 3, a + 3, b + 1, b + 3) // shell, facing away from the axis
+  }
+  return { positions, indices: new Uint32Array(idx), rows, perRow }
+}
+
+/** Samples up a wallride's wall, from the road edge to its top. */
+export const WALL_COLUMNS = 13
+
+/**
+ * A wallride's wall: its driving face sampled from wallPoint (the pipe physics raycasts) from the
+ * road's outer edge up to its top (pose.ts wallTop), and a back face DECK_DEPTH behind it, joined round the top
+ * lip and the foot, so from inside it is the road the car rides and from outside a solid concrete
+ * shell. Rows: the face up (WALL_COLUMNS), then the back down. At both ends the wall has eased to
+ * nothing, so the ring closes on the road edge and needs no end face.
+ */
+export const buildWall = (entry: Pose, seg: WallrideSegment): SegmentGeometry => {
+  const rows = rowCount(seg)
+  const n = WALL_COLUMNS
+  const perRow = 2 * n
+  const positions = new Float32Array(rows * perRow * 3)
+  for (let r = 0; r < rows; r++) {
+    const t = r / (rows - 1)
+    const top = wallrideTop(t)
+    for (let k = 0; k < n; k++) {
+      const q = wallPoint(entry, seg, t, (top * k) / (n - 1))
+      positions.set([q.x, q.y + SURFACE_LIFT, q.z], (r * perRow + k) * 3)
+      positions.set([q.x - q.nx * DECK_DEPTH, q.y + SURFACE_LIFT - q.ny * DECK_DEPTH, q.z - q.nz * DECK_DEPTH], (r * perRow + perRow - 1 - k) * 3)
+    }
+  }
+  // Wound so the driving face looks in towards the pipe's centre: a right turn mirrors the sweep.
+  const left = seg.turn === 'left'
+  const idx: number[] = []
+  for (let r = 0; r < rows - 1; r++) {
+    const a = r * perRow
+    const b = (r + 1) * perRow
+    for (let c = 0; c < perRow; c++) {
+      const d = (c + 1) % perRow
+      if (left) idx.push(a + c, b + c, a + d, b + c, b + d, a + d)
+      else idx.push(a + c, a + d, b + c, b + c, a + d, b + d)
+    }
+  }
+  // End caps: a fan over each end row's ring, so the shell is closed (they have no area: the wall has eased to nothing there).
+  for (const [r, out] of [[0, true], [rows - 1, false]] as const) {
+    const a = r * perRow
+    for (let c = 1; c < perRow - 1; c++) {
+      if (out === left) idx.push(a, a + c + 1, a + c)
+      else idx.push(a, a + c, a + c + 1)
+    }
   }
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }

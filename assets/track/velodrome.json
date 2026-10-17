@@ -1,0 +1,103 @@
+{
+  "name": "velodrome",
+  "kit": {
+    "start": {
+      "cell": [
+        0,
+        0
+      ],
+      "level": 0,
+      "dir": 0
+    },
+    "pieces": [
+      {
+        "piece": "start"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "slope-up"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "slope-down"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "turbo"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "straight-1"
+      },
+      {
+        "piece": "wallride",
+        "turn": "left"
+      },
+      {
+        "piece": "checkpoint"
+      },
+      {
+        "piece": "spiral",
+        "turn": "left"
+      },
+      {
+        "piece": "checkpoint"
+      },
+      {
+        "piece": "spiral",
+        "turn": "right"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "straight-2"
+      },
+      {
+        "piece": "wallride",
+        "turn": "left"
+      }
+    ]
+  },
+  "medals": {
+    "author": 19600,
+    "gold": 21200,
+    "silver": 23900,
+    "bronze": 27800
+  },
+  "theme": {
+    "sky": "day",
+    "exposure": 1.05,
+    "sun": "#ffffff",
+    "sunIntensity": 2.4,
+    "ground": "#6fbf5a",
+    "curb": "#1f8f4e",
+    "sign": "#1f8f4e",
+    "screen": "#0d3b22",
+    "scenery": [
+      "tree_default",
+      "tree_detailed",
+      "plant_bushLarge"
+    ]
+  }
+}

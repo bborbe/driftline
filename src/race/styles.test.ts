@@ -71,6 +71,8 @@ const STYLE_OF: Record<string, (s: Signature) => boolean> = {
   }),
   // S06 Loop: exactly one full vertical loop, the lap's one set piece, entered off a turbo.
   looping: (s) => s.loops === 1 && s.pieces[s.pieces.indexOf('loop') - 1] === 'turbo',
+  // S07 Wallride: two velodrome walls, joined by a left and a right spiral that cancel out.
+  velodrome: noLoop((s) => s.pieces.filter((p) => p === 'wallride').length === 2 && s.pieces.filter((p) => p === 'spiral').length === 2),
 }
 
 describe('style track signatures', () => {
