@@ -19,6 +19,7 @@ const BAND: Record<Band, THREE.Color> = {
 export const ROAD_ROUGHNESS = 0.7
 
 const roadMaterial = new THREE.MeshPhysicalMaterial({
+  name: 'road', // as the Kenney pieces' asphalt: view.ts wets every material of this name in rain
   vertexColors: true,
   // Glossy, Trackmania-like: the HDRI environment (scene.ts) gives the clearcoat something to reflect.
   roughness: ROAD_ROUGHNESS,

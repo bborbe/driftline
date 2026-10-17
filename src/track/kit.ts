@@ -279,6 +279,7 @@ export interface KitTrack {
   kit: { start: KitStart; pieces: Placement[] }
   medals?: Track['medals']
   theme?: Track['theme']
+  environment?: Track['environment']
 }
 
 export const isKitTrack = (data: unknown): data is KitTrack => {
@@ -387,6 +388,7 @@ export function compileKit(kt: KitTrack): CompiledKit {
   const track: Track = { name: kt.name, start: startPose, segments, gates }
   if (kt.medals) track.medals = kt.medals
   if (kt.theme) track.theme = kt.theme
+  if (kt.environment) track.environment = kt.environment
   if (zones.length) track.zones = zones
   if (barriers.length) track.barriers = barriers
   return { track, poses: ps, firstSegment }

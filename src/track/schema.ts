@@ -3,6 +3,7 @@
 // no browser APIs, so physics may import it. The centreline (pose.ts), the shapes built on it
 // (shapes.ts), validation (validate.ts) and the layout id (layout-id.ts) live in their own modules
 // and are re-exported here, so every importer of the format keeps one entry point.
+import type { EnvironmentDefault } from './environment'
 import type { Theme } from './theme'
 
 export { constantWidth, exitPose, MAX_ROAD_WIDTH, maxWidth, MIN_ROAD_WIDTH, partialPose, poses, ROAD_WIDTH, sampleSegment, segmentLength, turnCentre, turnSign, widthAt, type Sample } from './pose'
@@ -145,6 +146,8 @@ export interface Track {
   barriers?: Barrier[]
   /** Optional per-track look (src/track/theme.ts). Render-only and not part of layoutId. */
   theme?: Theme
+  /** Optional default time of day and weather (src/track/environment.ts). Render-only and not part of layoutId. */
+  environment?: EnvironmentDefault
 }
 
 /** Native length of a straight road tile (assets/track/pieces.json); straights are split into tiles of about this length. */

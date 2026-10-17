@@ -13,5 +13,6 @@
       { "piece": "curve-r2", "turn": "left" },
       { "piece": "curve-r1", "turn": "left" }
     ]
-  }
+  },
+  "environment": {"time": "noon", "weather": "sunny"}
 }

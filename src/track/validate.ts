@@ -2,6 +2,7 @@
 import { loopShiftOf, type LoopSegment } from './pose'
 import { MAX_ROAD_WIDTH, maxWidth, MIN_ROAD_WIDTH, ZONE_KINDS, zoneSegments, type Medals, type Pose, type Segment, type Track } from './schema'
 import { validateTheme } from './theme'
+import { validateEnvironment } from './environment'
 
 /** Structural validation of untrusted JSON. Returns a list of problems, empty when valid. */
 export function validate(data: unknown): string[] {
@@ -75,6 +76,7 @@ export function validate(data: unknown): string[] {
     }
   }
   if (t.theme !== undefined) errs.push(...validateTheme(t.theme))
+  if (t.environment !== undefined) errs.push(...validateEnvironment(t.environment))
   return errs
 }
 

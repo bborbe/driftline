@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CELL, ROAD_WIDTH, type Track } from '../../track/schema'
-import { CURB_INNER, CURB_OUTER, CURB_TOP, curbDecals, DECAL_LIFT, EDGE_LINE, STRIPE_LENGTH } from './curbs'
+import { CURB_INNER, CURB_OUTER, CURB_TOP, curbDecals, DECAL_LIFT, EDGE_LINE, edgeLines, STRIPE_LENGTH } from './curbs'
 import { LAP_NAMES, loadLap } from '../../track/registry'
 
 const straight = (...lengths: number[]): Track => ({
@@ -42,6 +42,17 @@ describe('curbDecals', () => {
       expect(Math.abs(x)).toBeGreaterThanOrEqual(K * (outer - EDGE_LINE.width) - 1e-5)
       expect(Math.abs(x)).toBeLessThanOrEqual(K * outer + 1e-5)
     }
+  })
+
+  it('night glow: the same edge lines, one decal step over the painted ones', () => {
+    const glow = vertices(edgeLines(straight(20)).positions)
+    const painted = vertices(curbDecals(straight(20)).white.positions).filter(([, y]) => y < CURB_TOP)
+    expect(glow.length).toBe(painted.length)
+    glow.forEach(([x, y, z], i) => {
+      expect(x).toBeCloseTo(painted[i][0], 6)
+      expect(z).toBeCloseTo(painted[i][2], 6)
+      expect(y - painted[i][1]).toBeCloseTo(DECAL_LIFT, 6)
+    })
   })
 
   it('leaves a gap (a jump with no road) bare', () => {
