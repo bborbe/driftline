@@ -29,10 +29,15 @@ export class RaceStore {
   private readonly boardKey: string
   private readonly splitsKey: string
   private readonly medalKey: string
+  private readonly locked: () => boolean
 
-  /** Best time and leaderboard are kept per track, layout (see layoutId) and lap count; the last player name is shared. */
-  constructor(storage: KeyValueStore, track: string = LEGACY_TRACK, layout = '', laps = 1) {
+  /**
+   * Best time and leaderboard are kept per track, layout (see layoutId) and lap count; the last player name is shared.
+   * While `locked` returns true (a dev-tuned run, src/debug/tuning.ts) nothing is recorded: no best, splits, medal or board entry.
+   */
+  constructor(storage: KeyValueStore, track: string = LEGACY_TRACK, layout = '', laps = 1, locked: () => boolean = () => false) {
     this.storage = storage
+    this.locked = locked
     this.bestKey = `driftline-best${suffix(track, layout, laps)}`
     this.boardKey = `driftline-leaderboard${suffix(track, layout, laps)}`
     this.splitsKey = `driftline-splits${suffix(track, layout, laps)}`
@@ -46,6 +51,7 @@ export class RaceStore {
 
   /** Records a finished lap; returns true when it beats the stored best. */
   recordLap(lapTimeMs: number): boolean {
+    if (this.locked()) return false
     const best = this.best()
     if (best !== null && lapTimeMs >= best) return false
     this.storage.setItem(this.bestKey, String(lapTimeMs))
@@ -64,6 +70,7 @@ export class RaceStore {
 
   /** Call after recordLap returned true, with that lap's checkpoint times. */
   recordSplits(splits: number[]): void {
+    if (this.locked()) return
     this.storage.setItem(this.splitsKey, JSON.stringify(splits))
   }
 
@@ -74,7 +81,7 @@ export class RaceStore {
 
   /** Keeps the better of the stored and the given medal; returns true when it improved. */
   recordMedal(medal: Medal | null): boolean {
-    if (!isBetterMedal(medal, this.bestMedal())) return false
+    if (this.locked() || !isBetterMedal(medal, this.bestMedal())) return false
     this.storage.setItem(this.medalKey, medal as Medal)
     return true
   }
@@ -89,11 +96,13 @@ export class RaceStore {
   }
 
   qualifies(lapTimeMs: number): boolean {
+    if (this.locked()) return false
     const entries = this.leaderboard()
     return entries.length < MAX_LEADERBOARD_ENTRIES || lapTimeMs < entries[entries.length - 1].lapTimeMs
   }
 
   addToLeaderboard(name: string, lapTimeMs: number): LeaderboardEntry[] {
+    if (this.locked()) return this.leaderboard()
     const entries = [...this.leaderboard(), { name: name.trim().toUpperCase() || '???', lapTimeMs }]
     entries.sort((a, b) => a.lapTimeMs - b.lapTimeMs)
     const trimmed = entries.slice(0, MAX_LEADERBOARD_ENTRIES)

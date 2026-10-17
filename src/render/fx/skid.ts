@@ -1,9 +1,12 @@
 // Skid marks: dark rear-wheel prints laid while the car slides (slip angle above 15°). They stay on
-// the road (a ring buffer of MAX_SKID_MARKS) and sit on it as decals: road top + DECAL_LIFT, found by
-// the same raycast the physics drives on, so a compressed spring never sinks a mark into the asphalt.
+// the road (a ring buffer of MAX_SKID_MARKS) and sit on it as decals: drawn surface + DECAL_LIFT. The
+// height comes from the raycast the physics drives on, so a compressed spring never sinks a mark; the
+// physics road sits at the segment pose, the drawn asphalt ROAD_TOP above it, so a road hit is lifted
+// by ROAD_TOP (the open ground beside the track is drawn where the physics has it).
 import * as THREE from 'three/webgpu'
 import { FLAT, forwardOf, slipAngleDeg, v3, type CarState, type Surface } from '../../physics'
 import { DECAL_LIFT } from '../track/curbs'
+import { ROAD_TOP } from '../track/zones'
 
 export const SKID_SLIP_DEG = 15
 export const MAX_SKID_MARKS = 3000
@@ -42,7 +45,8 @@ export class SkidTrail {
       const x = s.position.x + Math.sin(heading) * REAR + Math.cos(heading) * HALF_TRACK * side
       const z = s.position.z + Math.cos(heading) * REAR - Math.sin(heading) * HALF_TRACK * side
       const hit = this.surface.raycast(v3(x, s.position.y, z), DOWN, RAY)
-      const mark = { x, y: (hit ? s.position.y - hit.distance : s.position.y - RIDE_HEIGHT) + DECAL_LIFT, z, heading }
+      const ground = hit ? s.position.y - hit.distance + (hit.material === 'offroad' ? 0 : ROAD_TOP) : s.position.y - RIDE_HEIGHT
+      const mark = { x, y: ground + DECAL_LIFT, z, heading }
       if (this.marks.length < MAX_SKID_MARKS) this.marks.push(mark)
       else this.marks[this.next] = mark
       this.next = (this.next + 1) % MAX_SKID_MARKS
