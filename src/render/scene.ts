@@ -28,7 +28,7 @@ const SNOW_MIN = 0xd0
 
 export const isSnowGround = (ground: THREE.ColorRepresentation): boolean => {
   const c = new THREE.Color(ground).getRGB({ r: 0, g: 0, b: 0 }, THREE.SRGBColorSpace)
-  return Math.min(c.r, c.g, c.b) * 255 >= SNOW_MIN
+  return Math.round(Math.min(c.r, c.g, c.b) * 255) >= SNOW_MIN
 }
 
 /** One grass texture tile in metres. */
