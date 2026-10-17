@@ -74,12 +74,24 @@ export const curbDecals = (track: Track): { red: Ribbons; white: Ribbons } => {
       for (const side of [1, -1]) into.add(ps[i], seg, side * CURB_INNER, side * CURB_OUTER, CURB_TOP + DECAL_LIFT, k / n, (k + 1) / n)
     }
     parity = (parity + n) % 2
-    for (const side of [1, -1]) {
-      const outer = CURB_INNER - EDGE_LINE.inset
-      white.add(ps[i], seg, side * (outer - EDGE_LINE.width), side * outer, ROAD_TOP + DECAL_LIFT, 0, 1)
-    }
+    addEdgeLines(white, ps[i], seg)
   })
   return { red: red.build(), white: white.build() }
+}
+
+const addEdgeLines = (into: RibbonBuilder, entry: Parameters<typeof sampleSegment>[0], seg: Segment, lift = DECAL_LIFT) => {
+  const outer = CURB_INNER - EDGE_LINE.inset
+  for (const side of [1, -1]) into.add(entry, seg, side * (outer - EDGE_LINE.width), side * outer, ROAD_TOP + lift, 0, 1)
+}
+
+/** The two edge lines alone, one DECAL_LIFT above the painted ones: the night glow (createEdgeGlow) draws over them. */
+export const edgeLines = (track: Track): Ribbons => {
+  const lines = new RibbonBuilder()
+  const ps = poses(track)
+  track.segments.forEach((seg, i) => {
+    if (seg.type !== 'gap' && seg.type !== 'loop') addEdgeLines(lines, ps[i], seg, 2 * DECAL_LIFT)
+  })
+  return lines.build()
 }
 
 /** Dashed centre line: DASH.length of white, then DASH.gap of asphalt, continuous across segment joints. */
@@ -151,6 +163,23 @@ export const createCurbs = (track: Track, accent: THREE.Color = CURB_RED): THREE
   flat(mesh, 'curb')
   mesh.receiveShadow = true
   mesh.renderOrder = 1 // after the road (decals write no depth); surface patches and pads draw over it
+  return mesh
+}
+
+/**
+ * Night: the edge lines lit, unshaded and brighter than white, so the driving line reads in the
+ * dark (render/environment.ts). Same shape as the painted lines, one more decal step up.
+ */
+export const createEdgeGlow = (track: Track, color: THREE.ColorRepresentation = 0xbfe8ff): THREE.Mesh => {
+  const { positions, indices } = edgeLines(track)
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geo.setIndex(new THREE.BufferAttribute(indices, 1))
+  const glow = new THREE.Color(color).multiplyScalar(2.2) // over 1: survives tone mapping as a glow, not a grey line
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ ...DECAL, polygonOffsetUnits: -2, color: glow }))
+  mesh.name = 'edge-glow'
+  flat(mesh, 'decal')
+  mesh.renderOrder = 2
   return mesh
 }
 

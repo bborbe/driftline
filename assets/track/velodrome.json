@@ -99,5 +99,6 @@
       "tree_detailed",
       "plant_bushLarge"
     ]
-  }
+  },
+  "environment": {"time": "noon", "weather": "sunny"}
 }

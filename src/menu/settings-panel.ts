@@ -3,6 +3,7 @@ import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camer
 import { FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
 import { loadSettings, saveSettings, type Settings } from './settings'
+import type { EnvironmentMode } from '../track/environment'
 
 export interface SettingsHooks {
   /** Live volume change, e.g. GameAudio.setVolume. */
@@ -10,6 +11,7 @@ export interface SettingsHooks {
 }
 
 const VIEW_LABELS: Record<ViewMode, string> = { close: 'Close chase', far: 'Far chase', cockpit: 'In-car' }
+const ENVIRONMENT_LABELS: Record<EnvironmentMode, string> = { fixed: 'Track default', random: 'Random' }
 
 export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   const s: Settings = loadSettings(localStorage)
@@ -48,6 +50,14 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     saveSettings(localStorage, s)
   })
   box.append(label('Laps'), laps)
-  box.append(Object.assign(label('Effects and laps apply on the next race'), { className: 'menu-hint' }))
+  const env = document.createElement('select')
+  env.id = 'setting-environment'
+  for (const [mode, text] of Object.entries(ENVIRONMENT_LABELS)) env.append(new Option(text, mode, false, mode === s.environment))
+  env.addEventListener('change', () => {
+    s.environment = env.value as EnvironmentMode
+    saveSettings(localStorage, s)
+  })
+  box.append(label('Time and weather'), env)
+  box.append(Object.assign(label('Effects, laps, time and weather apply on the next race'), { className: 'menu-hint' }))
   return box
 }

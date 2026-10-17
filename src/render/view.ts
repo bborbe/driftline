@@ -12,12 +12,14 @@ import { createDust } from './fx/dust'
 import { createSmoke } from './fx/smoke'
 import { createBoostStreaks } from './fx/boost-streaks'
 import { createSpeedLines } from './fx/speedlines'
+import { createRain } from './fx/rain'
 import { FrameStats } from './fx/stats'
 import { watchFullscreen } from '../fullscreen'
 import { createScene } from './scene'
-import { resolveTheme } from './theme'
 import { topCamFor, topCamRequested } from './topcam'
 import { createPieceTrack } from './track/kenney'
+import { createEdgeGlow } from './track/curbs'
+import { DEFAULT_ENVIRONMENT, type Environment } from '../track/environment'
 import { createStartDressing, type StartDressing } from './track/start-dressing'
 
 export type View = {
@@ -34,21 +36,49 @@ export type View = {
   frame: (state: CarState, dt: number, material?: Material) => void
 }
 
-export const createView = async (track: Track, fxQuery: string = location.search): Promise<View> => {
+/** Wet asphalt: darker and glossier, so the sky and the lights mirror in it. Road materials are named `road` (mesh.ts, the Kenney pieces). */
+export const WET_ROAD = { roughness: 0.22, darken: 0.7, clearcoat: 0.8, clearcoatRoughness: 0.08 } as const
+
+const wetRoad = (root: THREE.Object3D) => {
+  const done = new Set<THREE.Material>()
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh
+    if (!mesh.isMesh) return
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      const std = m as THREE.MeshPhysicalMaterial
+      if (done.has(m) || !std.isMeshStandardMaterial || m.name !== 'road') continue
+      done.add(m)
+      std.roughness = WET_ROAD.roughness
+      std.color.multiplyScalar(WET_ROAD.darken)
+      if (std.isMeshPhysicalMaterial) {
+        std.clearcoat = WET_ROAD.clearcoat
+        std.clearcoatRoughness = WET_ROAD.clearcoatRoughness
+      }
+    }
+  })
+}
+
+/** `env` is the race's time of day and weather (track/environment.ts); `seed` varies its cloud layer. */
+export const createView = async (track: Track, fxQuery: string = location.search, env: Environment = DEFAULT_ENVIRONMENT, seed = 1): Promise<View> => {
   const forceWebGL = new URLSearchParams(location.search).get('renderer') === 'webgl2'
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL })
   renderer.setPixelRatio(window.devicePixelRatio)
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.shadowMap.enabled = true
   renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = resolveTheme(track).exposure
   document.body.appendChild(renderer.domElement)
   await renderer.init()
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2'
   console.log(`renderer: ${backend}`)
 
-  const [{ scene, follow }, trackMesh, car] = await Promise.all([createScene(track), createPieceTrack(track), createCarView()])
+  const [{ scene, look, follow, frame: sky }, trackMesh, car] = await Promise.all([createScene(track, env, seed), createPieceTrack(track), createCarView()])
+  renderer.toneMappingExposure = look.exposure
   scene.add(trackMesh, car.object)
+  // Night lights the road edges; rain wets the road and falls around the camera (render/environment.ts).
+  if (look.night) scene.add(createEdgeGlow(track))
+  if (look.rain) wetRoad(trackMesh)
+  const rain = look.rain ? createRain(seed) : null
+  if (rain) scene.add(rain.object)
   const start = createStartDressing(track)
   if (start) scene.add(start.object)
 
@@ -115,6 +145,8 @@ export const createView = async (track: Track, fxQuery: string = location.search
       camera.lookAt(t.x, 0, t.z)
     }
     smoke?.update(s, dt, camera) // after the camera override, so puffs face the final camera
+    sky(camera)
+    rain?.update(dt, camera)
     dust.update(s, material, dt, camera)
     draw()
     stats.push(performance.now(), dt)

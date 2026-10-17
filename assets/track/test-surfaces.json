@@ -61,5 +61,6 @@
       "from": 0.68,
       "to": 0.9
     }
-  ]
+  ],
+  "environment": {"time": "noon", "weather": "sunny"}
 }

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { CELL, isEffect, isPad, padForward, poses, ROAD_WIDTH, turnCentre, type Segment, type Track, type Zone } from '../../track/schema'
 import { createCarAt, trackSurface, type CarState } from '../../physics'
+import { resolveTrack } from '../../track/kit'
 import { dustIntensity, DustPool } from '../fx/dust'
 import { effectIcon } from './effect-pads'
 import { buildSegment, type SegmentGeometry } from './geometry'
@@ -69,7 +70,7 @@ describe('lap2 zone decals', () => {
 const trackDir = new URL('../../../assets/track/', import.meta.url)
 const shipped = readdirSync(trackDir)
   .filter((f) => f.endsWith('.json') && f !== 'pieces.json')
-  .map((f) => [f, JSON.parse(readFileSync(new URL(f, trackDir), 'utf8')) as Track] as const)
+  .map((f) => [f, resolveTrack(JSON.parse(readFileSync(new URL(f, trackDir), 'utf8'))) as Track] as const)
   .filter(([, t]) => Array.isArray(t.segments))
 
 // Each chevron is (left, right, tip): tip minus the base midpoint is where it points.

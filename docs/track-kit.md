@@ -28,7 +28,17 @@ Trackmania-style drivable pieces that snap on a grid (`src/track/kit.ts`). A tra
 }
 ```
 
-The lap must close back onto its start connector; `compileKit()` throws naming the piece otherwise. `test-kit` is the demo, `test-kit-all` uses every piece once except `bank-180-wide`, which is too wide for its compact loop and shows on S02 `flatout`, and the `loop`, `spiral` and `wallride`, which have their own `test-loop`, `test-spiral` and `test-wallride` (and S06 `looping`, S07 `velodrome`). The campaign levels A03 `plunge`, A04 `knot` and A05 `leap` and the style tracks S01–S07 are kit tracks too.
+The lap must close back onto its start connector; `compileKit()` throws naming the piece otherwise. `test-kit` is the demo, `test-kit-all` uses every piece once except `bank-180-wide`, which is too wide for its compact loop and shows on S02 `flatout`, and the `loop`, `spiral` and `wallride`, which have their own `test-loop`, `test-spiral` and `test-wallride` (and S06 `looping`, S07 `velodrome`), and the three standard corners `corner-tight` / `corner-medium` / `corner-wide`, raced together on A03 `plunge`. The campaign levels A03 `plunge`, A04 `knot` and A05 `leap` and the style tracks S01–S07 are kit tracks too.
+
+### Standard corner radii
+
+Three corner sizes, one driving style each on the 14 m road, are one table (`CORNER_RADII`, `src/track/schema.ts`): **tight** 20 m (brake; grip limit ~64 km/h), **medium** 40 m (the 90 km/h speed-drift corner; grip limit ~85 km/h) and **wide** 150 m (flat out; ~146 km/h). `src/race/corner-radii.test.ts` measures each grip limit and pins the steps (each ≥ 15% faster than the next tighter one, medium 22.5–24.9 m/s). Kit tracks place them as the 90° pieces `corner-tight`, `corner-medium`, `corner-wide`. A spline track names them on a `curve` segment instead of a number, at 45° or 90° (45° does not fit the quarter-turn kit grid):
+
+```json
+{ "type": "curve", "turn": "right", "radius": "medium", "angle": 90 }
+```
+
+`resolveTrack()` turns the name into metres; an unknown name fails validation.
 
 ### Walls on any piece
 
@@ -53,6 +63,9 @@ Screenshots: live site, `?track=test-kit-all&cam=fly&freeze=1&renderer=webgl2` p
 | `curve-r1` | curve | (1, ±1, 0, ±1) | `curve` 90°, r 10 m | road, dirt, ice, grass | Tightest turn; three in a row make the S-bend. | [`x=84.9&y=11&z=81.1&yaw=-122.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=84.9&y=11&z=81.1&yaw=-122.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![curve-r1](track-kit/curve-r1.png) |
 | `curve-r2` | curve | (2, ±2, 0, ±1) | `curve` 90°, r 20 m | road, dirt, ice, grass | Elevated left turn at the top of the climb. | [`x=19.9&y=15&z=132.1&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=19.9&y=15&z=132.1&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![curve-r2](track-kit/curve-r2.png) |
 | `curve-r3` | curve | (3, ±3, 0, ±1) | `curve` 90°, r 30 m | road, dirt, ice, grass | Fast sweeper after the descent. | [`x=34.8&y=11&z=120.8&yaw=147.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=34.8&y=11&z=120.8&yaw=147.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![curve-r3](track-kit/curve-r3.png) |
+| `corner-tight` | curve | (2, ±2, 0, ±1) | `curve` 90°, r 20 m (`CORNER_RADII`) | road, dirt, ice, grass | Standard tight corner: brake for it (grip limit ~64 km/h). Same geometry as `curve-r2`, under its style name. Shown on A03 `plunge`. | [`x=-183.2&y=22&z=-53.2&yaw=45&pitch=-33.7`](https://bborbe.github.io/driftline/?track=plunge&x=-183.2&y=22&z=-53.2&yaw=45&pitch=-33.7&cam=fly&freeze=1&renderer=webgl2) | ![corner-tight](track-kit/corner-tight.png) |
+| `corner-medium` | curve | (4, ±4, 0, ±1) | `curve` 90°, r 40 m (`CORNER_RADII`) | road, dirt, ice, grass | Standard medium corner: the 90 km/h speed-drift corner (grip limit ~85 km/h). Shown on A03 `plunge`, last corner before the line. | [`x=15.9&y=32&z=-55.9&yaw=-45&pitch=-32.1`](https://bborbe.github.io/driftline/?track=plunge&x=15.9&y=32&z=-55.9&yaw=-45&pitch=-32.1&cam=fly&freeze=1&renderer=webgl2) | ![corner-medium](track-kit/corner-medium.png) |
+| `corner-wide` | curve | (15, ±15, 0, ±1) | `curve` 90°, r 150 m (`CORNER_RADII`) | road, dirt, ice, grass | Standard wide corner: flat out near top speed (grip limit ~146 km/h). Shown on A03 `plunge`, after the long straight. | [`x=-200.3&y=87&z=180.3&yaw=135&pitch=-30.1`](https://bborbe.github.io/driftline/?track=plunge&x=-200.3&y=87&z=180.3&yaw=135&pitch=-30.1&cam=fly&freeze=1&renderer=webgl2) | ![corner-wide](track-kit/corner-wide.png) |
 | `hairpin` | curve | (0, ±2, 0, ±2) | `hairpin` r 10 m | road, dirt, ice, grass | 180° in two lanes; costs speed. | [`x=58&y=11&z=66&yaw=57.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=58&y=11&z=66&yaw=57.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![hairpin](track-kit/hairpin.png) |
 | `slope-up` | slope | (2, 0, +1, 0) | `ramp` 20 m, +4 m | road, dirt, ice, grass | One level up (11.3°); walled grass straight in front. | [`x=14&y=13&z=88&yaw=-32.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=14&y=13&z=88&yaw=-32.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![slope-up](track-kit/slope-up.png) |
 | `slope-down` | slope | (2, 0, −1, 0) | `drop` 20 m, −4 m | road, dirt, ice, grass | One level down; here in dirt. | [`x=26&y=13&z=152&yaw=147.5&pitch=-22.9`](https://bborbe.github.io/driftline/?track=test-kit-all&x=26&y=13&z=152&yaw=147.5&pitch=-22.9&cam=fly&freeze=1&renderer=webgl2) | ![slope-down](track-kit/slope-down.png) |
