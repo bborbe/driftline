@@ -84,11 +84,12 @@ const YAW_ASSIST_SLIP_LO = 8
 const YAW_ASSIST_SLIP_HI = 15
 const YAW_ASSIST_MIN_SPEED = 5 // m/s
 // Speed drift, Trackmania-style: at 90 km/h a handbrake tap with steer puts the car into a short
-// slide it keeps its speed through, and a longer press never spins it. Road grip only (ice, dirt
-// and grass keep their own slide), forward travel only, off on a loop. Grip cornering slips 3-7°,
-// below every gate here, so row 1 asphalt grip is untouched. Only the entry kick needs the handbrake:
-// the spin guard and the carry act on any road slide past their angle (a wall glance, a yawed
-// landing), so those straighten out instead of spinning.
+// slide it keeps its speed through, and a longer press never spins it. The kick and the carry need
+// road grip (ice, dirt and grass keep their own slide); the spin guard acts on every material, so a
+// drift that slides off the road onto offroad ground still does not spin. Forward travel only, off
+// on a loop. Grip cornering slips 3-7°, below every gate here, so row 1 asphalt grip is untouched.
+// Only the entry kick needs the handbrake: the spin guard and the carry act on any slide past their
+// angle (a wall glance, a yawed landing), so those straighten out instead of spinning.
 // Entry: on the handbrake, a yaw torque (1/s² per unit steer) rotates the car in until the body
 // slips DRIFT_KICK_SLIP_HI degrees, so a 0.25 s tap already slides (the steer alone takes ~0.1 s to build).
 const DRIFT_KICK = 6
@@ -428,13 +429,13 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
   // Speed drift (see DRIFT_KICK). beta = signed body slip, nose angle minus travel angle (+ = nose
   // turned toward +x); the path's turn rate is the yaw assist's, from this tick's force.
   const drift = contacts > 0 ? clamp((gripSum / contacts - DRIFT_GRIP_LO) / (DRIFT_GRIP_HI - DRIFT_GRIP_LO), 0, 1) : 0
-  if (grounded && !onLoop && drift > 0 && speed > STOPPED && v2 > YAW_ASSIST_MIN_SPEED ** 2 && fwdFlat > 1e-6) {
+  if (grounded && !onLoop && speed > STOPPED && v2 > YAW_ASSIST_MIN_SPEED ** 2 && fwdFlat > 1e-6) {
     const vFlat = Math.sqrt(v2)
     const beta = Math.atan2(flatVel.z * fwdBody.x - flatVel.x * fwdBody.z, flatVel.x * fwdBody.x + flatVel.z * fwdBody.z)
     const betaDeg = (Math.abs(beta) * 180) / Math.PI
     const growth = s.angularVelocity.y - (flatVel.z * force.x - flatVel.x * force.z) / (MASS * v2)
     const limit = clamp((betaDeg - DRIFT_LIMIT) / DRIFT_LIMIT_BAND, 0, 1)
-    if (limit > 0 && beta * growth > 0) torque = add(torque, v3(0, -DRIFT_LIMIT_RATE * limit * drift * INERTIA.y * growth, 0))
+    if (limit > 0 && beta * growth > 0) torque = add(torque, v3(0, -DRIFT_LIMIT_RATE * limit * INERTIA.y * growth, 0))
     if (input.handbrake) {
       const kick = clamp((DRIFT_KICK_SLIP_HI - betaDeg) / (DRIFT_KICK_SLIP_HI - DRIFT_KICK_SLIP_LO), 0, 1)
       // Positive steer = right = yaw toward -x, so a negative torque about y.
