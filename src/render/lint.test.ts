@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three/webgpu'
 import { closed, CONTACT_TOLERANCE, lintScene, MIN_THICKNESS, thickness } from './lint'
-import { flat, noCollide, structural, type FlatReason, type StructuralKind } from './tags'
+import { flat, hangs, noCollide, structural, type FlatReason, type StructuralKind } from './tags'
 
 const box = (name: string, [w, h, d]: [number, number, number], [x, y, z]: [number, number, number]): THREE.Mesh => {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d))
@@ -110,6 +110,16 @@ describe('floating check', () => {
       box('beam', [11, 1.2, 1], [0, 6.6, 0]),
     )
     expect(offenders(arch, 'floating')).toEqual(['leg-b'])
+  })
+
+  it('holds a hanging leg by its top: passes it under the clamp it meets, fails it once dropped clear, and never by its foot', () => {
+    // A loop-top gate: legs 23.3–30 m up, a clamp across their tops (mesh.ts gateArch).
+    const clamp = () => box('clamp', [13, 1.2, 1.9], [0, 30.6, 0])
+    const leg = (top: number) => hangs(structural(box('leg', [1.1, 6.7, 1.9], [5.7, top - 3.35, 0]), 'gate-leg'))
+    expect(offenders(scene(clamp(), leg(30)), 'floating')).toEqual([])
+    expect(offenders(scene(clamp(), leg(30 - 2 * CONTACT_TOLERANCE)), 'floating')).toEqual(['leg'])
+    // On the ground with nothing above, a hanging leg still floats: it is held from above or not at all.
+    expect(offenders(scene(hangs(structural(box('leg', [1, 4, 1], [0, 2, 0]), 'gate-leg'))), 'floating')).toEqual(['leg'])
   })
 })
 

@@ -25,6 +25,7 @@ export function validate(data: unknown): string[] {
       if (g?.kind !== 'start-finish' && g?.kind !== 'checkpoint') errs.push(`gates[${i}]: unknown kind`)
       if (!Number.isInteger(g?.segment) || g.segment < 0 || g.segment >= n) errs.push(`gates[${i}]: segment out of range`)
       else if ((t.segments as Segment[])[g.segment]?.type === 'gap') errs.push(`gates[${i}]: a gate cannot stand on a gap (no road)`)
+      if (g?.at !== undefined && !(typeof g.at === 'number' && g.at >= 0 && g.at < 1)) errs.push(`gates[${i}]: at must be in [0, 1)`)
     })
   }
   if (t.medals !== undefined) {
