@@ -6,6 +6,7 @@ import { GHOST_OPACITY, createGhostCar } from '../../ghost/mesh'
 import { createCar, v3 } from '../../physics'
 import { CARS, resolveCar, type CarEntry } from '../cars'
 import { attachDetail, isDetail } from './detail'
+import { attachLights } from './lights'
 import { createCarView } from './model'
 import { applyLivery, type LiveryCanvas } from './paint'
 import { fitRig, type WheelNode } from './rig'
@@ -126,15 +127,27 @@ describe('car detail', () => {
     expect(before.angleTo(after)).toBeGreaterThanOrEqual(0.1)
   })
 
-  it('leaves the detail out of the livery', async () => {
-    const car = await createCarView('stadium')
-    const canvas: LiveryCanvas = { width: 0, height: 0, getContext: () => new Proxy({}, { get: () => () => {}, set: () => true }) }
-    applyLivery(car.object, { pattern: 'checker', paint: 'blue', number: 3 }, () => canvas)
-    const painted: THREE.Object3D[] = []
-    car.object.traverse((o) => o.name === 'livery' && painted.push(o))
-    expect(painted.length).toBeGreaterThan(0) // the body still takes the livery
-    for (const m of painted) expect(isDetail(m), 'livery mesh under detail').toBe(false)
-    car.object.traverse((o) => {
+  it('leaves the detail out of the livery, and out of its bounds', async () => {
+    // The box is the car the arms reach below, so detail in the paint bounds would shift its atlas.
+    const canvas = (): LiveryCanvas => ({ width: 0, height: 0, getContext: () => new Proxy({}, { get: () => () => {}, set: () => true }) })
+    const liveryUVs = (root: THREE.Object3D): number[][] => {
+      const out: number[][] = []
+      root.traverse((o) => o.name === 'livery' && out.push(Array.from((o as THREE.Mesh).geometry.getAttribute('uv').array)))
+      return out
+    }
+    const entry = resolveCar('box')
+    const plain = await entry.build()
+    attachLights(plain)
+    applyLivery(plain, { pattern: 'checker', paint: 'blue', number: 3 }, canvas)
+    const car = await entry.build()
+    attachLights(car)
+    attachDetail(car, entry.cockpit)
+    applyLivery(car, { pattern: 'checker', paint: 'blue', number: 3 }, canvas)
+    const uvs = liveryUVs(car)
+    expect(uvs.length).toBeGreaterThan(0)
+    expect(uvs).toEqual(liveryUVs(plain))
+    car.traverse((o) => {
+      if (o.name === 'livery') expect(isDetail(o), 'livery mesh under detail').toBe(false)
       if (isDetail(o) && (o as THREE.Mesh).isMesh) expect(((o as THREE.Mesh).material as THREE.Material).name).toMatch(/^detail-/)
     })
   })

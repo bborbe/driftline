@@ -23,7 +23,7 @@ const ARM_RADIUS = 0.022 // m
 const ARM_SPREAD = 0.28 // m: half the wishbone's base along the car, at the body end
 const ARM_INNER_X = 0.2 // m: where the wishbones meet the body, off the car's centre line
 const ARM_RISE = 0.09 // m: upper and lower wishbone height off the hub centre
-export const HELMET_RADIUS = 0.17 // m
+const HELMET_RADIUS = 0.17 // m
 
 // Plain (non-physical, unmapped) materials: the livery painter treats them as unpainted.
 const carbon = new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.55, metalness: 0.3, name: 'detail-carbon' })
@@ -51,14 +51,15 @@ const rod = (a: THREE.Vector3, b: THREE.Vector3, r: number): THREE.BufferGeometr
 const merged = (parts: THREE.BufferGeometry[], material: THREE.Material): THREE.Mesh => {
   const flat = parts.map((p) => (p.index ? p.toNonIndexed() : p))
   const g = mergeGeometries(flat)
-  for (const p of [...parts, ...flat]) p.dispose()
+  for (const p of new Set([...parts, ...flat])) p.dispose()
+  if (!g) throw new Error(`car detail: cannot merge ${parts.length} parts for ${material.name}`)
   return new THREE.Mesh(g, material)
 }
 
 /** A wheel's shape in the car frame, from its own meshes (not the rim glow lights.ts adds). */
-export type WheelShape = { centre: THREE.Vector3; radius: number; inner: number; outer: number; side: number }
+type WheelShape = { centre: THREE.Vector3; radius: number; inner: number; outer: number; side: number }
 
-export const wheelShape = (wheel: THREE.Object3D, root: THREE.Object3D): WheelShape => {
+const wheelShape = (wheel: THREE.Object3D, root: THREE.Object3D): WheelShape => {
   const inv = root.matrixWorld.clone().invert()
   const box = new THREE.Box3()
   const part = new THREE.Box3()
@@ -88,9 +89,9 @@ const wheelDetail = (w: WheelShape): { tread: THREE.Mesh; hub: THREE.Mesh } => {
   const width = Math.abs(w.outer - w.inner)
   const blocks: THREE.BufferGeometry[] = []
   for (let i = 0; i < TREAD_BLOCKS; i++) {
-    // Tops just under the tyre radius: the blocks show as ribs on a low-poly tyre's flats.
+    // Tops 3 mm proud of the tyre radius: ribs on a low-poly tyre's flats, still visible on a smooth one.
     const g = new THREE.BoxGeometry(width * 0.86, 0.03, 0.05)
-    g.translate(0, w.radius - 0.017, 0)
+    g.translate(0, w.radius - 0.012, 0)
     g.rotateX((i / TREAD_BLOCKS) * Math.PI * 2)
     g.translate(w.centre.x, w.centre.y, w.centre.z)
     blocks.push(g)
