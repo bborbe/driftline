@@ -21,21 +21,21 @@ export const BLOOM: Record<GlowPreset, BloomParams> = {
   night: { strength: 0.8, radius: 0.55, threshold: 0.6 },
 }
 
-/** Emissive intensity per glow class: lights well above the day threshold, rims and lines just over it. */
+/** Emissive intensity per glow class, set so each class's luminance (glowLuminance) clears the day threshold. */
 export const EMISSIVE: Record<GlowClass, number> = {
   'edge-line': 1.4,
-  'turbo-pad': 1.6,
-  'tail-light': 1.5,
+  'turbo-pad': 2.4,
+  'tail-light': 6.0,
   'headlight': 3.0,
-  'rim': 1.1,
+  'rim': 2.2,
 }
 /** Tail lights while braking. */
-export const BRAKE_EMISSIVE = 5.0
+export const BRAKE_EMISSIVE = 12.0
 
 /** Colours (sRGB hex) of the classes built here: cool white edge neon, red tails, warm white heads, cyan rims. */
 export const GLOW_COLOR: Record<Exclude<GlowClass, 'turbo-pad'>, number> = {
   'edge-line': 0xe8f6ff,
-  'tail-light': 0xff1a1a,
+  'tail-light': 0xff0a0a,
   'headlight': 0xfff2d6,
   'rim': 0x4cc9f0,
 }
@@ -60,6 +60,12 @@ export const tailLightIntensity = (braking: boolean): number => (braking ? BRAKE
 
 /** Turbo pad emission: the pad look's own strength (0.5 = standard) scaled onto the turbo-pad level. */
 export const padEmissive = (look: number): number => EMISSIVE['turbo-pad'] * (look / 0.5)
+
+/** Linear luminance of an sRGB hex colour emitted at `intensity`: what the bloom threshold is compared with. */
+export const glowLuminance = (hex: number, intensity: number): number => {
+  const c = new THREE.Color(hex) // three converts sRGB hex to linear working space
+  return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) * intensity
+}
 
 /** Mark a material as one glow class (read by the wiring test and anything that retunes glow). */
 export const tagGlow = <T extends THREE.Material>(material: T, glow: GlowClass): T => {

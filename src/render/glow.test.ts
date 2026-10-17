@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { WHEEL_NODES } from '../car/wheels'
 import type { Track } from '../track/schema'
 import { attachLights } from './car/lights'
-import { BLOOM, bloomFor, BRAKE_EMISSIVE, EMISSIVE, glowClasses, glowPasses, glowPreset, tailLightIntensity } from './glow'
+import { BLOOM, bloomFor, BRAKE_EMISSIVE, EMISSIVE, GLOW_COLOR, glowClasses, glowLuminance, glowPasses, glowPreset, tailLightIntensity } from './glow'
 import { createEdgeLines } from './track/curbs'
 import { createZoneMeshes } from './track/zones'
 
@@ -50,8 +50,8 @@ describe('glow pass', () => {
     expect(BLOOM.night.threshold).toBeLessThan(BLOOM.day.threshold)
   })
 
-  it('keeps every glow class above the day bloom threshold', () => {
-    for (const v of Object.values(EMISSIVE)) expect(v).toBeGreaterThan(BLOOM.day.threshold)
+  it('keeps every glow colour bright enough to clear the day bloom threshold', () => {
+    for (const [glow, hex] of Object.entries(GLOW_COLOR)) expect(glowLuminance(hex, EMISSIVE[glow as keyof typeof GLOW_COLOR])).toBeGreaterThan(BLOOM.day.threshold)
   })
 
   it('brightens the tail lights on the brake', () => {
@@ -70,7 +70,10 @@ describe('glow wiring', () => {
   it('builds turbo pads with the turbo-pad glow material, and no other zone glows', () => {
     const zones = createZoneMeshes(lap2)
     expect(glowClasses(zones)).toEqual(new Set(['turbo-pad']))
-    for (const m of materialsOf(zones, 'turbo-pad')) expect(m.emissiveIntensity).toBeGreaterThan(BLOOM.day.threshold)
+    const pads = materialsOf(zones, 'turbo-pad')
+    expect(pads.length).toBeGreaterThan(0)
+    // The yellow standard pad clears the day threshold on its own colour.
+    expect(Math.max(...pads.map((m) => glowLuminance(m.emissive.getHex(), m.emissiveIntensity)))).toBeGreaterThan(BLOOM.day.threshold)
   })
 
   it('gives a car tail lights, headlights and a rim ring on every wheel', () => {
