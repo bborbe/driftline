@@ -18,6 +18,8 @@ export type CarEntry = {
   file?: string
   /** Build the model in the car frame, physics-sized, with the four wheel nodes. */
   build: () => Promise<THREE.Object3D>
+  /** Driver helmet centre in the car frame (metres), in the cockpit opening (render/car/detail.ts). */
+  cockpit?: readonly [number, number, number]
 }
 
 export const DEFAULT_CAR: CarId = 'race'
@@ -149,15 +151,23 @@ const glbCar = (file: string) => async (): Promise<THREE.Object3D> => {
 }
 
 export const CARS: readonly CarEntry[] = [
-  { id: 'stadium', label: 'Stadium (original)', build: buildStadium },
-  { id: 'race', label: 'Kenney Race', file: 'assets/car-kit/race.glb', build: glbCar('assets/car-kit/race.glb') },
+  { id: 'stadium', label: 'Stadium (original)', build: buildStadium, cockpit: [0, 0.3, 0.12] },
+  // Kenney cockpits: the opening ahead of the roll hoop, deck at model y 0.39, measured from the glb.
+  {
+    id: 'race',
+    label: 'Kenney Race',
+    file: 'assets/car-kit/race.glb',
+    build: glbCar('assets/car-kit/race.glb'),
+    cockpit: [0, 0.29, 0.48],
+  },
   {
     id: 'raceFuture',
     label: 'Kenney Race Future',
     file: 'assets/car-kit/race-future.glb',
     build: glbCar('assets/car-kit/race-future.glb'),
+    cockpit: [0, 0.46, 0.7],
   },
-  { id: 'box', label: 'Placeholder box', build: buildBox },
+  { id: 'box', label: 'Placeholder box', build: buildBox, cockpit: [0, 0.55, 0.3] },
 ]
 
 /** Registry entry for an id; unknown ids fall back to the box with a warning. */
