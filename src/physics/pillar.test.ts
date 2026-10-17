@@ -18,8 +18,10 @@ const inside = (o: Pillar, x: number, z: number): boolean => {
 
 describe.each(['test1', 'test2'])('%s gate pillars', (name) => {
   const track = load(name)
-  const surface = trackSurface(track)
   const pillars = track.gates.flatMap((g) => gatePillars(track, g))
+  // The pillars alone: a checkpoint just past a hairpin has the hairpin's edge rail (src/track/rails.ts)
+  // across the 12 m run-up, and that rail would turn the car aside before it reached the pillar.
+  const surface = { ...trackSurface(track), obstacles: pillars }
 
   it('has two pillars per gate', () => {
     expect(pillars).toHaveLength(2 * track.gates.length)

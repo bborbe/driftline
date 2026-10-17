@@ -211,6 +211,35 @@ const WALL_SCRAPE = 0.7
 
 type Moved = { position: Vec3; velocity: Vec3 }
 
+// Broadphase: each obstacle listed in every GRID-metre cell its reach (the early-out in collide()
+// below) can touch from, widened by PUSH_SLACK for the pushes earlier obstacles make within one
+// tick. A cell's list keeps the obstacles' order, so collide() visits exactly the obstacles that
+// could pass its reach test, in the same order — the result is bit-identical to a full scan.
+const GRID = 8
+const PUSH_SLACK = 2
+type Broadphase = Map<string, Pillar[]>
+const broadphases = new WeakMap<readonly Pillar[], Broadphase>()
+const cellKey = (i: number, k: number) => `${i},${k}`
+
+const broadphase = (obstacles: readonly Pillar[]): Broadphase => {
+  const hit = broadphases.get(obstacles)
+  if (hit) return hit
+  const grid: Broadphase = new Map()
+  for (const o of obstacles) {
+    const reach = o.halfWidth + o.halfDepth + BODY_REACH + BODY_RADIUS + PUSH_SLACK
+    for (let i = Math.floor((o.x - reach) / GRID); i <= Math.floor((o.x + reach) / GRID); i++) {
+      for (let k = Math.floor((o.z - reach) / GRID); k <= Math.floor((o.z + reach) / GRID); k++) {
+        const key = cellKey(i, k)
+        const cell = grid.get(key)
+        if (cell) cell.push(o)
+        else grid.set(key, [o])
+      }
+    }
+  }
+  broadphases.set(obstacles, grid)
+  return grid
+}
+
 // Push the body out of every pillar it overlaps (in the horizontal plane) and kill its speed
 // into the pillar: a wall hit, Trackmania-style.
 const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly Pillar[] | undefined): Moved => {
@@ -220,7 +249,7 @@ const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly 
   const fz = flat > 1e-6 ? fwd.z / flat : 1
   let pos = position
   let vel = velocity
-  for (const o of obstacles) {
+  for (const o of broadphase(obstacles).get(cellKey(Math.floor(pos.x / GRID), Math.floor(pos.z / GRID))) ?? []) {
     if (pos.y < o.y - 1 || pos.y > o.y + o.height) continue
     const reach = o.halfWidth + o.halfDepth + BODY_REACH + BODY_RADIUS
     if (Math.abs(pos.x - o.x) > reach || Math.abs(pos.z - o.z) > reach) continue

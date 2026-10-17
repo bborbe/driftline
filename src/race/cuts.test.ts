@@ -270,22 +270,30 @@ const DECK_HEIGHT = 4 // m: road-line states above this count as on a deck
 const DROP_STEP = 40 // ticks between drop-off points along the road line
 const DROP_OUT = [6, 12, 20] // m sideways from the car where the run aims first
 
-// cut() with a sideways first aim point; counts the ticks spent on the ground.
-function dropRun(start: CarState, approach: Point, target: Pose, surface: Surface, limit: number): Run {
+// Speed lost in one tick under full throttle that only a wall takes: car.ts collide() kills the
+// speed into a rail, parapet or pillar (src/physics/rails.test.ts uses the same mark).
+const WALL_HIT = 2
+const flatSpeed = (s: CarState) => Math.hypot(s.velocity.x, s.velocity.z)
+
+// cut() with a sideways first aim point; counts the ticks spent on the ground, and whether a wall
+// at the deck's edge (its rail or parapet) held the car on the way.
+function dropRun(start: CarState, approach: Point, target: Pose, surface: Surface, limit: number): Run & { held: boolean } {
   const beyond = { x: target.x + 10 * Math.sin(target.heading), z: target.z + 10 * Math.cos(target.heading) }
   let aim = approach
   let s = start
   let grass = 0
+  let held = false
   for (let t = 1; t <= limit; t++) {
     if (Math.hypot(aim.x - s.position.x, aim.z - s.position.z) < 4) aim = beyond
     const f = forwardOf(s)
     const angle = Math.atan2(f.x * (aim.z - s.position.z) - f.z * (aim.x - s.position.x), f.x * (aim.x - s.position.x) + f.z * (aim.z - s.position.z))
     const next = step(s, { throttle: 1, brake: 0, steer: Math.max(-1, Math.min(1, 2.5 * angle)), handbrake: false }, surface)
     if (materialUnder(next, surface) === 'offroad') grass++
-    if (crosses(target, s.position, next.position)) return { ticks: t, grass }
+    if (flatSpeed(s) - flatSpeed(next) > WALL_HIT) held = true
+    if (crosses(target, s.position, next.position)) return { ticks: t, grass, held }
     s = next
   }
-  return { ticks: Infinity, grass }
+  return { ticks: Infinity, grass, held }
 }
 
 describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap', 'flatout'])('%s deck drop-offs', (name) => {
@@ -298,7 +306,7 @@ describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap', 'flatout'])('%s d
   const at: number[] = []
   for (const g of gates) at.push(crossingTick(road, g, (at[at.length - 1] ?? 0) + 1))
   const points = road.flatMap((st, k) => (k % DROP_STEP === 0 && st.position.y > DECK_HEIGHT ? [k] : []))
-  let drops = 0 // runs that really left the deck, summed over the points below
+  let reached = 0 // runs that reached the deck's edge — left the deck, or were held at it by a wall — summed over the points below
 
   it('the road line spends time up on a deck', () => {
     expect(at.every((t) => t > 0)).toBe(true)
@@ -316,14 +324,15 @@ describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap', 'flatout'])('%s d
       }),
     )
     const fell = (r: Run) => r.grass >= GRASS_SHARE * Math.min(r.ticks, 2 * (at[next] - k))
-    drops += runs.filter(fell).length
+    reached += runs.filter((r) => fell(r) || r.held).length
     const roadBest = Math.min(at[next] - k, ...runs.filter((r) => !fell(r)).map((r) => r.ticks))
     const drop = runs.filter(fell).reduce((m, r) => (r.ticks < m.ticks ? r : m), { out: 0, ticks: Infinity, grass: 0 })
     expect(drop.ticks, `${name} tick ${k}: drop ${drop.out} m reached gate ${next + 1} in ${drop.ticks} vs road ${roadBest}`).toBeGreaterThan(roadBest)
   })
-  // Runs right before a gate cross its line before they land, and a bridge's parapets hold most runs
-  // aimed at its edge on the deck (parapetBoxes); the search as a whole must not be vacuous.
-  it('the search really drops off the deck', () => {
-    expect(drops).toBeGreaterThan(points.length / 4)
+  // Runs right before a gate cross its line before they land, and the edge rails (railBoxes) and a
+  // bridge's parapets (parapetBoxes) hold most runs aimed at the deck's edge; the search as a whole
+  // must still reach that edge, falling off it or held by its wall, or it proves nothing.
+  it('the search really reaches the deck edge', () => {
+    expect(reached).toBeGreaterThan(points.length / 4)
   })
 })

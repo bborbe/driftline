@@ -10,6 +10,8 @@ export const ASPHALT = linear(0.075, 0.078, 0.085)
 /** Curb stripe red and white (Trackmania-style alternating blocks). */
 export const CURB_RED = linear(0.75, 0.04, 0.04)
 export const CURB_WHITE = linear(0.92, 0.92, 0.92)
+/** Neon edge line on the rail tops (track/rails.ts): cyan, drawn emissive. */
+export const NEON_CYAN = linear(0.05, 0.85, 1)
 /** Sign boards: Trackmania yellow on near-black. */
 export const SIGN_YELLOW = '#ffd21f'
 export const SIGN_BLACK = '#141414'

@@ -2,6 +2,7 @@
 // no clocks, no randomness. Built from the shared track format in src/track/schema.ts.
 import { barrierPillars, barrierPosts, gateLegs, gatePillars, isPad, padForward, poses, ROAD_WIDTH, turnCentre, widthAt, type Pillar, type Pose, type Segment, type Track, type ZoneKind } from '../track/schema'
 import { bodyBoxes, parapetBoxes, pillarBoxes } from '../track/bodies'
+import { railBoxes } from '../track/rails'
 import { loopShift, wallFrame, wallTop, WALL_RADIUS, type LoopSegment, type WallrideSegment } from '../track/pose'
 import { bankAngleAt, bankAngleSlope, bankRise } from '../track/bank'
 import { normalize, v3, type Vec3 } from './vec'
@@ -23,7 +24,7 @@ export type RayHit = {
 export interface Surface {
   // Ray from `origin` along unit `dir`; null when nothing is hit within `maxDistance`.
   raycast(origin: Vec3, dir: Vec3, maxDistance: number): RayHit | null
-  // Solid upright boxes the car body collides with (gate pillars, barriers, filled bodies under raised road, bridge pillars and parapets); none when omitted.
+  // Solid upright boxes the car body collides with (gate pillars, barriers, filled bodies under raised road, bridge pillars and parapets, edge rails); none when omitted.
   obstacles?: readonly Pillar[]
 }
 
@@ -216,6 +217,7 @@ const wallRaycast = (p: Pose, seg: WallrideSegment): Surface['raycast'] => {
 export type TrackSurfaceOptions = {
   width?: number // every piece this wide; default each segment's own (widthAt)
   groundY?: number | null // infinite ground plane under the track; null = none
+  rails?: boolean // the edge rails (src/track/rails.ts); false = none, for a test that must leave the road. Default true
 }
 
 // Fixed-point iterations for ray ∩ height field. Converges while |∇h| · |tan(ray tilt)| < 1,
@@ -301,6 +303,8 @@ export const trackSurface = (track: Track, options: TrackSurfaceOptions = {}): S
       ...pillarBoxes(track),
       ...parapetBoxes(track),
       ...track.gates.filter((g) => g.segment < track.segments.length).flatMap((g) => gateLegs(track, g)),
+      // The edge rails (src/track/rails.ts): every road edge but a loop's and a wallride's wall.
+      ...(options.rails === false ? [] : railBoxes(track)),
     ],
     raycast,
   }
