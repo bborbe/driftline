@@ -1,10 +1,11 @@
-// The settings panel, shared by the start screen and the in-race Esc menu. Writes through to localStorage.
+// The settings panel, shared by the start screen and the in-race Esc menu. Writes through to localStorage and fires
+// SETTINGS_EVENT after every change, so the running race applies it at once (src/menu/live.ts); nothing needs a reload.
 import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camera/views'
-import { FX } from '../render/fx/flags'
+import { LIVE_FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
-import { LIVERY_EVENT, loadSettings, saveSettings, type Settings } from './settings'
+import { loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
-import type { EnvironmentMode } from '../track/environment'
+import { TIME_CHOICES, WEATHER_CHOICES, type TimeChoice, type WeatherChoice } from '../track/environment'
 
 export interface SettingsHooks {
   /** Live volume change, e.g. GameAudio.setVolume. */
@@ -12,27 +13,32 @@ export interface SettingsHooks {
 }
 
 const VIEW_LABELS: Record<ViewMode, string> = { close: 'Close chase', far: 'Far chase', cockpit: 'In-car' }
-const ENVIRONMENT_LABELS: Record<EnvironmentMode, string> = { fixed: 'Track default', random: 'Random' }
+const choiceLabel = (c: string): string => (c === 'default' ? 'Track default' : c[0].toUpperCase() + c.slice(1))
 
 export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   const s: Settings = loadSettings(localStorage)
   const box = document.createElement('div')
   box.className = 'menu-settings'
   const label = (text: string) => Object.assign(document.createElement('span'), { textContent: text })
+  const commit = () => {
+    saveSettings(localStorage, s)
+    window.dispatchEvent(new CustomEvent(SETTINGS_EVENT, { detail: { ...s } }))
+  }
 
   const vol = Object.assign(document.createElement('input'), { type: 'range', min: '0', max: '1', step: '0.05', value: String(s.volume) })
   vol.addEventListener('input', () => {
     s.volume = Number(vol.value)
-    saveSettings(localStorage, s)
+    commit()
     hooks.onVolume?.(s.volume)
   })
   box.append(label('Volume'), vol)
 
-  for (const f of FX) {
-    const cb = Object.assign(document.createElement('input'), { type: 'checkbox', checked: s.fx.includes(f) })
+  // Only the effects a toggle changes: bloom and skid marks are always on (glow.ts, view.ts).
+  for (const f of LIVE_FX) {
+    const cb = Object.assign(document.createElement('input'), { type: 'checkbox', checked: s.fx.includes(f), id: `setting-fx-${f}` })
     cb.addEventListener('change', () => {
-      s.fx = FX.filter((x) => (x === f ? cb.checked : s.fx.includes(x)))
-      saveSettings(localStorage, s)
+      s.fx = LIVE_FX.filter((x) => (x === f ? cb.checked : s.fx.includes(x)))
+      commit()
     })
     box.append(label(`Effect: ${f}`), cb)
   }
@@ -45,25 +51,33 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   })
   box.append(label('Camera (1/2/3)'), cam)
   const laps = document.createElement('select')
+  laps.id = 'setting-laps'
   for (let n = 1; n <= MAX_LAPS; n++) laps.append(new Option(String(n), String(n), false, n === s.laps))
   laps.addEventListener('change', () => {
     s.laps = Number(laps.value)
-    saveSettings(localStorage, s)
+    commit()
   })
-  box.append(label('Laps'), laps)
-  const env = document.createElement('select')
-  env.id = 'setting-environment'
-  for (const [mode, text] of Object.entries(ENVIRONMENT_LABELS)) env.append(new Option(text, mode, false, mode === s.environment))
-  env.addEventListener('change', () => {
-    s.environment = env.value as EnvironmentMode
-    saveSettings(localStorage, s)
+  box.append(label('Laps (from the next restart)'), laps)
+  const time = document.createElement('select')
+  time.id = 'setting-time'
+  for (const c of TIME_CHOICES) time.append(new Option(choiceLabel(c), c, false, c === s.time))
+  time.addEventListener('change', () => {
+    s.time = time.value as TimeChoice
+    commit()
   })
-  box.append(label('Time and weather'), env)
-  // Livery: applies at once to the car (and its ghost) through LIVERY_EVENT.
+  box.append(label('Time of day'), time)
+  const weather = document.createElement('select')
+  weather.id = 'setting-weather'
+  for (const c of WEATHER_CHOICES) weather.append(new Option(choiceLabel(c), c, false, c === s.weather))
+  weather.addEventListener('change', () => {
+    s.weather = weather.value as WeatherChoice
+    commit()
+  })
+  box.append(label('Weather'), weather)
+  // Livery: repaints the car (and its ghost) at once.
   const repaint = () => {
     s.livery = clampLivery(s.livery)
-    saveSettings(localStorage, s)
-    window.dispatchEvent(new CustomEvent(LIVERY_EVENT, { detail: s.livery }))
+    commit()
   }
   const pattern = document.createElement('select')
   pattern.id = 'setting-livery'
@@ -82,12 +96,17 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   })
   box.append(label('Colour'), paint)
   const num = Object.assign(document.createElement('input'), { type: 'number', min: '1', max: String(MAX_NUMBER), value: String(s.livery.number), id: 'setting-number' })
+  // While typing, repaint every valid number; on commit (blur / Enter) snap the field to the clamped value.
+  num.addEventListener('input', () => {
+    if (num.value === '' || !Number.isFinite(Number(num.value))) return
+    s.livery = { ...s.livery, number: Number(num.value) }
+    repaint()
+  })
   num.addEventListener('change', () => {
     s.livery = { ...s.livery, number: Number(num.value) }
     repaint()
     num.value = String(s.livery.number)
   })
   box.append(label('Race number'), num)
-  box.append(Object.assign(label('Effects, laps, time and weather apply on the next race'), { className: 'menu-hint' }))
   return box
 }

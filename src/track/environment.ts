@@ -20,12 +20,29 @@ export type EnvironmentDefault = Partial<Environment>
 
 export const DEFAULT_ENVIRONMENT: Environment = { time: 'noon', weather: 'sunny' }
 
-/** Start-screen setting: race in the track's own default, or a random preset per load. */
+/** Legacy setting (before the Time and Weather selectors): the track's own default, or a random preset per load. */
 export const ENVIRONMENT_MODES = ['fixed', 'random'] as const
 export type EnvironmentMode = (typeof ENVIRONMENT_MODES)[number]
 
+/** Settings → Time / Weather: the track's own default, a seeded random pick, or one preset. */
+export const TIME_CHOICES = ['default', 'random', ...TIMES] as const
+export type TimeChoice = (typeof TIME_CHOICES)[number]
+export const WEATHER_CHOICES = ['default', 'random', ...WEATHERS] as const
+export type WeatherChoice = (typeof WEATHER_CHOICES)[number]
+
+export interface EnvironmentChoice {
+  time: TimeChoice
+  weather: WeatherChoice
+}
+
+export const DEFAULT_CHOICE: EnvironmentChoice = { time: 'default', weather: 'default' }
+
+/** A legacy mode as the choice it meant: `fixed` is both defaults, `random` both random. */
+export const choiceOf = (mode: EnvironmentMode | EnvironmentChoice): EnvironmentChoice =>
+  typeof mode === 'object' ? mode : mode === 'random' ? { time: 'random', weather: 'random' } : DEFAULT_CHOICE
+
 /** Where the race's environment came from, shown in the debug line. */
-export type EnvironmentSource = 'track' | 'random' | 'url'
+export type EnvironmentSource = 'track' | 'random' | 'url' | 'setting'
 
 export interface ResolvedEnvironment extends Environment {
   source: EnvironmentSource
@@ -70,13 +87,14 @@ export const randomEnvironment = (seed: number): Environment => {
 
 /**
  * The race's environment. `?time=` / `?weather=` win, each on its own (an unknown value is
- * ignored); then the mode: `fixed` is the track default, `random` a seeded pick — `?seed=` when
- * given (which also selects random), else `freshSeed` (the caller's clock; this stays pure).
+ * ignored); `?seed=` makes both fields a seeded random pick; otherwise the choice, per field:
+ * `default` is the track's, `random` a seeded pick (seed `freshSeed`, the caller's clock; this
+ * stays pure), anything else that preset. A legacy mode (`fixed` / `random`) is read through choiceOf.
  */
 export function resolveEnvironment(
   search: string,
   track: { environment?: EnvironmentDefault },
-  mode: EnvironmentMode,
+  mode: EnvironmentMode | EnvironmentChoice,
   freshSeed: number,
 ): ResolvedEnvironment {
   const q = new URLSearchParams(search)
@@ -84,13 +102,19 @@ export function resolveEnvironment(
   const weather = q.get('weather')
   const seedParam = q.get('seed')
   const urlSeed = seedParam !== null && /^\d+$/.test(seedParam) ? Number(seedParam) : null
-  const base: ResolvedEnvironment =
-    mode === 'random' || urlSeed !== null
-      ? (() => {
-          const seed = urlSeed ?? Math.abs(Math.floor(freshSeed)) % (MAX_SEED + 1)
-          return { ...randomEnvironment(seed), source: 'random', seed }
-        })()
-      : { ...trackEnvironment(track), source: 'track' }
+  const choice: EnvironmentChoice = urlSeed !== null ? { time: 'random', weather: 'random' } : choiceOf(mode)
+  const seed = urlSeed ?? Math.abs(Math.floor(freshSeed)) % (MAX_SEED + 1)
+  const picked = randomEnvironment(seed)
+  const fallback = trackEnvironment(track)
+  const pick = <K extends keyof Environment>(k: K, c: string): Environment[K] =>
+    (c === 'default' ? fallback[k] : c === 'random' ? picked[k] : c) as Environment[K]
+  const isRandom = choice.time === 'random' || choice.weather === 'random'
+  const base: ResolvedEnvironment = {
+    time: pick('time', choice.time),
+    weather: pick('weather', choice.weather),
+    source: isRandom ? 'random' : choice.time === 'default' && choice.weather === 'default' ? 'track' : 'setting',
+    ...(isRandom ? { seed } : {}),
+  }
   if (!isTime(time) && !isWeather(weather)) return base
   return { time: isTime(time) ? time : base.time, weather: isWeather(weather) ? weather : base.weather, source: 'url' }
 }

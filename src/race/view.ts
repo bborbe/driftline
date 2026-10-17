@@ -88,7 +88,8 @@ export class RaceView {
   private finishMenu: MenuList | null = null
   private readonly pauseSettings = el('div', '')
 
-  private readonly store: RaceStore
+  /** Replaced when a restart changes the lap count (records are kept per lap count). */
+  store: RaceStore
   private readonly actions: MenuActions | null
 
   constructor(store: RaceStore, actions: MenuActions | null = null) {

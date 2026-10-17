@@ -16,7 +16,8 @@ import { loopTubes } from './track/pose'
 import { rotate, v3 } from './physics/vec'
 import { chooseTrack } from './menu/start'
 import { skipMenu } from './menu/skip'
-import { effectiveFxQuery, LIVERY_EVENT, loadSettings, saveSettings } from './menu/settings'
+import { effectiveFxQuery, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './menu/settings'
+import { settingsChange } from './menu/live'
 import { clampLivery, ghostLivery } from './render/car/livery'
 import { settingsPanel } from './menu/settings-panel'
 import { environmentLabel, resolveEnvironment } from './track/environment'
@@ -30,7 +31,7 @@ const trackName = fromMenu ? await chooseTrack(LAP_NAMES) : lapName(location.sea
 const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
-const env = resolveEnvironment(location.search, track, settings.environment, Date.now())
+let env = resolveEnvironment(location.search, track, settings, Date.now())
 const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery)
 const { camera, backend } = view
 
@@ -62,12 +63,6 @@ const ghostRecorder = new GhostRecorder()
 ghostRecorder.locked = () => taint.locked
 const ghostCar = await createGhostCar(undefined, ghostLivery(settings.livery))
 view.scene.add(ghostCar.object)
-// Settings → Livery repaints the car and its ghost at once.
-window.addEventListener(LIVERY_EVENT, (e) => {
-  const livery = clampLivery((e as CustomEvent).detail)
-  view.setLivery(livery)
-  ghostCar.setLivery(ghostLivery(livery))
-})
 let ghost: GhostReplayer | null = null
 let lapStartTick = 0
 const race = initRace(sim, track, {
@@ -77,7 +72,7 @@ const race = initRace(sim, track, {
       checkpoint: () => audio.onCheckpoint(),
       // A lap line before the last lap chimes like a checkpoint.
       lapFinish: (_t, _ms, lap) => {
-        if (lap < laps) audio.onCheckpoint()
+        if (lap < race.laps) audio.onCheckpoint()
       },
       raceFinish: () => audio.onFinish(),
       respawn: () => audio.onRespawn(),
@@ -118,6 +113,26 @@ const race = initRace(sim, track, {
   },
   laps,
   recordsLocked: () => taint.locked,
+})
+// Every Settings change applies to the running race at once (src/menu/live.ts): livery, effects, volume, time and
+// weather now, laps from the next restart. A live time/weather pick ignores ?time=/?weather=, which only seed the load.
+let applied: Settings = settings
+window.addEventListener(SETTINGS_EVENT, (e) => {
+  const next = (e as CustomEvent<Settings>).detail
+  const change = settingsChange(applied, next)
+  applied = next
+  if (change.livery) {
+    const livery = clampLivery(change.livery)
+    view.setLivery(livery)
+    ghostCar.setLivery(ghostLivery(livery))
+  }
+  if (change.fx) view.setFx(change.fx)
+  if (change.volume !== undefined) audio.setVolume(change.volume)
+  if (change.laps !== undefined && !new URLSearchParams(location.search).has('laps')) race.setLaps(change.laps)
+  if (change.environment) {
+    env = resolveEnvironment('', track, next, Date.now())
+    void view.setEnvironment(env, env.seed ?? 1)
+  }
 })
 // Begin is ignored while paused (Esc; unpause first) and while flying (Space rises there).
 mountAudioControls(audio, () => race.start(), () => beginAllowed(race.paused, cam.fly !== null), settings.volume, (volume) =>

@@ -1,7 +1,7 @@
 // Player settings shown on the start screen and in the Esc menu, persisted in localStorage. Pure and tested.
 import { FX, type Fx } from '../render/fx/flags'
 import { clampLaps } from '../race/lap'
-import { ENVIRONMENT_MODES, type EnvironmentMode } from '../track/environment'
+import { choiceOf, DEFAULT_CHOICE, TIME_CHOICES, WEATHER_CHOICES, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { clampLivery, DEFAULT_LIVERY, type Livery } from '../render/car/livery'
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>
@@ -11,16 +11,18 @@ export interface Settings {
   fx: Fx[]
   /** Laps per race; `?laps=` overrides it. */
   laps: number
-  /** Time of day and weather: the track's own default, or a random preset per race (`?time=` / `?weather=` / `?seed=` override it). */
-  environment: EnvironmentMode
+  /** Time of day: the track's own default, a random preset per race, or one preset (`?time=` / `?seed=` override it at load). */
+  time: TimeChoice
+  /** Weather, likewise (`?weather=` / `?seed=` override it at load). */
+  weather: WeatherChoice
   /** Player car paint, pattern and race number; the ghost takes ghostLivery() of it. */
   livery: Livery
 }
 
 const KEY = 'driftline-settings'
-export const DEFAULT_SETTINGS: Settings = { volume: 0.7, fx: [], laps: 1, environment: 'fixed', livery: DEFAULT_LIVERY }
-/** Window event the settings panel fires when the livery changes; detail is the Livery. */
-export const LIVERY_EVENT = 'driftline:livery'
+export const DEFAULT_SETTINGS: Settings = { volume: 0.7, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY }
+/** Window event the settings panel fires after every change; detail is the saved Settings, which the running race applies at once. */
+export const SETTINGS_EVENT = 'driftline:settings'
 
 export function loadSettings(storage: KeyValueStore): Settings {
   try {
@@ -28,8 +30,11 @@ export function loadSettings(storage: KeyValueStore): Settings {
     if (!raw || typeof raw !== 'object') return { ...DEFAULT_SETTINGS }
     const volume = Number.isFinite(raw.volume) ? Math.min(1, Math.max(0, raw.volume)) : DEFAULT_SETTINGS.volume
     const fx = Array.isArray(raw.fx) ? FX.filter((f) => raw.fx.includes(f)) : []
-    const environment = (ENVIRONMENT_MODES as readonly unknown[]).includes(raw.environment) ? (raw.environment as EnvironmentMode) : DEFAULT_SETTINGS.environment
-    return { volume, fx, laps: clampLaps(raw.laps), environment, livery: clampLivery(raw.livery) }
+    // Before the Time and Weather selectors one `environment` mode covered both: `random` meant both random.
+    const legacy = choiceOf(raw.environment === 'random' ? 'random' : 'fixed')
+    const time = (TIME_CHOICES as readonly unknown[]).includes(raw.time) ? (raw.time as TimeChoice) : legacy.time
+    const weather = (WEATHER_CHOICES as readonly unknown[]).includes(raw.weather) ? (raw.weather as WeatherChoice) : legacy.weather
+    return { volume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery) }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
