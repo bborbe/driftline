@@ -8,6 +8,7 @@ import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
 import type { Livery } from './car/livery'
 import { parseFx } from './fx/flags'
+import { bloomFor } from './glow'
 import { createSkidMarks } from './fx/skid'
 import { createDust } from './fx/dust'
 import { createSmoke } from './fx/smoke'
@@ -19,7 +20,6 @@ import { watchFullscreen } from '../fullscreen'
 import { createScene } from './scene'
 import { topCamFor, topCamRequested } from './topcam'
 import { createPieceTrack } from './track/kenney'
-import { createEdgeGlow } from './track/curbs'
 import { DEFAULT_ENVIRONMENT, type Environment } from '../track/environment'
 import { createStartDressing, type StartDressing } from './track/start-dressing'
 
@@ -35,8 +35,8 @@ export type View = {
   scene: THREE.Scene
   /** Start lights, arch screens and start road paint; main.ts feeds it race.board() each frame. Null without a start gate. */
   start: StartDressing | null
-  /** Pose the car from physics state and draw one frame; dt in seconds; `material` is the surface under the car. */
-  frame: (state: CarState, dt: number, material?: Material) => void
+  /** Pose the car from physics state and draw one frame; dt in seconds; `material` is the surface under the car; `braking` lights the tail lights. */
+  frame: (state: CarState, dt: number, material?: Material, braking?: boolean) => void
 }
 
 /** Wet asphalt: darker and glossier, so the sky and the lights mirror in it. Road materials are named `road` (mesh.ts, the Kenney pieces). */
@@ -84,7 +84,6 @@ export const createView = async (
   renderer.toneMappingExposure = look.exposure
   scene.add(trackMesh, car.object)
   // Night lights the road edges; rain wets the road and falls around the camera (render/environment.ts).
-  if (look.night) scene.add(createEdgeGlow(track))
   if (look.rain) wetRoad(trackMesh)
   const rain = look.rain ? createRain(seed) : null
   if (rain) scene.add(rain.object)
@@ -100,13 +99,15 @@ export const createView = async (
   window.addEventListener('resize', resize)
   watchFullscreen(resize)
 
-  // Effects behind ?fx=bloom,speedlines,smoke; all read car state only.
+  // Effects behind ?fx=speedlines,smoke; all read car state only. Bloom (the glow pass, glow.ts) is
+  // on by default: ?bloom=0 turns it off; a night environment picks the stronger night preset.
   const fx = parseFx(fxQuery)
   let draw = () => renderer.render(scene, camera)
-  if (fx.has('bloom')) {
+  const glow = bloomFor(location.search, look.night ? 'night' : 'day')
+  if (glow) {
     const pipeline = new THREE.RenderPipeline(renderer)
     const scenePass = pass(scene, camera)
-    pipeline.outputNode = scenePass.add(bloom(scenePass, 0.3, 0.4, 0.9))
+    pipeline.outputNode = scenePass.add(bloom(scenePass, glow.strength, glow.radius, glow.threshold))
     draw = () => pipeline.render()
   }
   const speedLines = fx.has('speedlines') ? createSpeedLines() : null
@@ -140,8 +141,8 @@ export const createView = async (
   const topCam = topCamRequested(location.search)
   if (topCam) scene.fog = null // the camera sits hundreds of metres up, inside the fog range
 
-  const frame = (s: CarState, dt: number, material: Material = 'road') => {
-    car.update(s, dt)
+  const frame = (s: CarState, dt: number, material: Material = 'road', braking = false) => {
+    car.update(s, dt, braking)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     speedLines?.update(dot(s.velocity, forwardOf(s)), dt)
     boost.update(s.turbo, s.turboForce, dt)

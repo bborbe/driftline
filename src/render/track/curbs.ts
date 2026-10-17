@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu'
 import { poses, SURFACE_KINDS, turnSign, type Segment, type SurfaceKind, type Track } from '../../track/schema'
 import { CURB_RED, CURB_WHITE } from '../look'
+import { glowMaterial } from '../glow'
 import { flat } from '../tags'
 import { lateralPoint, PROFILE, roadScale, sampleSegment, segmentLength } from './geometry'
 
@@ -84,7 +85,7 @@ const addEdgeLines = (into: RibbonBuilder, entry: Parameters<typeof sampleSegmen
   for (const side of [1, -1]) into.add(entry, seg, side * (outer - EDGE_LINE.width), side * outer, ROAD_TOP + lift, 0, 1)
 }
 
-/** The two edge lines alone, one DECAL_LIFT above the painted ones: the night glow (createEdgeGlow) draws over them. */
+/** The two edge lines alone, one DECAL_LIFT above the painted ones: the neon (createEdgeLines) draws over them. */
 export const edgeLines = (track: Track): Ribbons => {
   const lines = new RibbonBuilder()
   const ps = poses(track)
@@ -167,17 +168,17 @@ export const createCurbs = (track: Track, accent: THREE.Color = CURB_RED): THREE
 }
 
 /**
- * Night: the edge lines lit, unshaded and brighter than white, so the driving line reads in the
- * dark (render/environment.ts). Same shape as the painted lines, one more decal step up.
+ * The edge lines lit as neon (glow.ts 'edge-line'): self-lit over the painted lines, one more decal
+ * step up, so the bloom pass haloes them by day and strongly at night. Same shape as the painted lines.
  */
-export const createEdgeGlow = (track: Track, color: THREE.ColorRepresentation = 0xbfe8ff): THREE.Mesh => {
+export const createEdgeLines = (track: Track): THREE.Mesh => {
   const { positions, indices } = edgeLines(track)
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geo.setIndex(new THREE.BufferAttribute(indices, 1))
-  const glow = new THREE.Color(color).multiplyScalar(2.2) // over 1: survives tone mapping as a glow, not a grey line
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ ...DECAL, polygonOffsetUnits: -2, color: glow }))
-  mesh.name = 'edge-glow'
+  geo.computeVertexNormals()
+  const mesh = new THREE.Mesh(geo, glowMaterial('edge-line', { ...DECAL, polygonOffsetUnits: -2, roughness: 0.55 }))
+  mesh.name = 'edge-lines'
   flat(mesh, 'decal')
   mesh.renderOrder = 2
   return mesh
