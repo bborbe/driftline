@@ -4,6 +4,7 @@
 // placement is a pure planner (unit-tested), createStadium() bakes it all into two meshes.
 import * as THREE from 'three/webgpu'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { centreline } from '../../track/centreline'
 import type { Track } from '../../track/schema'
 import { bakeModel, merged, placement, prepared } from './instance'
@@ -69,6 +70,62 @@ export const planStadium = (track: Track): StadiumProp[] => {
     }
   }
   return props
+}
+
+/**
+ * The seat tiers of both Kenney grandstands (identical below the roof), in model units: the top of
+ * each step (y) and its front-to-back span (z), measured from the up-facing faces of
+ * assets/racing-kit/grandStand.glb; seats run across x. MODEL_OFFSET is the glb node's translation,
+ * which bakeModel applies too. stadium.test.ts re-reads the glb, so a changed model fails the test.
+ */
+export const SEAT_TIERS: readonly { y: number; z: [number, number] }[] = [
+  { y: 0.245, z: [-0.105, -0.04] },
+  { y: 0.283, z: [-0.169, -0.105] },
+  { y: 0.341, z: [-0.234, -0.169] },
+  { y: 0.4, z: [-0.298, -0.234] },
+  { y: 0.458, z: [-0.362, -0.298] },
+  { y: 0.516, z: [-0.427, -0.362] },
+  { y: 0.574, z: [-0.491, -0.427] },
+]
+export const SEAT_X: [number, number] = [0.054, 0.946]
+export const MODEL_OFFSET: [number, number, number] = [-0.35, -0.01, -0.65]
+/** Seat pitch across a row, in metres, and the share of seats taken. */
+export const SEAT_PITCH = 0.75
+export const CROWD_FILL = 0.8
+/** A spectator: a body box with a head on top, feet on the step, facing the track. */
+export const FIGURE = { width: 0.5, body: 0.8, depth: 0.4, head: 0.3, neck: 0.05 } as const
+
+/** One spectator on the ground of a step at (x, y, z), facing `heading`; `shirt` picks a colour. */
+export type Spectator = { x: number; y: number; z: number; heading: number; shirt: number }
+
+/** Deterministic 0..1 per seat, so the crowd is the same on every load and in tests. */
+const seatHash = (a: number, b: number, c: number) => {
+  const h = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453
+  return h - Math.floor(h)
+}
+
+/** Fill every grandstand's steps with spectators, about CROWD_FILL of the seats taken. */
+export const planCrowd = (props: readonly StadiumProp[]): Spectator[] => {
+  const out: Spectator[] = []
+  props.forEach((p, n) => {
+    if (p.model !== 'grandStand' && p.model !== 'grandStandCovered') return
+    const cos = Math.cos(p.heading)
+    const sin = Math.sin(p.heading)
+    const width = (SEAT_X[1] - SEAT_X[0]) * p.scale
+    const seats = Math.floor(width / SEAT_PITCH)
+    SEAT_TIERS.forEach((tier, row) => {
+      const lz = ((tier.z[0] + tier.z[1]) / 2 + MODEL_OFFSET[2]) * p.scale
+      const y = (tier.y + MODEL_OFFSET[1]) * p.scale
+      for (let k = 0; k < seats; k++) {
+        const r = seatHash(n, row, k)
+        if (r > CROWD_FILL) continue
+        const lx = (SEAT_X[0] + MODEL_OFFSET[0]) * p.scale + (k + 0.5) * (width / seats)
+        // The same turn as placement(): heading about +y, so local +z faces `heading`.
+        out.push({ x: p.x + lx * cos + lz * sin, y, z: p.z - lx * sin + lz * cos, heading: p.heading, shirt: Math.floor((r / CROWD_FILL) * 1000) })
+      }
+    })
+  })
+  return out
 }
 
 /** Big screen: board size and the height of its lower edge, in metres. */
@@ -167,8 +224,47 @@ export const lampHead = (root: THREE.Object3D): THREE.Vector3 => {
   return lamps.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(lamps.length)
 }
 
+/** The grandstands' seat and trim material (grandStand / grandStandCovered.glb); the banner towers' red cloth is another model's. */
+const STAND_MATERIAL = 'red'
+
+/** Set the colour of every material named `name` under `root` (the clone's own materials, not a shared cache). */
+const recolour = (root: THREE.Object3D, name: string, colour: string) =>
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh
+    if (!mesh.isMesh) return
+    mesh.material = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((mat) => {
+      if (mat.name !== name) return mat
+      const own = (mat as THREE.MeshStandardMaterial).clone()
+      own.color.set(colour)
+      return own
+    }) as THREE.Material[]
+    if ((mesh.material as THREE.Material[]).length === 1) mesh.material = (mesh.material as THREE.Material[])[0]
+  })
+
+/** Shirt colours; the venue's stand colour is added to them, so the crowd wears the home colours. */
+const SHIRTS = ['#f4f1ea', '#1d3557', '#e63946', '#f4a261', '#2a9d8f', '#e9c46a', '#264653', '#8338ec']
+
+/**
+ * Every spectator in one instanced mesh: one draw call, no shadows (the stands stand outside the
+ * car's shadow frustum). Structural like the stands it stands on, and out of reach like them.
+ */
+export const createCrowd = (crowd: readonly Spectator[], stand?: string): THREE.InstancedMesh => {
+  const body = new THREE.BoxGeometry(FIGURE.width, FIGURE.body, FIGURE.depth).translate(0, FIGURE.body / 2, 0)
+  const headY = FIGURE.body + FIGURE.neck + FIGURE.head / 2
+  const head = new THREE.BoxGeometry(FIGURE.head, FIGURE.head, FIGURE.head).translate(0, headY, 0)
+  const figure = mergeGeometries([body, head])
+  const shirts = [...SHIRTS, ...(stand ? [stand, stand] : [])].map((c) => new THREE.Color(c))
+  const mesh = new THREE.InstancedMesh(figure, new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 }), crowd.length)
+  mesh.name = 'crowd'
+  crowd.forEach((c, k) => {
+    mesh.setMatrixAt(k, placement(c.x, c.y, c.z, c.heading))
+    mesh.setColorAt(k, shirts[c.shirt % shirts.length])
+  })
+  return noCollide(structural(mesh, 'stand'), 'backdrop')
+}
+
 /** The arena: one group whose `userData.floodlights` lists every light post's lamp head in world space. */
-export const createStadium = async (track: Track, screen?: string): Promise<THREE.Group> => {
+export const createStadium = async (track: Track, screen?: string, stand?: string): Promise<THREE.Group> => {
   const loader = new GLTFLoader()
   const props = planStadium(track)
   const heads: THREE.Vector3[] = []
@@ -177,6 +273,8 @@ export const createStadium = async (track: Track, screen?: string): Promise<THRE
       const url = MODEL_URLS[`/assets/racing-kit/${m}.glb`]
       if (!url) throw new Error(`no asset for stadium model "${m}"`)
       const root = (await loader.loadAsync(url)).scene
+      // A venue's stand colour replaces the grandstands' red seats and trim (theme `stand`).
+      if (stand && m.startsWith('grandStand')) recolour(root, STAND_MATERIAL, stand)
       const at = props.filter((p) => p.model === m).map((p) => placement(p.x, 0, p.z, p.heading, p.scale))
       if (m === 'lightPostLarge') heads.push(...at.map((mat) => lampHead(root).applyMatrix4(mat)))
       // Bake the cloth and the rest of the model separately: same transforms, two meshes.
@@ -191,11 +289,12 @@ export const createStadium = async (track: Track, screen?: string): Promise<THRE
   const group = new THREE.Group()
   group.name = 'stadium'
   group.userData.floodlights = heads
-  // Three draw calls for the whole arena (body, banner cloth, screen faces). Fully rough (still lit by the HDRI, unlike Lambert, which
+  // Four draw calls for the whole arena (body, banner cloth, crowd, screen faces). Fully rough (still lit by the HDRI, unlike Lambert, which
   // left every shaded side black), and no shadows: it stands far outside the car's shadow frustum
   // (scene.ts, ±60 m).
   group.add(noCollide(structural(merged([...parts.flat(), ...screens.body], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })), 'stand'), 'backdrop'))
   group.add(flat(merged(baked.flatMap((b) => b.cloth), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })), 'screen-face'))
+  group.add(createCrowd(planCrowd(props), stand))
   group.add(flat(merged(screens.faces, new THREE.MeshBasicMaterial({ map: screenTexture(screen), polygonOffset: true, polygonOffsetFactor: SCREEN_FACE.polygonOffsetFactor, polygonOffsetUnits: SCREEN_FACE.polygonOffsetUnits })), 'screen-face'))
   return group
 }

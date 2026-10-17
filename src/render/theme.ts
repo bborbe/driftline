@@ -1,7 +1,8 @@
 // Resolves a track's optional `theme` (src/track/theme.ts) against the default stadium look. Every
 // default here is the value the look had before themes existed, so a track without a theme renders
 // as it always did. Colour levers that look.ts already owns (curb, sign, screen) resolve to
-// `undefined` when unset: the caller then keeps its own constant, not a hex round-trip of it.
+// `undefined` when unset: the caller then keeps its own constant, not a hex round-trip of it. `stand`
+// falls back to `curb`, so every themed venue gets its own stand colour.
 import type { Sky, Theme, Track } from '../track/schema'
 
 const SKY_URLS = import.meta.glob('/assets/sky/*.hdr', { query: '?url', import: 'default', eager: true }) as Record<string, string>
@@ -52,6 +53,7 @@ export type ResolvedTheme = {
   curb?: string
   sign?: string
   screen?: string
+  stand?: string
   scenery: readonly string[]
 }
 
@@ -72,5 +74,6 @@ export const DEFAULT_THEME: ResolvedTheme = {
 export const resolveTheme = (track: Pick<Track, 'theme'>): ResolvedTheme => {
   const t: Theme = track.theme ?? {}
   const set = Object.fromEntries(Object.entries(t).filter(([, v]) => v !== undefined))
-  return { ...DEFAULT_THEME, ...set }
+  // A venue's stands wear its accent unless the theme names its own stand colour.
+  return { ...DEFAULT_THEME, ...set, stand: t.stand ?? t.curb }
 }

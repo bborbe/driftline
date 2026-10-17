@@ -27,7 +27,8 @@ describe('resolveTheme', () => {
 
   it('overrides only the levers a theme sets', () => {
     const r = resolveTheme({ theme: { sky: 'night', curb: '#00c8ff', scenery: ['tree_palm'] } })
-    expect(r).toEqual({ ...DEFAULT_THEME, sky: 'night', curb: '#00c8ff', scenery: ['tree_palm'] })
+    // `stand` is the one derived lever: it follows `curb` unless the theme names its own (stand-colour.test.ts).
+    expect(r).toEqual({ ...DEFAULT_THEME, sky: 'night', curb: '#00c8ff', stand: '#00c8ff', scenery: ['tree_palm'] })
   })
 })
 
