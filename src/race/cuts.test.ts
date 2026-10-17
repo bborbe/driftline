@@ -16,7 +16,7 @@ const STYLE_TRACKS = STYLES.map((l) => l.track)
 const CUT_TIMEOUT = 30_000
 const LOOKAHEAD = 0.5 // s
 // Tracks whose every corner is also driven on the grass inside it ('skilled grass lines').
-const ARC_TRACKS = ['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', 'test-wallride', 'test-spiral', ...STYLE_TRACKS]
+const ARC_TRACKS = ['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', 'showcase', 'test-wallride', 'test-spiral', ...STYLE_TRACKS]
 // A run counts as a grass cut once this share of its ticks is off the road.
 const GRASS_SHARE = 0.1
 // Aim points across the target line (m) for a road `half` wide each side: the cutter may cross it
@@ -103,7 +103,7 @@ function legs(track: Track): { name: string; from: Pose; to: Pose; width: number
   return out
 }
 
-describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', 'test-wallride', 'test-spiral', ...STYLE_TRACKS])('%s grass cuts', (name) => {
+describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', 'showcase', 'test-wallride', 'test-spiral', ...STYLE_TRACKS])('%s grass cuts', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -288,7 +288,7 @@ function dropRun(start: CarState, approach: Point, target: Pose, surface: Surfac
   return { ticks: Infinity, grass }
 }
 
-describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap', 'flatout'])('%s deck drop-offs', (name) => {
+describe.each(['crossover', 'tower', 'plunge', 'knot', 'leap', 'showcase', 'flatout'])('%s deck drop-offs', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
