@@ -2,8 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { trackSurface } from '../physics'
 import { buildDeck, DECK_FOOT_COLUMNS, lateralPoint, planBodies, planDeckPillars, PROFILE, rowCount, sampleSegment } from '../render/track/geometry'
-import { compileKit, connectorPose, isKitTrack, KIT_PIECES, LEVEL, onGrid, outConnector, resolveTrack, type KitTrack, type PieceDef } from './kit'
-import { CELL, exitPose, partialPose, poses, turnSign, validate, type Pose, type Turn } from './schema'
+import { compileKit, connectorPose, isKitTrack, KIT_PIECES, LEVEL, onGrid, outConnector, resolveCornerRadii, resolveTrack, type KitTrack, type PieceDef } from './kit'
+import { CELL, CORNER_RADII, CORNER_SIZES, exitPose, partialPose, poses, turnSign, validate, type Pose, type Turn } from './schema'
 import { loopPoint } from './pose'
 
 const EPS = 1e-6
@@ -55,6 +55,38 @@ describe('track piece kit', () => {
       }
     }
     expect(checked).toBeGreaterThanOrEqual(KIT_PIECES.length * 4)
+  })
+
+  it('(a) the three standard corners are 90° kit curves at CORNER_RADII (20 / 40 / 150 m), exiting at (r, ±r) on the grid', () => {
+    expect(CORNER_RADII).toEqual({ tight: 20, medium: 40, wide: 150 })
+    const origin: Pose = { x: 0, y: 0, z: 0, heading: 0 }
+    for (const size of CORNER_SIZES) {
+      const def = KIT_PIECES.find((p) => p.id === `corner-${size}`)!
+      const r = CORNER_RADII[size]
+      expect(def.expand('left').segments, size).toEqual([{ type: 'curve', turn: 'left', radius: r, angle: 90 }])
+      expectPose(geometricExit(origin, def, 'left'), { x: r, y: 0, z: r, heading: Math.PI / 2 })
+      expectPose(geometricExit(origin, def, 'right'), { x: -r, y: 0, z: r, heading: -Math.PI / 2 })
+      expect(onGrid(connectorPose(origin, outConnector(def, 'right')))).toBe(true)
+    }
+  })
+
+  it('a spline curve names its radius: "tight" | "medium" | "wide" resolve to CORNER_RADII at 45° and 90°; an unknown name fails validation', () => {
+    const track = (radius: unknown, angle: 45 | 90) => ({
+      name: 'named',
+      start: { x: 0, y: 0, z: 0, heading: 0 },
+      segments: [{ type: 'straight', length: 50 }, { type: 'curve', turn: 'left', radius, angle }],
+      gates: [{ kind: 'start-finish', segment: 0 }],
+    })
+    for (const size of CORNER_SIZES) {
+      for (const angle of [45, 90] as const) {
+        const resolved = resolveTrack(track(size, angle)) as { segments: { radius?: number }[] }
+        expect(resolved.segments[1].radius, `${size} ${angle}°`).toBe(CORNER_RADII[size])
+        expect(validate(resolved), `${size} ${angle}°`).toEqual([])
+      }
+    }
+    const plain = track(25, 90)
+    expect(resolveTrack(plain)).toBe(plain) // nothing named: the file passes through untouched
+    expect(validate(resolveTrack(track('huge', 90))).length).toBeGreaterThan(0)
   })
 
   it('(a) curve family exits at independently known offsets (90° left at r = 10 → forward 10, left 10, +90°)', () => {
@@ -202,22 +234,31 @@ describe('kit level format', () => {
     .filter((f) => f.endsWith('.json') && f !== 'pieces.json')
     .map((f) => f.slice(0, -'.json'.length))
 
-  it('every shipped track loads: kit tracks compile and validate, spline tracks pass through unchanged', () => {
+  it('every shipped track loads: kit tracks compile and validate, spline tracks pass through with named corner radii resolved', () => {
     const kits = shipped.filter((n) => isKitTrack(read(n)))
     expect(kits).toContain('test-kit')
     for (const name of shipped) {
       const raw = read(name)
       const track = resolveTrack(raw)
       expect(validate(track), name).toEqual([])
-      if (!isKitTrack(raw)) expect(track, name).toBe(raw)
+      if (!isKitTrack(raw)) expect(track, name).toEqual(resolveCornerRadii(raw))
     }
     for (const spline of ['test1', 'test2', 'crossover', 'tower']) expect(isKitTrack(read(spline)), spline).toBe(false)
   })
 
   // The r 80 m bank-180-wide does not fit test-kit-all's compact loop; flatout (S02) shows it. The
-  // loop, the spiral and the wallride each have their own single-feature test track.
-  const OWN_TRACK: Record<string, string> = { 'bank-180-wide': 'flatout', loop: 'test-loop', spiral: 'test-spiral', wallride: 'test-wallride' }
-  it('test-kit-all.json uses every kit piece type but the wide bank, the loop, the spiral and the wallride, which their own tracks use (the docs/track-kit.md catalogue)', () => {
+  // loop, the spiral and the wallride each have their own single-feature test track. The three
+  // standard corners (r 20 / 40 / 150 m) are raced together on plunge (A03).
+  const OWN_TRACK: Record<string, string> = {
+    'bank-180-wide': 'flatout',
+    loop: 'test-loop',
+    spiral: 'test-spiral',
+    wallride: 'test-wallride',
+    'corner-tight': 'plunge',
+    'corner-medium': 'plunge',
+    'corner-wide': 'plunge',
+  }
+  it('test-kit-all.json uses every kit piece type but the wide bank, the loop, the spiral, the wallride and the three standard corners, which their own tracks use (the docs/track-kit.md catalogue)', () => {
     const used = new Set((read('test-kit-all') as KitTrack).kit.pieces.map((p) => p.piece))
     expect([...used].sort()).toEqual(KIT_PIECES.map((p) => p.id).filter((id) => !(id in OWN_TRACK)).sort())
     for (const [piece, track] of Object.entries(OWN_TRACK)) expect((read(track) as KitTrack).kit.pieces.map((p) => p.piece), track).toContain(piece)
