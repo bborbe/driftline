@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { poses, SEGMENT_TYPES, validate } from '../../track/schema'
+import { gatePillars, poses, SEGMENT_TYPES, validate } from '../../track/schema'
+import { CAMPAIGN, STYLES, TEST_TRACKS } from '../../track/catalogue'
 import { FIXTURE_TRACK } from '../../track/fixture'
 import { resolveTrack } from '../../track/kit'
 import { trackSurface } from '../../physics'
 import type { Segment, Track } from '../../track/schema'
-import { buildApron, buildDeck, buildRampSupport, buildTrack, CENTRE_COLUMN, DECK_MIN_HEIGHT, DECK_PILLAR_CLEAR, planDeckPillars, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
+import { buildApron, buildDeck, buildRampSupport, buildTrack, CENTRE_COLUMN, DECK_MIN_HEIGHT, DECK_PILLAR_CLEAR, planDeckPillars, planGateFootings, PROFILE, rowCenter, TRACK_WIDTH, sampleSegment, SURFACE_LIFT, type SegmentGeometry } from './geometry'
 
 const geoms = buildTrack(FIXTURE_TRACK)
 const ps = poses(FIXTURE_TRACK)
@@ -189,5 +190,51 @@ describe('multi-level decks', () => {
         if (Math.abs(a.seg - b.seg) > 1 && b.y < a.y - 1) expect(Math.hypot(a.x - b.x, a.z - b.z), `seg ${a.seg} over ${b.seg}`).toBeGreaterThanOrEqual(TRACK_WIDTH)
       }
     }
+  })
+
+  // Every catalogue track: campaign, styles and the test group.
+  const catalogue = [...CAMPAIGN.map((l) => l.track), ...STYLES.map((l) => l.track), ...TEST_TRACKS]
+
+  it('every gate on an elevated deck stands on a footing reaching the ground', () => {
+    const grounded: string[] = []
+    for (const name of catalogue) {
+      const track = load(name)
+      const footings = planGateFootings(track)
+      track.gates.forEach((gate, g) => {
+        for (const p of gatePillars(track, gate)) {
+          if (p.y < DECK_MIN_HEIGHT) continue
+          const at = `${name} gate ${g} pillar at y ${p.y.toFixed(1)}`
+          const f = footings.find((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.01)
+          expect(f, at).toBeDefined()
+          expect(f!.y, at).toBe(0) // stands on the ground
+          expect(Math.abs(f!.y + f!.height - p.y), at).toBeLessThan(0.01) // reaches the pillar base
+          expect(Math.abs(f!.halfWidth - p.halfWidth) + Math.abs(f!.halfDepth - p.halfDepth), at).toBeLessThan(0.01) // under the whole pillar
+          expect(f!.heading, at).toBe(p.heading)
+          grounded.push(`${name}#${g}`)
+        }
+      })
+    }
+    // Not vacuous: the reported crossover CP 2 is in the set, among at least five gates.
+    expect(grounded).toContain('crossover#2')
+    expect(new Set(grounded).size).toBeGreaterThanOrEqual(5)
+  })
+
+  it('no gate footing stands on a road passing underneath', () => {
+    for (const name of catalogue) {
+      const track = load(name)
+      for (const f of planGateFootings(track)) {
+        for (const q of road(track)) {
+          if (q.y < f.height - 1) expect(Math.hypot(q.x - f.x, q.z - f.z), `${name} footing over seg ${q.seg}`).toBeGreaterThanOrEqual(TRACK_WIDTH / 2 + f.halfWidth)
+        }
+      }
+    }
+  })
+
+  it('ground-level gates get no footing', () => {
+    for (const name of catalogue) {
+      const track = load(name)
+      for (const f of planGateFootings(track)) expect(f.height, name).toBeGreaterThanOrEqual(DECK_MIN_HEIGHT)
+    }
+    expect(planGateFootings(load('test1'))).toEqual([])
   })
 })
