@@ -44,11 +44,13 @@ export type Handling = {
   driftKick: number // 1/s² per unit steer
   driftKickSlipLo: number // deg
   driftKickSlipHi: number // deg
-  driftLimit: number // deg, spin guard
+  driftLimit: number // deg, spin guard while the handbrake is held
+  driftLimitFree: number // deg, spin guard once it is released
   driftLimitBand: number // deg
   driftLimitRate: number // 1/s
   driftCarry: number // 1/s per rad of slip
-  driftCarryMaxG: number // g
+  driftCarryMaxG: number // g, on the handbrake
+  driftCarryMaxGFree: number // g, after it
   driftCarrySlipLo: number // deg
   driftCarrySlipHi: number // deg
   driftGripLo: number // material grip where the drift fades out
@@ -95,11 +97,13 @@ export const DEFAULT_HANDLING: Readonly<Handling> = Object.freeze({
   driftKick: 6,
   driftKickSlipLo: 20,
   driftKickSlipHi: 30,
-  driftLimit: 35,
-  driftLimitBand: 10,
+  driftLimit: 26,
+  driftLimitFree: 18,
+  driftLimitBand: 6,
   driftLimitRate: 25,
   driftCarry: 4,
-  driftCarryMaxG: 2,
+  driftCarryMaxG: 1.2,
+  driftCarryMaxGFree: 0.6,
   driftCarrySlipLo: 10,
   driftCarrySlipHi: 15,
   driftGripLo: 0.6,

@@ -77,12 +77,15 @@ const STOPPED = 0.5 // m/s — below this, brake input becomes reverse and throt
 // angle (a wall glance, a yawed landing), so those straighten out instead of spinning.
 // Entry: on the handbrake, a yaw torque (1/s² per unit steer) rotates the car in until the body
 // slips DRIFT_KICK_SLIP_HI degrees, so a 0.25 s tap already slides (the steer alone takes ~0.1 s to build).
-// Spin guard: past DRIFT_LIMIT degrees of body slip, damp the yaw that would grow it, fully from
-// DRIFT_LIMIT + DRIFT_LIMIT_BAND, at this rate (1/s). Holds a 2 s press at ~43°.
+// Spin guard: past DRIFT_LIMIT degrees of body slip while the handbrake is held (DRIFT_LIMIT_FREE
+// once it is released), damp the yaw that would grow it, fully from the limit + DRIFT_LIMIT_BAND,
+// at this rate (1/s). Holding Space drifts deeper (~32°, for a braked hairpin); a released tap
+// stays shallow (~24°), so on a 40 m corner at 90 km/h it does not cut the infield.
 // Carry: while the body slips past DRIFT_CARRY_SLIP_LO degrees (full from _HI), a force across the
 // travel turns the velocity toward the nose at DRIFT_CARRY (1/s per rad of slip), capped at
-// DRIFT_CARRY_MAX_G. The slide turns the car's path instead of scrubbing its speed, and ends
-// itself in ~1-1.5 s once the velocity catches up with the nose.
+// DRIFT_CARRY_MAX_G on the handbrake (DRIFT_CARRY_MAX_G_FREE after it). The slide turns the car's
+// path instead of scrubbing its speed, and ends itself in ~0.5-1 s once the velocity catches up
+// with the nose. A higher cap bends the path so tight that a 40 m corner is cut.
 // Material grip at which the drift fades out (dirt 0.6) and is full (road 1).
 
 // Per-material handling: see MaterialHandling in ./handling. These are the shipped values; step() reads the live ones.
@@ -231,6 +234,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     maxSteer: MAX_STEER, steerRate: STEER_RATE, steerSpeedFalloff: STEER_SPEED_FALLOFF, yawAssist: YAW_ASSIST,
     yawAssistSlipLo: YAW_ASSIST_SLIP_LO, yawAssistSlipHi: YAW_ASSIST_SLIP_HI, yawAssistMinSpeed: YAW_ASSIST_MIN_SPEED,
     driftKick: DRIFT_KICK, driftKickSlipLo: DRIFT_KICK_SLIP_LO, driftKickSlipHi: DRIFT_KICK_SLIP_HI, driftLimit: DRIFT_LIMIT,
+    driftLimitFree: DRIFT_LIMIT_FREE, driftCarryMaxGFree: DRIFT_CARRY_MAX_G_FREE,
     driftLimitBand: DRIFT_LIMIT_BAND, driftLimitRate: DRIFT_LIMIT_RATE, driftCarry: DRIFT_CARRY, driftCarryMaxG: DRIFT_CARRY_MAX_G,
     driftCarrySlipLo: DRIFT_CARRY_SLIP_LO, driftCarrySlipHi: DRIFT_CARRY_SLIP_HI, driftGripLo: DRIFT_GRIP_LO, driftGripHi: DRIFT_GRIP_HI,
     gravity: GRAVITY, spring: SPRING, damper: DAMPER,
@@ -399,7 +403,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     const beta = Math.atan2(flatVel.z * fwdBody.x - flatVel.x * fwdBody.z, flatVel.x * fwdBody.x + flatVel.z * fwdBody.z)
     const betaDeg = (Math.abs(beta) * 180) / Math.PI
     const growth = s.angularVelocity.y - (flatVel.z * force.x - flatVel.x * force.z) / (MASS * v2)
-    const limit = clamp((betaDeg - DRIFT_LIMIT) / DRIFT_LIMIT_BAND, 0, 1)
+    const limit = clamp((betaDeg - (input.handbrake ? DRIFT_LIMIT : DRIFT_LIMIT_FREE)) / DRIFT_LIMIT_BAND, 0, 1)
     if (limit > 0 && beta * growth > 0) torque = add(torque, v3(0, -DRIFT_LIMIT_RATE * limit * INERTIA.y * growth, 0))
     if (input.handbrake) {
       const kick = clamp((DRIFT_KICK_SLIP_HI - betaDeg) / (DRIFT_KICK_SLIP_HI - DRIFT_KICK_SLIP_LO), 0, 1)
@@ -409,7 +413,7 @@ export const step = (s: CarState, input: CarInput, surface: Surface = FLAT): Car
     const carry = clamp((betaDeg - DRIFT_CARRY_SLIP_LO) / (DRIFT_CARRY_SLIP_HI - DRIFT_CARRY_SLIP_LO), 0, 1)
     if (carry > 0) {
       // Across the travel, toward the nose: (vz, 0, -vx) raises the travel angle, so pushing along it by sign(beta) shrinks |beta|.
-      const push = Math.sign(beta) * carry * drift * Math.min(DRIFT_CARRY * Math.abs(beta) * MASS * vFlat, DRIFT_CARRY_MAX_G * GRAVITY * MASS)
+      const push = Math.sign(beta) * carry * drift * Math.min(DRIFT_CARRY * Math.abs(beta) * MASS * vFlat, (input.handbrake ? DRIFT_CARRY_MAX_G : DRIFT_CARRY_MAX_G_FREE) * GRAVITY * MASS)
       force = add(force, v3((flatVel.z / vFlat) * push, 0, (-flatVel.x / vFlat) * push))
     }
   }
