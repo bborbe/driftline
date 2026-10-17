@@ -10,7 +10,7 @@ import { createScenery } from './scenery'
 import { createCurbs } from './track/curbs'
 import { createSigns } from './decor/signs'
 import { createStadium } from './decor/stadium'
-import { resolveTheme, skyUrl } from './theme'
+import { resolveTheme, SKY_BRIGHTNESS, skyUrl } from './theme'
 
 /** The Poly Haven grass is dry and yellow; tint it toward the Kenney verge green (a theme's `ground` overrides it). */
 const GRASS_TINT = 0x7fc25a
@@ -57,6 +57,7 @@ export const createScene = async (track: Track): Promise<SceneSetup> => {
   ])
   sky.mapping = THREE.EquirectangularReflectionMapping
   scene.background = sky
+  scene.backgroundIntensity = SKY_BRIGHTNESS[theme.sky] // keeps the brighter HDRIs from clipping white (theme.ts)
   scene.environment = sky // image-based lighting + road reflections
   scene.environmentIntensity = theme.skyLight
   // Fog fades distant ground into the sky's horizon instead of a hard edge.

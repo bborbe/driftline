@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { SKIES, type Theme } from '../track/schema'
 import { SCENERY_MODELS } from './scenery'
-import { DEFAULT_THEME, resolveTheme, SKY_FILES, skyUrl } from './theme'
+import { DEFAULT_THEME, resolveTheme, SKY_BRIGHTNESS, SKY_FILES, skyUrl } from './theme'
 
 describe('resolveTheme', () => {
   it('without a theme is the stadium look as it was before themes existed', () => {
@@ -37,6 +37,17 @@ describe('theme assets', () => {
       expect(existsSync(`assets/sky/${SKY_FILES[sky]}`)).toBe(true)
       expect(skyUrl(sky)).toBeTruthy()
     }
+  })
+
+  it('every sky has a dome intensity; day keeps its look, the brighter HDRIs are dimmed', () => {
+    // Calibrated on start-pose shots: at intensity 1 the sunset, dusk, night and overcast domes clip
+    // to white haze under ACES, while the partly cloudy day sky keeps its clouds.
+    expect(SKY_BRIGHTNESS.day).toBe(1)
+    for (const sky of SKIES.filter((s) => s !== 'day')) {
+      expect(SKY_BRIGHTNESS[sky], sky).toBeGreaterThan(0)
+      expect(SKY_BRIGHTNESS[sky], sky).toBeLessThanOrEqual(0.5)
+    }
+    expect(SKY_BRIGHTNESS.night).toBeLessThan(Math.min(SKY_BRIGHTNESS.dusk, SKY_BRIGHTNESS.sunset, SKY_BRIGHTNESS.overcast))
   })
 
   it('every sky HDRI is listed in the Poly Haven licence file', () => {
