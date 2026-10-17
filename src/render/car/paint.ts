@@ -5,6 +5,7 @@
 // Render-only; repainting redraws the one canvas texture, so a Settings change shows at once.
 import * as THREE from 'three/webgpu'
 import { WHEEL_NODES } from '../../car/wheels'
+import { isDetail } from './detail'
 import { bandRange, drawLivery, type Band, type Draw2D, type Livery } from './livery'
 
 export const LIVERY_SIZE = 1024
@@ -178,7 +179,7 @@ export const applyLivery = (root: THREE.Object3D, livery: Livery, makeCanvas: ()
     root.updateMatrixWorld(true)
     const body: THREE.Mesh[] = []
     root.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh && !underWheel(o)) body.push(o as THREE.Mesh)
+      if ((o as THREE.Mesh).isMesh && !underWheel(o) && !isDetail(o)) body.push(o as THREE.Mesh)
     })
     const inv = root.matrixWorld.clone().invert()
     const box = boundsOf(root, body)

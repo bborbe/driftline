@@ -11,6 +11,7 @@ import { createScenery } from './scenery'
 import { createCurbs, createEdgeLines, createMarkings } from './track/curbs'
 import { createRails } from './track/rails'
 import { createSigns } from './decor/signs'
+import { createDressing } from './decor/dressing'
 import { createTrackside } from './decor/trackside'
 import { footprints, planTrackside } from './decor/trackside-plan'
 import { createStadium } from './decor/stadium'
@@ -136,11 +137,22 @@ export const createFloodlights = (heads: readonly THREE.Vector3[]): THREE.Group 
  */
 export const createWorld = async (track: Track, theme: ResolvedTheme = resolveTheme(track), grass?: THREE.Texture): Promise<THREE.Group> => {
   const trackside = planTrackside(track)
-  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery, footprints(trackside)), createStadium(track, theme.screen)])
+  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery, footprints(trackside)), createStadium(track, theme.screen, theme.stand)])
   const curb = theme.curb === undefined ? undefined : new THREE.Color(theme.curb)
   const world = new THREE.Group()
   world.name = 'world'
-  world.add(createGround(grass, theme.ground), scenery, stadium, createCurbs(track, curb), createMarkings(track), createEdgeLines(track), createRails(track), createSigns(track, theme.sign), createTrackside(trackside, theme.sign, theme.ground))
+  world.add(
+    createGround(grass, theme.ground),
+    scenery,
+    stadium,
+    createCurbs(track, curb),
+    createMarkings(track),
+    createEdgeLines(track),
+    createRails(track),
+    createSigns(track, theme.sign),
+    createDressing(track, theme.sign, theme.stand),
+    createTrackside(trackside, theme.sign, theme.ground),
+  )
   return world
 }
 

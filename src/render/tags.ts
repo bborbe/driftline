@@ -11,7 +11,8 @@ export const FLAT_REASONS = ['road', 'curb', 'decal', 'effect-pad', 'screen-face
 export type FlatReason = (typeof FLAT_REASONS)[number]
 
 /** Structural pieces: each must touch the ground, or rest on something within CONTACT_TOLERANCE. */
-export const STRUCTURAL_KINDS = ['wall', 'pillar', 'gate-leg', 'deck', 'ramp-body', 'stand', 'sign'] as const
+/** `brace`: a truss strut or diagonal (render/track/truss.ts), held by the legs it ties, not by its own foot. */
+export const STRUCTURAL_KINDS = ['wall', 'pillar', 'gate-leg', 'deck', 'ramp-body', 'stand', 'sign', 'brace'] as const
 export type StructuralKind = (typeof STRUCTURAL_KINDS)[number]
 
 /**
@@ -25,8 +26,9 @@ export type StructuralKind = (typeof STRUCTURAL_KINDS)[number]
  * `backdrop`: the stadium ring, STADIUM_GAP outside the lap and past the trees, out of reach of the open ground.
  * `roadside-sign`: turn and turbo boards on the grass shoulder 1.5 m past the road edge, where the shipped
  * autopilot lines on plunge and knot run wide; a collider there would change the racing line.
- * `trackside`: banners, marshal posts and catch fences further out on the open ground (decor/trackside.ts),
- * where the offroad cap (10 m/s, physics/car.ts MATERIALS) already stops a car running wide; visual only, like the boards.
+ * `trackside`: flag poles, start totems and the start screen (decor/dressing.ts), ≥ 4 m past the road edge, and the
+ * corner dressing (decor/trackside.ts: brake and corner-number boards, banners, marshal posts, catch fences), all
+ * behind the edge rail that lines every road edge (track/rails.ts), so the car cannot reach them.
  */
 export const NO_COLLIDE_REASONS = ['loop-shell', 'wallride-shell', 'backdrop', 'roadside-sign', 'trackside'] as const
 export type NoCollideReason = (typeof NO_COLLIDE_REASONS)[number]

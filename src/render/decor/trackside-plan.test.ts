@@ -4,7 +4,8 @@ import type { Track } from '../../track/schema'
 import { FIXTURE_TRACK } from '../../track/fixture'
 import { LAP_NAMES, loadLap } from '../../track/registry'
 import { planStadium } from './stadium'
-import { approachLength, corners, EDGE_CLEAR, footprints, MIN_CORNER_ANGLE, planTrackside, turnAngle } from './trackside-plan'
+import { planDressing } from './dressing'
+import { approachLength, corners, DRESSING_REACH, EDGE_CLEAR, footprints, MIN_CORNER_ANGLE, planTrackside, turnAngle } from './trackside-plan'
 
 const tracks: Record<string, Track> = { ...Object.fromEntries(LAP_NAMES.map((n) => [n, loadLap(n)])), fixture: FIXTURE_TRACK }
 const MAIN = ['test1', 'test2'] as const
@@ -32,7 +33,7 @@ describe('planTrackside', () => {
       expect(plan.boards.filter((b) => b.kind === 'corner').map((b) => b.label)).toEqual(cs.map((c) => c.label))
     })
 
-    it(`${name}: a 100 and a 50 board on every approach long enough for them, each label its real distance to the corner`, () => {
+    it(`${name}: a 100 and a 50 board on every approach long enough for them, each label its real distance to the corner (± BOARD_SLIDE)`, () => {
       const line = centreline(track, 1)
       for (const c of cs) {
         const approach = approachLength(track, c)
@@ -62,7 +63,7 @@ describe('planTrackside', () => {
   }
 
   for (const [name, track] of Object.entries(tracks)) {
-    it(`${name}: nothing within the road half-width + curb (${EDGE_CLEAR} m) of any road at its level, nothing in the stadium ring`, () => {
+    it(`${name}: nothing within the road half-width + curb (${EDGE_CLEAR} m) of any road at its level, nothing on the stadium dressing or in the stadium ring`, () => {
       const line = centreline(track, 1)
       const plan = planTrackside(track)
       const items: [number, number, number, number][] = [
@@ -76,6 +77,9 @@ describe('planTrackside', () => {
         const near = line.filter((c) => Math.abs(c.y - y) <= 4)
         const gap = Math.min(...near.map((c) => Math.hypot(c.x - x, c.z - z) - c.width / 2 - r))
         expect(gap).toBeGreaterThanOrEqual(EDGE_CLEAR - 1) // 1 m: sampling step
+      }
+      for (const [x, z, r] of footprints(plan)) {
+        for (const d of planDressing(track)) expect(Math.hypot(d.x - x, d.z - z), `${name} vs dressing ${d.kind}`).toBeGreaterThanOrEqual(r + DRESSING_REACH[d.kind])
       }
       const stadium = planStadium(track)
       for (const [x, z, r] of footprints(plan)) {

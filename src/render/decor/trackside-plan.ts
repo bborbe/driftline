@@ -4,6 +4,7 @@
 // PRNG), unit-tested in trackside-plan.test.ts; trackside.ts builds the meshes.
 import { centreline } from '../../track/centreline'
 import { onPad, segmentLength, turnSign, type Segment, type Track } from '../../track/schema'
+import { planDressing, type DressingKind } from './dressing'
 
 /** A printed board standing at (x, y, z), its face looking toward `heading` (0 = +z). */
 export type Board = { kind: 'brake-100' | 'brake-50' | 'corner'; label: number; x: number; y: number; z: number; heading: number }
@@ -23,16 +24,21 @@ export type Corner = { label: number; segment: number; entry: number; exit: numb
 
 /** Turns sharper than this (degrees) get a number and brake boards. */
 export const MIN_CORNER_ANGLE = 60
-/** Brake boards: their distance before the corner entry, which is also what they print. */
+/** Brake boards: their distance before the corner entry, which is also what they print (within BOARD_SLIDE). */
 export const BRAKE_DISTANCES = [100, 50] as const
+/** How far a brake board may stand from its printed distance, to fall between flag poles. */
+export const BOARD_SLIDE = 3
 /** Nothing stands within this of any road at its level, past that road's own edge: the curb and a margin. */
 export const EDGE_CLEAR = 1.5
-/** Lateral distances past the road edge, metres. */
-export const OFFSET = { board: 2.7, banner: 6, marshal: 9, fence: 11, patchMin: 2.5, patchMax: 9 } as const
+/** Lateral distances past the road edge, metres. Patches start past the flag rows (dressing.ts FLAG_EDGE 4). */
+export const OFFSET = { board: 2.7, banner: 6, marshal: 9, fence: 11, patchMin: 5.5, patchMax: 12 } as const
 /** Roads more than this far above or below an item do not block it. */
 const LEVEL = 4
 /** Nothing stands beside road higher than this (decks, ramp tops): it would hang over the void. */
 const GROUND = 1
+
+/** How far each stadium-dressing prop reaches from its foot (dressing.ts): a pole and its cloth, a totem, the start screen. */
+export const DRESSING_REACH: Record<DressingKind, number> = { flag: 1.2, totem: 1.8, startScreen: 7.5 }
 
 const TURNING = new Set<Segment['type']>(['curve', 'hairpin', 'banked'])
 export const turnAngle = (seg: Segment): number => (seg.type === 'hairpin' ? 180 : TURNING.has(seg.type) && 'angle' in seg ? (seg.angle as number) : 0)
@@ -81,10 +87,13 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
   }
   /** Facing the road from a point placed `u` metres to the side. */
   const facingRoad = (heading: number, u: number) => Math.atan2(-Math.sign(u) * Math.cos(heading), Math.sign(u) * Math.sin(heading))
-  /** Clear of every road at its level by EDGE_CLEAR + r, on the ground, off any free-drive pad. */
+  /** The stadium dressing's props (flag rows, totems, start screen) as footprints: nothing lands on them. */
+  const dressing = planDressing(track).map((d) => [d.x, d.z, DRESSING_REACH[d.kind]] as const)
+  /** Clear of every road at its level by EDGE_CLEAR + r, on the ground, off any free-drive pad and dressing prop. */
   const clear = (x: number, y: number, z: number, r: number) =>
     y < GROUND &&
     !(track.pad && onPad(track.pad, x, z, -(r + 2))) &&
+    dressing.every(([dx, dz, dr]) => Math.hypot(dx - x, dz - z) >= dr + r) &&
     line.every((c) => Math.abs(c.y - y) > LEVEL || Math.hypot(c.x - x, c.z - z) - c.width / 2 >= EDGE_CLEAR + r)
 
   const plan: TracksidePlan = { boards: [], banners: [], marshals: [], fences: [], patches: [] }
@@ -94,10 +103,16 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
     const approach = approachLength(track, c)
     // Brake boards and the corner number on the approach, on the outside, facing the oncoming car.
     const boards: [Board['kind'], number, number][] = BRAKE_DISTANCES.filter((dist) => dist <= approach - 5).map((dist) => [dist === 100 ? 'brake-100' : 'brake-50', dist, c.entry - dist])
-    for (const [kind, label, d] of boards) {
-      const p = at(d)
-      const s = beside(d, out * (p.width / 2 + OFFSET.board))
-      if (clear(s.x, s.y, s.z, 1)) plan.boards.push({ kind, label, x: s.x, y: s.y, z: s.z, heading: p.heading + Math.PI })
+    for (const [kind, label, d0] of boards) {
+      // A flag row (dressing.ts) lines most straights every 8 m: slide up to BOARD_SLIDE metres along the lap into a gap.
+      for (const nudge of [0, 1, -1, 2, -2, 3, -3]) {
+        const d = d0 + nudge
+        const p = at(d)
+        const s = beside(d, out * (p.width / 2 + OFFSET.board))
+        if (!clear(s.x, s.y, s.z, 1)) continue
+        plan.boards.push({ kind, label, x: s.x, y: s.y, z: s.z, heading: p.heading + Math.PI })
+        break
+      }
     }
     // The number stands ~12 m before the entry, or as close after that as the ground allows (past a ramp's drop).
     for (let d = c.entry - Math.min(12, Math.max(0, approach - 2)); d <= c.entry + 4; d += 2) {
@@ -149,9 +164,13 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
   for (let d = rand() * 20; d < total; d += 12 + rand() * 38) {
     const p = at(d)
     const radius = 2.5 + rand() * 3.5
-    const u = (rand() < 0.5 ? 1 : -1) * (p.width / 2 + OFFSET.patchMin + radius + rand() * (OFFSET.patchMax - OFFSET.patchMin))
-    const q = beside(d, u)
-    if (clear(q.x, q.y, q.z, radius)) plan.patches.push({ x: q.x, z: q.z, radius, heading: rand() * Math.PI * 2, shade: shades[Math.floor(rand() * shades.length)] })
+    const side = rand() < 0.5 ? 1 : -1
+    const off = p.width / 2 + OFFSET.patchMin + radius + rand() * (OFFSET.patchMax - OFFSET.patchMin)
+    const heading = rand() * Math.PI * 2
+    const shade = shades[Math.floor(rand() * shades.length)]
+    // Compact laps fold back on themselves: a blocked side tries the other.
+    const q = [side, -side].map((sd) => beside(d, sd * off)).find((q) => clear(q.x, q.y, q.z, radius))
+    if (q) plan.patches.push({ x: q.x, z: q.z, radius, heading, shade })
   }
   return plan
 }
