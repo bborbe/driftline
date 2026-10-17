@@ -1,6 +1,7 @@
 // three.js wrapper around the pure track geometry: one mesh per segment plus gate arches.
 import * as THREE from 'three/webgpu'
 import { ASPHALT } from '../look'
+import { applyAsphalt, ASPHALT_LANE, ASPHALT_MASK } from './asphalt'
 import { flat, hangs, noCollide, structural, type StructuralKind } from '../tags'
 import { barrierPillars, barrierPosts, gatePillars, gateUp, poses, type Pillar, type Track } from '../../track/schema'
 import { GATE_LEG_MIN_HEIGHT } from './kenney-plan'
@@ -30,6 +31,8 @@ const roadMaterial = new THREE.MeshPhysicalMaterial({
   side: THREE.DoubleSide,
   shadowSide: THREE.BackSide, // a double-sided caster would otherwise shadow itself (acne)
 })
+// Grain, wear and sheen on the asphalt columns only (asphalt.ts); curb and grass columns stay flat.
+applyAsphalt(roadMaterial, true)
 
 /** Banked-turn verge: grass apron on the inside, grey (Kenney wall) skirt on the outside. */
 const vergeMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide })
@@ -39,10 +42,19 @@ const toBufferGeometry = (g: SegmentGeometry): THREE.BufferGeometry => {
   geo.setAttribute('position', new THREE.BufferAttribute(g.positions, 3))
   geo.setIndex(new THREE.BufferAttribute(g.indices, 1))
   const colors = new Float32Array(g.positions.length)
+  const asphalt = new Float32Array(g.positions.length / 3)
+  const lane = new Float32Array(g.positions.length / 3)
   for (let r = 0; r < g.rows; r++) {
-    for (let c = 0; c < g.perRow; c++) BAND[PROFILE[c][2]].toArray(colors, (r * g.perRow + c) * 3)
+    for (let c = 0; c < g.perRow; c++) {
+      const v = r * g.perRow + c
+      BAND[PROFILE[c][2]].toArray(colors, v * 3)
+      asphalt[v] = PROFILE[c][2] === 'road' ? 1 : 0
+      lane[v] = PROFILE[c][0]
+    }
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  geo.setAttribute(ASPHALT_MASK, new THREE.BufferAttribute(asphalt, 1))
+  geo.setAttribute(ASPHALT_LANE, new THREE.BufferAttribute(lane, 1))
   geo.computeVertexNormals()
   return geo
 }
