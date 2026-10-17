@@ -131,38 +131,47 @@ jobs:
         uses: actions/deploy-pages@v4
 
   comment:
-    needs: deploy
-    if: ${{ !cancelled() && github.event_name == 'pull_request_target' && needs.deploy.result == 'success' }}
+    # Upserts the preview comment on every PR this run deployed (or failed to build), not only the
+    # triggering one: a queued run replaced by a newer one never reaches its own comment step.
+    needs: [plan, deploy]
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
-      - name: Post or update the preview comment
+      - name: Post or update the preview comments
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          SHA: ${{ github.event.pull_request.head.sha }}
-          ACTION: ${{ github.event.action }}
+          TARGETS: ${{ needs.plan.outputs.targets }}
           DEPLOYED: ${{ needs.deploy.outputs.deployed }}
+          CLOSED_PR: ${{ github.event.action == 'closed' && github.event.pull_request.number || '' }}
         run: |
           marker='<!-- driftline-preview -->'
-          url="https://bborbe.github.io/driftline/pr-$PR/"
-          if [ "$ACTION" = closed ]; then
-            body="$marker
-          Preview removed (PR closed)."
-          elif [[ ",$DEPLOYED" == *",$PR,"* ]]; then
-            body="$marker
-          **Preview:** $url
-          Commit: \`$SHA\` (check \`<meta name=\"commit\">\`). Updates on every push, removed when the PR closes."
-          else
-            body="$marker
-          Preview build failed for \`$SHA\` — see the Deploy to GitHub Pages run. Production was deployed regardless."
-          fi
-          id=$(gh api "repos/$REPO/issues/$PR/comments?per_page=100" --jq \
-            "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))][0].id // empty")
-          if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
-          elif [ "$ACTION" != closed ]; then
-            gh api "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
+          upsert() { # <pr> <body>; never creates a comment for a closed PR
+            local id old
+            id=$(gh api "repos/$REPO/issues/$1/comments?per_page=100" --jq \
+              "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))][0].id // empty")
+            if [ -n "$id" ]; then
+              old=$(gh api "repos/$REPO/issues/comments/$id" --jq .body)
+              [ "$old" = "$2" ] || gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$2" > /dev/null
+            elif [ "$3" != closed ]; then
+              gh api "repos/$REPO/issues/$1/comments" -f body="$2" > /dev/null
+            fi
+          }
+          jq -r '.[] | select(.name != "root") | "\(.name | ltrimstr("pr-")) \(.ref)"' <<<"$TARGETS" |
+          while read -r pr sha; do
+            if [[ ",$DEPLOYED" == *",$pr,"* ]]; then
+              body="$marker
+          **Preview:** https://bborbe.github.io/driftline/pr-$pr/
+          Commit: \`$sha\` (check \`<meta name=\"commit\">\`). Updates on every push, removed when the PR closes."
+            else
+              body="$marker
+          Preview build failed for \`$sha\` — see the Deploy to GitHub Pages run. Production was deployed regardless."
+            fi
+            upsert "$pr" "$body" open < /dev/null
+          done
+          if [ -n "$CLOSED_PR" ]; then
+            upsert "$CLOSED_PR" "$marker
+          Preview removed (PR closed)." closed
           fi

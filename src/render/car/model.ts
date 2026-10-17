@@ -5,6 +5,7 @@ import { dot, forwardOf, type CarState } from '../../physics'
 import { STEERED, WHEEL_NODES, type Corner } from '../../car/wheels'
 import { CAR_ID, FALLBACK_CAR, resolveCar } from '../cars'
 import { createBodyFeel, updateBodyFeel } from './body'
+import { attachDetail, isDetail } from './detail'
 import { attachLights } from './lights'
 import type { Livery } from './livery'
 import { applyLivery } from './paint'
@@ -18,7 +19,7 @@ export type CarView = {
   setLivery: (l: Livery) => void
 }
 
-const view = (root: THREE.Object3D): CarView => {
+const view = (root: THREE.Object3D, cockpit?: readonly [number, number, number]): CarView => {
   const wheels = new Map<Corner, THREE.Object3D>()
   for (const [corner, name] of Object.entries(WHEEL_NODES) as [Corner, string][]) {
     const w = root.getObjectByName(name)
@@ -26,6 +27,7 @@ const view = (root: THREE.Object3D): CarView => {
   }
   root.traverse((o) => (o.castShadow = true))
   const lights = attachLights(root) // after the shadow pass: lamps and rim rings cast none
+  attachDetail(root, cockpit)
   let roll = 0
   let body = createBodyFeel()
   const lean = new THREE.Quaternion()
@@ -55,12 +57,15 @@ export const createCarView = async (id: string = CAR_ID, livery?: Livery): Promi
   const entry = resolveCar(id)
   let car: CarView
   try {
-    car = view(await entry.build())
+    car = view(await entry.build(), entry.cockpit)
   } catch (err) {
     console.warn(`car "${entry.id}" failed to load, using ${FALLBACK_CAR}: ${String(err)}`)
-    car = view(await resolveCar(FALLBACK_CAR).build())
+    const fallback = resolveCar(FALLBACK_CAR)
+    car = view(await fallback.build(), fallback.cockpit)
   }
   if (livery) car.setLivery(livery)
-  car.object.traverse((o) => (o.castShadow = true)) // the livery meshes are new
+  // The livery meshes are new. Of the detail only the helmet casts: arms, tread and hubs are too
+  // small to show in the shadow map and would each add a shadow-pass draw.
+  car.object.traverse((o) => (o.castShadow = !isDetail(o) || o.name === 'helmet'))
   return car
 }

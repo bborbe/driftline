@@ -5,7 +5,8 @@ import { applyAsphalt, ASPHALT_LANE, ASPHALT_MASK } from './asphalt'
 import { flat, hangs, noCollide, structural, type StructuralKind } from '../tags'
 import { barrierPillars, barrierPosts, gatePillars, gateUp, poses, type Pillar, type Track } from '../../track/schema'
 import { GATE_LEG_MIN_HEIGHT } from './kenney-plan'
-import { buildApron, buildBody, buildDeck, buildTrack, DECK_FOOT_COLUMNS, DECK_PILLAR_SIZE, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
+import { planTruss, type TrussMember } from './truss'
+import { buildApron, buildBody, buildDeck, buildTrack, DECK_FOOT_COLUMNS, planBodies, planDeckPillars, PROFILE, type Band, type SegmentGeometry } from './geometry'
 
 // The Kenney pieces' own material colours (glTF baseColorFactor, linear), so procedural
 // segments and glb pieces read as one road; the road itself is the shared ASPHALT.
@@ -166,7 +167,9 @@ const CONCRETE_TOP = BAND.curb
 const CONCRETE_FOOT = linear(0.32, 0.33, 0.36)
 // Pushed back in depth: where a banked turn's verge skirt (buildApron) shares a body wall's plane, the skirt draws, not a z-fight.
 const supportMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
-const pillarMaterial = new THREE.MeshStandardMaterial({ color: linear(0.45, 0.46, 0.5), roughness: 0.85 })
+const trussMaterial = new THREE.MeshStandardMaterial({ color: linear(0.3, 0.32, 0.36), roughness: 0.55, metalness: 0.5 })
+const X = new THREE.Vector3(1, 0, 0)
+const Z = new THREE.Vector3(0, 0, 1)
 
 // `crisp`: one normal per face, so a bridge deck reads as a box with sharp edges, not a rounded pipe.
 const concreteMesh = (g: SegmentGeometry, foot: (vertex: number) => boolean, kind: StructuralKind, crisp = false): THREE.Mesh => {
@@ -195,7 +198,6 @@ export const createRampSupports = (track: Track): THREE.Group => {
   group.name = 'ramp-supports'
   const ps = poses(track)
   const plans = planBodies(track)
-  const pillars: THREE.Matrix4[] = []
   track.segments.forEach((seg, i) => {
     const plan = plans[i]
     if (plan) {
@@ -213,20 +215,23 @@ export const createRampSupports = (track: Track): THREE.Group => {
       group.add(seg.type === 'loop' ? noCollide(mesh, 'loop-shell') : wall ? noCollide(mesh, 'wallride-shell') : mesh)
     }
   })
-  for (const p of planDeckPillars(track)) {
-    pillars.push(
-      new THREE.Matrix4().compose(
-        new THREE.Vector3(p.x, p.top / 2, p.z),
-        new THREE.Quaternion(),
-        new THREE.Vector3(DECK_PILLAR_SIZE, p.top, DECK_PILLAR_SIZE),
+  // Each bridge pillar is a steel truss (truss.ts) inside its collider: legs carry the deck, braces tie the legs.
+  const trusses = planDeckPillars(track).map(planTruss)
+  const members = (kind: 'pillar' | 'brace', list: TrussMember[]) => {
+    if (list.length === 0) return
+    const mesh = structural(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), trussMaterial, list.length), kind)
+    list.forEach((m, k) =>
+      mesh.setMatrixAt(
+        k,
+        new THREE.Matrix4().compose(new THREE.Vector3(m.x, m.y, m.z), new THREE.Quaternion().setFromAxisAngle(m.axis === 'z' ? Z : X, m.roll), new THREE.Vector3(m.sx, m.sy, m.sz)),
       ),
     )
-  }
-  if (pillars.length > 0) {
-    const mesh = structural(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), pillarMaterial, pillars.length), 'pillar')
-    pillars.forEach((m, k) => mesh.setMatrixAt(k, m))
-    mesh.castShadow = mesh.receiveShadow = true
+    // The legs cast the truss's shadow; the thin braces only receive one (one shadow draw call fewer).
+    mesh.castShadow = kind === 'pillar'
+    mesh.receiveShadow = true
     group.add(mesh)
   }
+  members('pillar', trusses.flatMap((t) => t.legs))
+  members('brace', trusses.flatMap((t) => t.braces))
   return group
 }

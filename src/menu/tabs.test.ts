@@ -17,7 +17,7 @@ describe('settings tabs', () => {
     expect(TAB_CONTROLS.car).toEqual(['livery', 'paint', 'number'])
     expect(TAB_CONTROLS.race).toEqual(['time', 'weather', 'laps'])
     expect(TAB_CONTROLS.graphics).toEqual([...LIVE_FX, 'camera', 'hudScale'])
-    expect(TAB_CONTROLS.audio).toEqual(['volume'])
+    expect(TAB_CONTROLS.audio).toEqual(['volume', 'sfxVolume', 'uiVolume'])
     expect(TAB_CONTROLS.about).toEqual(['build'])
   })
   it('remembers the last tab and falls back on garbage', () => {

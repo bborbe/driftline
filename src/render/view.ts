@@ -11,6 +11,8 @@ import { parseFx, type Fx } from './fx/flags'
 import { BLOOM, bloomFor } from './glow'
 import { createSkidMarks } from './fx/skid'
 import { createDust } from './fx/dust'
+import { createSparks } from './fx/sparks'
+import { createDriftGlow } from './fx/drift-cue'
 import { createSmoke } from './fx/smoke'
 import { createBoostStreaks } from './fx/boost-streaks'
 import { createSpeedLines } from './fx/speedlines'
@@ -142,7 +144,8 @@ export const createView = async (
   camera.add(speedLines.object)
   scene.add(camera) // camera children render only when the camera is in the scene
   // Skid marks are road detail, so they are always on (`?fx=skid` still parses, for old links); they sit on the track's own surface.
-  const skid = createSkidMarks(trackSurface(track))
+  const surface = trackSurface(track)
+  const skid = createSkidMarks(surface)
   scene.add(skid.object)
   const smoke = createSmoke()
   scene.add(smoke.object)
@@ -158,6 +161,11 @@ export const createView = async (
   // Dust off dirt and grass is surface feedback, so it is always on.
   const dust = createDust()
   scene.add(dust.object)
+  // Sparks off barrier, rail and pillar contact, and the good-drift glow under the car: contact and drift feedback, always on.
+  const sparks = createSparks(surface.obstacles)
+  scene.add(sparks.object)
+  const driftGlow = createDriftGlow()
+  scene.add(driftGlow.object)
 
   // HUD "1% low": 1st percentile of per-frame fps over the last 60 s, refreshed twice a second.
   const stats = new FrameStats()
@@ -209,6 +217,8 @@ export const createView = async (
     if (rain.object.visible) rain.update(dt, camera)
     if (snow.object.visible) snow.update(dt, camera)
     dust.update(s, material, dt, camera)
+    sparks.update(s, dt)
+    driftGlow.update(s, dt, car.object)
     draw()
     stats.push(performance.now(), dt)
     sinceLabel += dt
