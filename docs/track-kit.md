@@ -9,7 +9,7 @@ Trackmania-style drivable pieces that snap on a grid (`src/track/kit.ts`). A tra
 - Connector = exit relative to entry: (forward cells, left cells, up levels, quarter turns CCW). A right turn mirrors left and turn.
 - `kit.test.ts` proves every piece × 4 headings exits where its connector says, all n² piece pairs join with no gap or step across the rendered road (|Δ| < 1e-6), and physics height equals render height on every piece (|Δ| < 1e-3). On the `loop` the road is not a height field, so that check casts along the loop's own normal instead.
 - Non-road surfaces are full-length zones. Every road piece comes in dirt, ice and grass: straights, slopes, bump, walled, and curves, hairpin and banks too. The patch follows the arc and the bank roll (`surfacePatch()`, `src/render/track/zones.ts`), and a run of same-surface pieces draws as one patch with no seam at the joins. Pads, gates and `gap-jump` stay road.
-- Any flat piece at 1 m or higher gets a concrete deck box and pillars (`buildDeck`, `planDeckPillars`); pillars skip the road below.
+- Any raised piece (ramp, drop, or road above 5 cm) stands on a solid concrete body down to the ground, closed by end caps (`planBodies`, `buildBody`). Only where another road passes underneath does it stay an open bridge span: a deck box on pillars (`buildDeck`, `planDeckPillars`), with the body's end caps as abutments either side.
 
 ## Writing a kit track
 

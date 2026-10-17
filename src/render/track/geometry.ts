@@ -153,50 +153,149 @@ export const buildApron = (entry: Pose, seg: Segment): SegmentGeometry | null =>
   return { positions, indices: new Uint32Array(idx), rows, perRow }
 }
 
+/** Road height above which a row counts as raised and gets a body or a deck underneath. */
+export const RAISED_MIN = 0.05
+/** Height a road below needs under a raised row before that row has to stay open: a car plus the deck. */
+export const SPAN_HEADROOM = 2
+/** A lower road this close (centreline to centreline) to a raised row keeps that row an open bridge span. */
+export const SPAN_CLEAR = TRACK_WIDTH + 1
+/** Lap distance within which a lower road is the piece's own approach (a ramp's foot), not a road underneath. */
+export const SPAN_PATH_SKIP = 50
+/** Thickness of an elevated deck's concrete box under the road, on a bridge span. */
+export const DECK_DEPTH = 1
+
+/** How a raised row stands: `fill` is a solid body down to the ground, `span` a deck box over a road below. */
+export type BodyKind = 'fill' | 'span'
+
 /**
- * Visual-only solid sides under a ramp or drop: a wall down to the ground along each outer
- * edge, so an elevated ramp reads as a solid block instead of a floating plank. Returns null
- * for every other segment type.
+ * Per geometry row (rowCount) of one segment: `fill` or `span`. `caps` are the filled rows
+ * that close a filled run — the next or previous row along the lap, across segment joints,
+ * is not filled (a span, a gap, a loop or ground-level road) — so the body has an end face.
  */
-export const buildRampSupport = (entry: Pose, seg: Segment): SegmentGeometry | null => {
-  if (seg.type !== 'ramp' && seg.type !== 'drop') return null
+export type BodyPlan = { kinds: BodyKind[]; caps: number[] }
+
+const lapGap = (a: number, b: number, lap: number): number => {
+  const d = Math.abs(a - b) % lap
+  return Math.min(d, lap - d)
+}
+
+/**
+ * Which rows of the lap stand on a solid body and which stay open over a road passing
+ * underneath (crossover's bridge over the start straight). Null for a segment with no raised
+ * row, a gap (no road) and a loop (its own shell and foot). Visual only: physics never sees it.
+ */
+export const planBodies = (track: Track): (BodyPlan | null)[] => {
+  const ps = poses(track)
+  const road: (Sample & { s: number })[] = []
+  const starts: number[] = []
+  let at = 0
+  track.segments.forEach((seg, i) => {
+    starts.push(at)
+    const len = segmentLength(seg)
+    if (seg.type !== 'gap') {
+      const n = Math.max(1, Math.ceil(len / 1.5))
+      for (let k = 0; k <= n; k++) road.push({ ...sampleSegment(ps[i], seg, k / n), s: at + (len * k) / n })
+    }
+    at += len
+  })
+  const lap = at
+  const kinds = track.segments.map((seg, i): BodyKind[] | null => {
+    if (seg.type === 'gap' || seg.type === 'loop') return null
+    const rows = rowCount(seg)
+    const len = segmentLength(seg)
+    let raised = false
+    const out = Array.from({ length: rows }, (_, r): BodyKind => {
+      const t = r / (rows - 1)
+      const p = sampleSegment(ps[i], seg, t)
+      if (p.y > RAISED_MIN) raised = true
+      const s = starts[i] + len * t
+      const under = road.some((q) => q.y < p.y - SPAN_HEADROOM && Math.hypot(q.x - p.x, q.z - p.z) < SPAN_CLEAR && lapGap(q.s, s, lap) > SPAN_PATH_SKIP)
+      return under ? 'span' : 'fill'
+    })
+    return raised ? out : null
+  })
+  const n = track.segments.length
+  return kinds.map((k, i) => {
+    if (!k) return null
+    const prev = kinds[(i - 1 + n) % n]
+    const next = kinds[(i + 1) % n]
+    const caps: number[] = []
+    k.forEach((kind, r) => {
+      if (kind !== 'fill') return
+      const before = r > 0 ? k[r - 1] : prev ? prev[prev.length - 1] : null
+      const after = r < k.length - 1 ? k[r + 1] : next ? next[0] : null
+      if (before !== 'fill' || after !== 'fill') caps.push(r)
+    })
+    return { kinds: k, caps }
+  })
+}
+
+// Top of a body's side wall: the road edge, or on a banked turn's inner side the apron rim, so the apron sits on the body.
+const wallTop = (p: Sample, seg: Segment, u: number, s: number): [number, number, number] => {
+  if (seg.type !== 'banked' || Math.sign(u) !== s) return lateralPoint(p, u, s)
+  const inner = lateralPoint(p, u, s)
+  const dip = Math.max(0, p.y + SURFACE_LIFT - inner[1])
+  return dip > 0 ? lateralPoint({ ...p, roll: 0 }, u + s * APRON_RUN * dip, s) : inner
+}
+
+/**
+ * Visual-only solid body under a raised segment's filled rows: a wall from each road edge down
+ * to the ground (y 0) between consecutive filled rows, and at every cap row an end face shaped
+ * like the road's cross-section (PROFILE) down to the ground, so a ramp, drop or raised road
+ * reads as one solid block from beside, below and either end. Span rows get nothing here
+ * (buildDeck). Rows: left top, left foot, right top, right foot; cap vertices follow the rows.
+ */
+export const buildBody = (entry: Pose, seg: Segment, plan: BodyPlan): SegmentGeometry => {
   const rows = rowCount(seg)
+  const s = turnSign(seg)
   const half = TRACK_WIDTH / 2
-  const perRow = 4 // left top, left foot, right top, right foot
-  const positions = new Float32Array(rows * perRow * 3)
-  for (let r = 0; r < rows; r++) {
-    const p = sampleSegment(entry, seg, r / (rows - 1))
-    for (const [k, u] of [[0, half], [2, -half]]) {
-      const [x, y, z] = lateralPoint(p, u, 1)
-      positions.set([x, y, z], (r * perRow + k) * 3)
-      positions.set([x, 0, z], (r * perRow + k + 1) * 3)
+  const perRow = 4
+  const pos: number[] = []
+  const samples = Array.from({ length: rows }, (_, r) => sampleSegment(entry, seg, r / (rows - 1)))
+  for (const p of samples) {
+    for (const u of [half, -half]) {
+      const [x, y, z] = wallTop(p, seg, u, s)
+      pos.push(x, y, z, x, 0, z)
     }
   }
   const idx: number[] = []
   for (let r = 0; r < rows - 1; r++) {
+    if (plan.kinds[r] !== 'fill' || plan.kinds[r + 1] !== 'fill') continue
     const a = r * perRow
     const b = (r + 1) * perRow
     idx.push(a, a + 1, b, a + 1, b + 1, b) // left wall
     idx.push(a + 2, b + 2, a + 3, a + 3, b + 2, b + 3) // right wall
   }
-  return { positions, indices: new Uint32Array(idx), rows, perRow }
+  for (const r of plan.caps) {
+    const p = samples[r]
+    const tops: [number, number, number][] = PROFILE.map(([u, h]) => {
+      const [x, y, z] = lateralPoint(p, u, s)
+      return [x, y + h, z]
+    })
+    // A banked turn's apron rim is the body's inner edge: close the cap out to it.
+    const rimTop = wallTop(p, seg, s * half, s)
+    if (s > 0) tops.unshift(rimTop)
+    else tops.push(rimTop)
+    const base = pos.length / 3
+    for (const [x, y, z] of tops) pos.push(x, y, z, x, 0, z)
+    for (let c = 0; c < tops.length - 1; c++) {
+      const a = base + 2 * c
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+    }
+  }
+  return { positions: new Float32Array(pos), indices: new Uint32Array(idx), rows, perRow }
 }
 
-/** Lowest road height that gets a deck underneath; below it the road reads as sitting on the ground. */
-export const DECK_MIN_HEIGHT = 1
-/** Thickness of an elevated deck's concrete box under the road. */
-export const DECK_DEPTH = 1
-
 /**
- * Visual-only box section under an elevated flat piece (straight, curve, hairpin, banked): a
- * skirt down DECK_DEPTH from each road edge and a soffit joining them, so a bridge reads as a
- * solid deck from below and from the side. Ramps and drops keep their full walls
- * (buildRampSupport); gaps and ground-level pieces get nothing. Rows: left top, left foot,
- * right top, right foot.
+ * Visual-only box section under a raised segment's span rows (a bridge over a road below): a
+ * skirt down DECK_DEPTH from each road edge and a soffit joining them, between a span row and
+ * its neighbours, so the deck runs into the abutment caps (buildBody) at both ends. A loop gets
+ * its shell instead. Returns null when no row is a span. Rows: left top, left foot, right top,
+ * right foot.
  */
-export const buildDeck = (entry: Pose, seg: Segment): SegmentGeometry | null => {
+export const buildDeck = (entry: Pose, seg: Segment, kinds: readonly BodyKind[] | null): SegmentGeometry | null => {
   if (seg.type === 'loop') return buildLoopShell(entry, seg)
-  if (seg.type === 'ramp' || seg.type === 'drop' || seg.type === 'gap' || entry.y < DECK_MIN_HEIGHT) return null
+  if (!kinds || !kinds.includes('span')) return null
   const rows = rowCount(seg)
   const s = turnSign(seg)
   const half = TRACK_WIDTH / 2
@@ -212,6 +311,7 @@ export const buildDeck = (entry: Pose, seg: Segment): SegmentGeometry | null => 
   }
   const idx: number[] = []
   for (let r = 0; r < rows - 1; r++) {
+    if (kinds[r] !== 'span' && kinds[r + 1] !== 'span') continue
     const a = r * perRow
     const b = (r + 1) * perRow
     idx.push(a, a + 1, b, a + 1, b + 1, b) // left skirt
@@ -256,9 +356,9 @@ export const DECK_PILLAR_CLEAR = TRACK_WIDTH / 2 + 2
 export type DeckPillar = { x: number; z: number; top: number }
 
 /**
- * Pillars under the centreline of every deck (buildDeck), one every DECK_PILLAR_STEP metres.
- * A pillar that would stand on another part of the lap (an underpass) is left out, so the
- * road below stays open.
+ * Pillars under the centreline of every bridge span (span rows, buildDeck), one every
+ * DECK_PILLAR_STEP metres. A pillar that would stand on another part of the lap (an underpass)
+ * is left out, so the road below stays open; filled rows stand on their own body.
  */
 export const planDeckPillars = (track: Track): DeckPillar[] => {
   const ps = poses(track)
@@ -268,11 +368,14 @@ export const planDeckPillars = (track: Track): DeckPillar[] => {
     const n = Math.max(1, Math.ceil(segmentLength(seg) / 1.5))
     for (let k = 0; k <= n; k++) road.push(sampleSegment(ps[i], seg, k / n))
   })
+  const plans = planBodies(track)
   const out: DeckPillar[] = []
   track.segments.forEach((seg, i) => {
-    if (seg.type === 'loop' || !buildDeck(ps[i], seg)) return // a loop stands on its own foot
+    const kinds = plans[i]?.kinds
+    if (!kinds) return // a loop stands on its own foot; gaps and ground-level road need none
     const len = segmentLength(seg)
     for (let d = DECK_PILLAR_STEP / 2; d < len; d += DECK_PILLAR_STEP) {
+      if (kinds[Math.round((d / len) * (kinds.length - 1))] !== 'span') continue
       const p = sampleSegment(ps[i], seg, d / len)
       const top = p.y - DECK_DEPTH
       const blocked = road.some((q) => q.y < top - 1 && Math.hypot(q.x - p.x, q.z - p.z) < DECK_PILLAR_CLEAR)
@@ -281,6 +384,9 @@ export const planDeckPillars = (track: Track): DeckPillar[] => {
   })
   return out
 }
+
+/** Lowest gate pillar base that gets a footing down to the ground. */
+export const GATE_FOOTING_MIN_HEIGHT = 1
 
 /**
  * A concrete footing under each pillar of every gate that stands on an elevated deck: the
@@ -293,5 +399,5 @@ export const planGateFootings = (track: Track): Pillar[] =>
   track.gates
     .filter((g) => g.segment < track.segments.length)
     .flatMap((g) => gatePillars(track, g))
-    .filter((p) => p.y >= DECK_MIN_HEIGHT)
+    .filter((p) => p.y >= GATE_FOOTING_MIN_HEIGHT)
     .map((p) => ({ ...p, y: 0, height: p.y }))
