@@ -211,13 +211,14 @@ const WALL_SCRAPE = 0.7
 
 type Moved = { position: Vec3; velocity: Vec3 }
 
-// Broadphase: each obstacle listed in every GRID-metre cell its reach (the early-out in collide()
-// below) can touch from, widened by PUSH_SLACK for the pushes earlier obstacles make within one
-// tick. A cell's list keeps the obstacles' order, so collide() visits exactly the obstacles that
-// could pass its reach test, in the same order — the result is bit-identical to a full scan.
+// Broadphase: each obstacle listed (by index) in every GRID-metre cell its reach (the early-out in
+// collide() below) can touch from, widened by PUSH_SLACK for the pushes earlier obstacles make within
+// one tick. A cell's list keeps the obstacles' order, so collide() visits exactly the obstacles that
+// could pass its reach test, in the same order — the result is bit-identical to a full scan. A push
+// past the slack (a car caught deep in a wide embankment box) falls back to the full scan.
 const GRID = 8
 const PUSH_SLACK = 2
-type Broadphase = Map<string, Pillar[]>
+type Broadphase = Map<string, number[]>
 const broadphases = new WeakMap<readonly Pillar[], Broadphase>()
 const cellKey = (i: number, k: number) => `${i},${k}`
 
@@ -225,17 +226,17 @@ const broadphase = (obstacles: readonly Pillar[]): Broadphase => {
   const hit = broadphases.get(obstacles)
   if (hit) return hit
   const grid: Broadphase = new Map()
-  for (const o of obstacles) {
+  obstacles.forEach((o, index) => {
     const reach = o.halfWidth + o.halfDepth + BODY_REACH + BODY_RADIUS + PUSH_SLACK
     for (let i = Math.floor((o.x - reach) / GRID); i <= Math.floor((o.x + reach) / GRID); i++) {
       for (let k = Math.floor((o.z - reach) / GRID); k <= Math.floor((o.z + reach) / GRID); k++) {
         const key = cellKey(i, k)
         const cell = grid.get(key)
-        if (cell) cell.push(o)
-        else grid.set(key, [o])
+        if (cell) cell.push(index)
+        else grid.set(key, [index])
       }
     }
-  }
+  })
   broadphases.set(obstacles, grid)
   return grid
 }
@@ -249,10 +250,11 @@ const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly 
   const fz = flat > 1e-6 ? fwd.z / flat : 1
   let pos = position
   let vel = velocity
-  for (const o of broadphase(obstacles).get(cellKey(Math.floor(pos.x / GRID), Math.floor(pos.z / GRID))) ?? []) {
-    if (pos.y < o.y - 1 || pos.y > o.y + o.height) continue
+  const start = pos
+  const visit = (o: Pillar) => {
+    if (pos.y < o.y - 1 || pos.y > o.y + o.height) return
     const reach = o.halfWidth + o.halfDepth + BODY_REACH + BODY_RADIUS
-    if (Math.abs(pos.x - o.x) > reach || Math.abs(pos.z - o.z) > reach) continue
+    if (Math.abs(pos.x - o.x) > reach || Math.abs(pos.z - o.z) > reach) return
     // Deepest overlap among points along the body axis, in the pillar's frame (u along, w across).
     const ou = { x: Math.sin(o.heading), z: Math.cos(o.heading) }
     let best: { depth: number; nx: number; nz: number } | null = null
@@ -291,13 +293,22 @@ const collide = (position: Vec3, velocity: Vec3, fwd: Vec3, obstacles: readonly 
         best = { depth, nx: du * ou.x + dw * ou.z, nz: du * ou.z - dw * ou.x }
       }
     }
-    if (!best) continue
+    if (!best) return
     pos = v3(pos.x + best.nx * best.depth, pos.y, pos.z + best.nz * best.depth)
     const vn = vel.x * best.nx + vel.z * best.nz
     if (vn < 0) {
       const tx = vel.x - vn * best.nx
       const tz = vel.z - vn * best.nz
       vel = v3(tx * WALL_SCRAPE - WALL_BOUNCE * vn * best.nx, vel.y, tz * WALL_SCRAPE - WALL_BOUNCE * vn * best.nz)
+    }
+  }
+  const cell = broadphase(obstacles).get(cellKey(Math.floor(pos.x / GRID), Math.floor(pos.z / GRID))) ?? []
+  for (const j of cell) {
+    visit(obstacles[j])
+    // Pushed past the slack the cell was built with: finish with a full scan, so the result stays exact.
+    if (Math.abs(pos.x - start.x) > PUSH_SLACK || Math.abs(pos.z - start.z) > PUSH_SLACK) {
+      for (let k = j + 1; k < obstacles.length; k++) visit(obstacles[k])
+      break
     }
   }
   return { position: pos, velocity: vel }
