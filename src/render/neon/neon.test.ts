@@ -69,6 +69,21 @@ describe('neon tubes', () => {
     }
   })
 
+  it('keeps a full-width tube where a rail climbs a loop', () => {
+    const loop = loadLap('test-loop')
+    const positions = tubeGeometry(loop, 1)
+    expect(positions.length).toBeGreaterThan(0)
+    expect(positions.every(Number.isFinite)).toBe(true)
+    // No collapsed band: every triangle has area.
+    for (let k = 0; k < positions.length; k += 9) {
+      const [a, b, c] = [0, 3, 6].map((o) => [positions[k + o], positions[k + o + 1], positions[k + o + 2]])
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+      const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
+      const area = Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
+      expect(area).toBeGreaterThan(0)
+    }
+  })
+
   it('floats every tube just above its rail top', () => {
     const positions = tubeGeometry(flatout, 1)
     const tops = railRuns(flatout)

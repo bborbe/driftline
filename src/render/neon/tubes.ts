@@ -30,8 +30,10 @@ export const tubeGeometry = (track: Track, side: 1 | -1): Float32Array => {
     const line = tubeLine(run.rows)
     const rings = line.map((c, k) => {
       const t = unit(sub(line[Math.min(k + 1, line.length - 1)], line[Math.max(k - 1, 0)]))
-      // A frame across the tangent: n roughly horizontal, b roughly up (the rails never run vertical).
-      const n = unit(cross(t, [0, 1, 0]))
+      // A frame across the tangent: n roughly horizontal, b roughly up. Where the rail runs vertical (up a loop) the
+      // tangent is parallel to up, so the frame is taken against x instead of collapsing to a zero-width tube.
+      const across = cross(t, [0, 1, 0])
+      const n = unit(Math.hypot(...across) > 1e-3 ? across : cross(t, [1, 0, 0]))
       const b = cross(n, t)
       return Array.from({ length: TUBE.sides }, (_, s): Vec => {
         const a = (s / TUBE.sides) * Math.PI * 2
