@@ -9,7 +9,7 @@ import { advanceRace, COUNTDOWN_TICKS, crosses, LapLoop } from './lap'
 import { autopilot, hasLoop, loadTrack, racingLine, type Sample } from './autopilot.test-driver'
 import { STYLES } from '../track/catalogue'
 
-const CORNER = new Set(['curve', 'hairpin', 'banked'])
+const CORNER = new Set(['curve', 'hairpin', 'banked', 'wallride'])
 // Style tracks S01-S05 (src/track/catalogue.ts STYLES).
 const STYLE_TRACKS = STYLES.map((l) => l.track)
 // Each case drives up to ~15 full-physics runs over a leg; well past vitest's 5 s default under load.
@@ -98,7 +98,7 @@ function legs(track: Track): { name: string; from: Pose; to: Pose }[] {
   return out
 }
 
-describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', ...STYLE_TRACKS])('%s grass cuts', (name) => {
+describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', 'test-wallride', 'test-spiral', ...STYLE_TRACKS])('%s grass cuts', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
@@ -135,7 +135,7 @@ describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap',
 const GRASS_LATERAL = 7 // m/s², what the grass holds in a steady turn
 const INSIDE = [1, 2.5, 4, 6, 8] // m inside the road's inner edge
 
-type Corner = Extract<Segment, { type: 'curve' | 'hairpin' | 'banked' }>
+type Corner = Extract<Segment, { type: 'curve' | 'hairpin' | 'banked' | 'wallride' }>
 const sweep = (seg: Corner) => (seg.type === 'hairpin' ? Math.PI : (seg.angle * Math.PI) / 180)
 
 function insideLine(entry: Pose, seg: Corner, radius: number): Sample[] {
@@ -170,7 +170,7 @@ function follow(start: CarState, samples: Sample[], target: Pose, surface: Surfa
   return { ticks: Infinity, grass }
 }
 
-describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', ...STYLE_TRACKS])('%s skilled grass lines', (name) => {
+describe.each(['test1', 'test2', 'crossover', 'tower', 'plunge', 'knot', 'leap', 'test-wallride', 'test-spiral', ...STYLE_TRACKS])('%s skilled grass lines', (name) => {
   const track = loadTrack(name)
   const surface = trackSurface(track)
   const road = roadRun(track)
