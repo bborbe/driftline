@@ -1,13 +1,15 @@
 {
   "name": "driftline",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --project fast --passWithNoTests",
+    "test:all": "vitest run --passWithNoTests",
+    "test:slow": "vitest run --project slow",
     "shots": "node scripts/shots.mjs",
     "thumbs": "node scripts/thumbs.mjs"
   },

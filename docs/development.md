@@ -4,11 +4,16 @@ driftline is a Trackmania-like browser racing game. Vite + TypeScript + three.js
 
 ```bash
 make run        # dev server (installs deps if needed); drive: WASD / arrows, Space = handbrake; ?renderer=webgl2 forces WebGL2
-make test
+make test       # fast test tier (seconds)
+make test-all   # fast + slow tiers (minutes) — before merging physics/track changes
 make build
 ```
 
 See [`VISION.md`](../VISION.md) and [`AGENTS.md`](../AGENTS.md). Tracks, the track groups, the single-feature test tracks and track themes: [`tracks.md`](tracks.md). Building tracks from pieces: [`track-kit.md`](track-kit.md).
+
+## Test tiers
+
+`make test` runs the fast tier and `make test-all` runs the fast and slow tiers (vitest projects `fast` and `slow` in `vite.config.ts`; the slow tier is the `SLOW_TESTS` list, every file taking ≥ 2 s in CI). PR CI (`ci.yml`) runs fast only. The slow tier runs on every release tag (`release.yml`: fast + slow, build, GitHub release) and nightly on master (`nightly.yml`, which opens a `nightly-failure` issue when red; `gh workflow run nightly.yml -f inject_failure=true` tests that path). Run `make test-all` before merging physics or track changes. Release flow and tier rules: [`AGENTS.md`](../AGENTS.md) § Test tiers.
 
 ## Laps
 
