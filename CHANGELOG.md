@@ -12,6 +12,7 @@ Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers 
 
 ## Unreleased
 
+- chore: opt into the maintainer bots (`.maintainer.yaml`: auto-approve, auto-release, trivial auto-merge); `release.yml` takes the version from the tag instead of requiring it to equal `package.json`
 - feat: shareable challenge links — Results → Challenge a friend copies a URL with the target time and the session's best-lap ghost (lossless, ≤ 8192 chars, else target only); opening it races that ghost under the sender's Settings name, and a bad link says why over the start menu
 
 ## v0.1.0

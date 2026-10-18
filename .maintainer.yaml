@@ -1,0 +1,21 @@
+# Opts this repo into maintainer-bot behaviors. Read per-repo by the maintainer agents.
+#
+# release.autoRelease: when CHANGELOG.md has a non-empty "## Unreleased" section and
+# master has moved, the github-releaser rewrites "## Unreleased" -> "## vX.Y.Z",
+# commits, tags and pushes; the tag runs release.yml (fast + slow tiers, GitHub release).
+# It does not bump package.json — release.yml takes the version from the tag.
+#
+# prReviewer.autoApprove: the pr-reviewer's "approve" verdict lands as an APPROVE
+# review (counts toward branch protection) instead of a COMMENT.
+#
+# autoMerge.trivial: trivial PRs merge without a human. The do-not-merge required
+# check still blocks any labelled PR.
+#
+# goUpdate is left out: not a Go repo. An absent key reads as false.
+release:
+  autoRelease: true
+  changelogRewrite: false
+prReviewer:
+  autoApprove: true
+autoMerge:
+  trivial: true

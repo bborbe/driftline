@@ -1,7 +1,8 @@
 name: Release
 
 # A v* tag is a release: run both test tiers (fast + slow), build, then create the GitHub release with
-# the tag's CHANGELOG section as notes. The tag must equal package.json's version.
+# the tag's CHANGELOG section as notes. The version comes from the tag: the github-releaser
+# tags without bumping package.json, so the jobs stamp package.json from the tag (never pushed back).
 on:
   push:
     tags: ['v*']
@@ -20,10 +21,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Check tag matches package.json
-        run: |
-          want="v$(node -p "require('./package.json').version")"
-          [ "$GITHUB_REF_NAME" = "$want" ] || { echo "::error::tag $GITHUB_REF_NAME != package.json $want"; exit 1; }
+      - name: Set package.json version from tag
+        run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
       - name: Install
         run: npm ci
       - name: Test (fast + slow tiers)
