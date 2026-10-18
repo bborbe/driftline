@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu'
 import { dot, forwardOf, wheelTravel, type CarState, type Surface } from '../../physics'
 import { STEERED, WHEEL_NODES, type Corner } from '../../car/wheels'
 import { CAR_ID, FALLBACK_CAR, resolveCar } from '../cars'
-import { createBodyFeel, updateBodyFeel } from './body'
+import { bodyLift, createBodyFeel, updateBodyFeel } from './body'
 import { drawnTravel, type RoadTop } from './ground'
 import { attachDetail, isDetail } from './detail'
 import { attachLights } from './lights'
@@ -52,7 +52,9 @@ const view = (root: THREE.Object3D, cockpit?: readonly [number, number, number])
       const speed = dot(s.velocity, forwardOf(s))
       roll += spinRate(speed) * dt
       detail.setSpeed(speed)
-      detail.setTravel(surface ? drawnTravel(wheelTravel(s, surface), s, ground) : undefined)
+      // The lean and squat above move the wheels with the body; give each spring that back, so the wheels stay on the road.
+      const springs = surface ? drawnTravel(wheelTravel(s, surface), s, ground) : undefined
+      detail.setTravel(springs?.map((w) => ({ mount: w.mount, length: w.length + bodyLift(body, w.mount.x, w.mount.z) })))
       for (const [corner, w] of wheels) {
         w.rotation.x = roll
         w.rotation.y = STEERED.includes(corner) ? wheelYaw(s.steerAngle) : 0

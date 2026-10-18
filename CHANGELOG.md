@@ -12,7 +12,7 @@ Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers 
 
 ## Unreleased
 
-- fix: wheels stand on the drawn asphalt instead of 0.1 m inside it — the road is drawn 0.1 m (curbs 0.2 m) over the physics surface, so the car view shortens each wheel's drawn spring by the drawn road height under it (`src/render/car/ground.ts`); render-only, physics untouched
+- fix: wheels stand on the drawn asphalt instead of 0.1 m inside it — the road is drawn 0.1 m (curbs 0.2 m) over the physics surface, so the car view shortens each wheel's drawn spring by the drawn road height under it (`src/render/car/ground.ts`), and gives each spring back the body feel's lean and squat at its mount (`bodyLift`), so the rear wheels no longer dip 0.1 m under throttle; render-only, physics untouched
 
 ## v0.5.0
 
