@@ -6,6 +6,7 @@
 import './race.css'
 import { menuList, type MenuList } from '../menu/list'
 import { controlsPanel } from './controls'
+import { keysLabel, loadBindings } from '../bindings'
 import { litTicks, SPEEDO_TICKS, targetDelta, type EffectChip, type Target } from './hud'
 import { loadSettings, SETTINGS_EVENT, type Settings } from '../menu/settings'
 import { formatDelta, MEDAL_LABEL } from './medals'
@@ -430,7 +431,7 @@ export class RaceView {
   /** Restart (primary), Next track, Challenge a friend and Menu; plain hint when there are no menu actions. */
   private finishActions(runMs: number): HTMLElement {
     const a = this.actions
-    if (!a) return el('p', '', 'Backspace to race again')
+    if (!a) return el('p', '', `${keysLabel(loadBindings(localStorage), 'restart')} to race again`)
     const challenge = a.challenge
     this.finishMenu = menuList(
       [

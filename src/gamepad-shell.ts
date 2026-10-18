@@ -35,7 +35,7 @@ export function mountGamepad(nav: Navigator = navigator): GamepadShell {
 
   const press = (action: PadAction) => {
     const code = action === CYCLE_CAMERA ? nextViewKey(loadView(localStorage)) : (boundKey(action) ?? action)
-    const key = code === 'Escape' || code === 'Enter' || code === 'Backspace' || code.startsWith('Arrow') ? code : code.replace(/^(Key|Digit)/, '').toLowerCase()
+    const key = code === 'Escape' || code === 'Enter' || code === 'Backspace' || code === 'Delete' || code.startsWith('Arrow') ? code : code.replace(/^(Key|Digit)/, '').toLowerCase()
     window.dispatchEvent(new KeyboardEvent('keydown', { code, key, bubbles: true, cancelable: true }))
     window.dispatchEvent(new KeyboardEvent('keyup', { code, key, bubbles: true }))
   }

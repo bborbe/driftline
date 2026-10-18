@@ -193,7 +193,7 @@ describe('clearing effects', () => {
     expect(sim.fed[0].input).toEqual({ ...THROTTLE, steer: 1 })
   })
 
-  it('restart (Backspace) clears them', () => {
+  it('restart (Delete) clears them', () => {
     const { loop, sim } = armed()
     sim.state = loop.restart(sim.state.tick)
     expect(loop.effects.active()).toEqual([])

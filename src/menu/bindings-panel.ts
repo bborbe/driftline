@@ -1,5 +1,6 @@
 // Settings → Controls: one row per rebindable action (src/bindings.ts) with a primary and a secondary key, a
-// reset per row and Reset all. Click a key, then press the new one: Esc cancels, Delete clears a slot. A key another
+// reset per row and Reset all. Click a key, then press the new one: Esc cancels; right-click a key clears its slot
+// (Delete is a game key, the default restart, so it binds like any other). A key another
 // action holds marks both rows and offers Swap; a key the shell owns (Esc, Q / E, H …) is refused. Saves and fires
 // BINDINGS_EVENT after every change, so the running race drives with the new keys at once.
 import {
@@ -77,11 +78,6 @@ export function bindingsTable(): HTMLElement {
     const slot = listening
     stop()
     if (e.code === 'Escape') return render()
-    if (e.code === 'Delete') {
-      save(clearSlot(b, slot))
-      quiet()
-      return render()
-    }
     const r = assign(b, slot, e.code)
     if (r.ok) {
       save(r.bindings)
@@ -114,7 +110,20 @@ export function bindingsTable(): HTMLElement {
     tr.id = `setting-bind-${a}`
     const name = Object.assign(document.createElement('td'), { textContent: ACTION_LABELS[a] })
     const pair = ([0, 1] as const).map((i) => {
-      const k = Object.assign(document.createElement('button'), { type: 'button', className: 'menu-key', id: `setting-bind-${a}-${i}` })
+      const k = Object.assign(document.createElement('button'), {
+        type: 'button',
+        className: 'menu-key',
+        id: `setting-bind-${a}-${i}`,
+        title: 'Click, then press a key · right-click to clear',
+      })
+      k.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (listening) stop()
+        save(clearSlot(b, { action: a, index: i }))
+        quiet()
+        render()
+      })
       k.addEventListener('click', (e) => {
         e.stopPropagation()
         if (listening) stop()
