@@ -26,7 +26,8 @@ export type StructuralKind = (typeof STRUCTURAL_KINDS)[number]
  * `backdrop`: the stadium ring, STADIUM_GAP outside the lap and past the trees, out of reach of the open ground.
  * `roadside-sign`: turn and turbo boards on the grass shoulder 1.5 m past the road edge, where the shipped
  * autopilot lines on plunge and knot run wide; a collider there would change the racing line.
- * `trackside`: flag poles, start totems and the start screen (decor/dressing.ts), ≥ 4 m past the road edge,
+ * `trackside`: flag poles, start totems and the start screen (decor/dressing.ts), ≥ 4 m past the road edge, and the
+ * corner dressing (decor/trackside.ts: brake and corner-number boards, banners, marshal posts, catch fences), all
  * behind the edge rail that lines every road edge (track/rails.ts), so the car cannot reach them.
  */
 export const NO_COLLIDE_REASONS = ['loop-shell', 'wallride-shell', 'backdrop', 'roadside-sign', 'trackside'] as const
