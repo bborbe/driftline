@@ -5,6 +5,8 @@ import { flyQuery, flyRequested, wrapDeg, type FlyCam } from './camera/fly'
 import { CAMERA_EVENT, loadView, saveView, type ViewMode } from './camera/views'
 import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
+import { InputMix } from './gamepad'
+import { mountGamepad } from './gamepad-shell'
 import { createView } from './render/view'
 import { effectiveCap, FrameGate, IDLE_FPS, MENU_FPS, probeable } from './render/frame-cap'
 import { applyAccess, knobsFor, reducedFor, startQuality } from './render/quality-runtime'
@@ -63,6 +65,8 @@ window.addEventListener(CAMERA_EVENT, (e) => (shownView = (e as CustomEvent<View
 // Screen fades (src/render/fade.ts): the page opens black and fades in on the menu or the first race frame; debug
 // spawns and frozen shots never fade. `window.driftline.mode` tells automated checks which screen is up.
 const fade = mountFade(noFade(location.search) ? 0 : 1)
+// Gamepad (src/gamepad.ts): buttons press keys — menu keys until the race runs, then race keys; driving mixes below.
+const pad = mountGamepad()
 // The debug overlay (fps, pose) mounts after the menu; hide its parts from the first frame on a plain URL.
 document.documentElement.classList.toggle('debug-off', !debugVisible(location.search))
 type Mode = 'menu' | 'race' | 'results'
@@ -135,6 +139,7 @@ const tuning = devMode(location.search) ? mountTuningPanel(localStorage) : null
 const taint = new RunTaint()
 taint.runStart(isTuned())
 const input = new KeyboardInput()
+const inputMix = new InputMix()
 const kerbs = new KerbProbe(track)
 const laps = lapCount(location.search, settings.laps)
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
@@ -203,6 +208,7 @@ const race = initRace(sim, track, {
   },
 })
 mode = () => (race.resultsShown ? 'results' : 'race')
+pad.setContext(() => (race.paused || race.resultsShown || document.getElementById('begin') ? 'menu' : 'race'))
 // Results / Esc menu → menu or next track: the card and the Esc menu fade with the scene to black, then the page loads.
 let leaving = false
 async function leave(query: string): Promise<void> {
@@ -297,7 +303,7 @@ view.renderer.setAnimationLoop(() => {
   last = now
   const fly = cam.fly
 
-  const carInput = input.read()
+  const carInput = inputMix.mix(input.read(), pad.input())
   taint.observe(isTuned())
   if (!freeze && !fly) race.frame(elapsed, carInput)
   if (!fly) ghostRecorder.consume(sim.fed)
