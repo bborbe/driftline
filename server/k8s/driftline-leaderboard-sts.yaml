@@ -1,0 +1,94 @@
+# StatefulSet, not Deployment: the SQLite file on /data must survive pod restarts,
+# so the volume comes from volumeClaimTemplates. replicas stays 1 — SQLite is one
+# writer, and the PVC is ReadWriteOnce.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: driftline-leaderboard
+  namespace: '{{ "NAMESPACE" | env }}'
+  annotations:
+    keel.sh/policy: force
+    keel.sh/trigger: poll
+    keel.sh/match-tag: "true"
+    keel.sh/pollSchedule: "@every 1m"
+    random: '{{ "RANDOM" | env }}'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: driftline-leaderboard
+  serviceName: driftline-leaderboard
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9090"
+        prometheus.io/scheme: http
+        prometheus.io/scrape: "true"
+        random: '{{ "RANDOM" | env }}'
+      labels:
+        app: driftline-leaderboard
+    spec:
+      # `docker` is fanned out to every namespace by reflector (nuke-prod docker-secret/).
+      imagePullSecrets:
+        - name: docker
+      containers:
+        - name: service
+          args:
+            - -v={{"LOGLEVEL" | env}}
+          # BUILD_GIT_VERSION / BUILD_GIT_COMMIT / BUILD_DATE are intentionally not
+          # listed: the Dockerfile bakes them into the image ENV at build time.
+          # DB_PATH defaults to /data/leaderboard.db in the image as well.
+          env:
+            - name: LISTEN
+              value: ':9090'
+            - name: ALLOWED_ORIGIN
+              value: '{{ "ALLOWED_ORIGIN" | env }}'
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: driftline-leaderboard
+                  key: token
+          image: '{{"DOCKER_REGISTRY" | env}}/driftline-leaderboard:{{"BRANCH" | env}}'
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          ports:
+            - containerPort: 9090
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9090
+              scheme: HTTP
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 20m
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
