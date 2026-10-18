@@ -33,7 +33,7 @@ jobs:
       - name: Build
         run: npm run build
 
-  # The leaderboard server (server/, its own Go module) — its Go tests only, the game jobs are untouched.
+  # The leaderboard server (server/, its own Go module): runs its Go tests.
   server:
     runs-on: ubuntu-latest
     defaults:

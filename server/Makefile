@@ -2,7 +2,7 @@ include Makefile.precommit
 
 ROOTDIR ?= $(shell git rev-parse --show-toplevel)
 IMAGE ?= driftline-leaderboard:dev
-PORT ?= 8080
+PORT ?= 9090
 
 # Local run: database under ./data, the Vite dev server as the allowed origin.
 .PHONY: run

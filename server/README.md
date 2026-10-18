@@ -6,12 +6,12 @@ Go service behind the online leaderboard: it stores submitted runs in SQLite and
 
 ```bash
 cd server
-make run          # listens on localhost:8080, database in server/data/leaderboard.db
-curl localhost:8080/healthz      # {"status":"ok"}
-curl localhost:8080/readiness    # OK while the database answers
+make run          # listens on localhost:9090, database in server/data/leaderboard.db
+curl localhost:9090/healthz      # {"status":"ok"}
+curl localhost:9090/readiness    # OK while the database answers
 ```
 
-`make run` sets a local token and allows the Vite dev server (`http://localhost:5173`) as origin. `PORT=9090 make run` picks another port.
+`make run` sets a local token and allows the Vite dev server (`http://localhost:5173`) as origin. `PORT=9091 make run` picks another port.
 
 ## Configuration
 
@@ -22,7 +22,7 @@ Every setting is an environment variable (or the matching `-flag`):
 | `DB_PATH` | `-db-path` | yes | SQLite database file; created with its schema if missing. The directory must exist. The image defaults it to `/data/leaderboard.db` |
 | `TOKEN` | `-token` | yes | Shared token the game sends with a submitted run (printed only as its length) |
 | `ALLOWED_ORIGIN` | `-allowed-origin` | yes | Origin allowed to call the API, `scheme://host[:port]` with no path, e.g. `https://bborbe.github.io` |
-| `LISTEN` | `-listen` | no | Listen address, default `:8080` |
+| `LISTEN` | `-listen` | no | Listen address, default `:9090` (the bborbe admin port; the API will share it under `/api/1.0/`) |
 | `SENTRY_DSN` | `-sentry-dsn` | no | Sentry DSN; empty disables error reporting |
 
 ## Endpoints
@@ -30,10 +30,14 @@ Every setting is an environment variable (or the matching `-flag`):
 | Path | Answers |
 |---|---|
 | `/healthz` | `200 {"status":"ok"}` while the process runs (liveness) |
-| `/readiness` | `200 OK` while the database answers a ping, else `503` |
+| `/readiness` | `200 OK` while the database answers a ping, else `503` with a JSON error (`UNAVAILABLE`) |
 | `/metrics` | Prometheus metrics |
+| `/setloglevel/{level}` | Raise the glog verbosity for 5 minutes |
+| `/gc` | Run the garbage collector |
 
 ## Storage
+
+Why Go + SQLite: `docs/adr/0001-leaderboard-server-go-sqlite.md`.
 
 SQLite through `modernc.org/sqlite` (pure Go, no cgo), one file, WAL mode. `pkg/storage` applies the numbered migrations in `migrations` on open, each once, recorded in `schema_migrations`; append a new migration, never edit a shipped one.
 
@@ -44,7 +48,7 @@ SQLite through `modernc.org/sqlite` (pure Go, no cgo), one file, WAL mode. `pkg/
 ```bash
 cd server
 make build                                      # image driftline-leaderboard:dev
-docker run --rm -p 8080:8080 -v "$PWD/data:/data" \
+docker run --rm -p 9090:9090 -v "$PWD/data:/data" \
   -e TOKEN=local-dev-token -e ALLOWED_ORIGIN=http://localhost:5173 \
   driftline-leaderboard:dev
 ```

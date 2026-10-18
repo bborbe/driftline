@@ -6,6 +6,7 @@ require (
 	github.com/bborbe/argument/v2 v2.13.6
 	github.com/bborbe/errors v1.6.3
 	github.com/bborbe/http v1.26.30
+	github.com/bborbe/log v1.7.4
 	github.com/bborbe/metrics v0.6.7
 	github.com/bborbe/run v1.11.2
 	github.com/bborbe/sentry v1.10.4
@@ -23,7 +24,6 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/bborbe/collection v1.21.2 // indirect
 	github.com/bborbe/kv v1.21.18 // indirect
-	github.com/bborbe/log v1.7.4 // indirect
 	github.com/bborbe/math v1.4.14 // indirect
 	github.com/bborbe/parse v1.12.3 // indirect
 	github.com/bborbe/validation v1.5.4 // indirect

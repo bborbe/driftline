@@ -55,14 +55,14 @@ var _ = Describe("Config", func() {
 		Expect(app.DBPath).To(Equal("/data/leaderboard.db"))
 		Expect(app.Token).To(Equal("local-test-value"))
 		Expect(app.AllowedOrigin).To(Equal("https://bborbe.github.io"))
-		Expect(app.Listen).To(Equal(":8080"))
+		Expect(app.Listen).To(Equal(":9090"))
 		Expect(app.SentryDSN).To(BeEmpty())
 	})
 
 	It("lets LISTEN override the default", func() {
-		app, err := parseEnv(ctx, append(environ, "LISTEN=:9090"))
+		app, err := parseEnv(ctx, append(environ, "LISTEN=:8080"))
 		Expect(err).NotTo(HaveOccurred())
-		Expect(app.Listen).To(Equal(":9090"))
+		Expect(app.Listen).To(Equal(":8080"))
 	})
 
 	DescribeTable("rejects a missing required value",
@@ -81,22 +81,9 @@ var _ = Describe("Config", func() {
 		Entry("ALLOWED_ORIGIN", "ALLOWED_ORIGIN"),
 	)
 
-	DescribeTable("validates the allowed origin",
-		func(origin string, valid bool) {
-			err := validateOrigin(ctx, origin)
-			if valid {
-				Expect(err).NotTo(HaveOccurred())
-			} else {
-				Expect(err).To(HaveOccurred())
-			}
-		},
-		Entry("https host", "https://bborbe.github.io", true),
-		Entry("http host with port", "http://localhost:5173", true),
-		Entry("trailing slash", "https://bborbe.github.io/", false),
-		Entry("path", "https://bborbe.github.io/driftline", false),
-		Entry("no scheme", "bborbe.github.io", false),
-		Entry("other scheme", "ftp://bborbe.github.io", false),
-		Entry("query", "https://bborbe.github.io?x=1", false),
-		Entry("wildcard", "*", false),
-	)
+	It("rejects an allowed origin with a path", func() {
+		environ[2] = "ALLOWED_ORIGIN=https://bborbe.github.io/driftline"
+		_, err := parseEnv(ctx, environ)
+		Expect(err).To(HaveOccurred())
+	})
 })

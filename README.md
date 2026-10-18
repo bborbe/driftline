@@ -123,7 +123,7 @@ Debug
 
 ## Leaderboard server
 
-The online leaderboard's Go server lives in [`server/`](server/README.md): `cd server && make run` starts it locally on port 8080 with a SQLite file under `server/data/`. It has health endpoints and the database schema so far; the submit / list API comes next.
+The online leaderboard's server (Go, SQLite) lives in [`server/`](server/README.md), which describes how to run it locally. It has health endpoints and the database schema so far; the submit / list API comes next.
 
 ## License
 

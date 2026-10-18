@@ -5,10 +5,12 @@
 package handler_test
 
 import (
-	"errors"
+	"context"
+	stderrors "errors"
 	"net/http"
 	"net/http/httptest"
 
+	libhttp "github.com/bborbe/http"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -16,20 +18,10 @@ import (
 	"github.com/bborbe/driftline/server/pkg/handler"
 )
 
-var _ = Describe("Healthz", func() {
-	It("answers 200 with a JSON status", func() {
-		recorder := httptest.NewRecorder()
-		handler.NewHealthzHandler().
-			ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/healthz", nil))
-		Expect(recorder.Code).To(Equal(http.StatusOK))
-		Expect(recorder.Header().Get("Content-Type")).To(Equal("application/json"))
-		Expect(recorder.Body.String()).To(Equal(`{"status":"ok"}`))
-	})
-})
-
 var _ = Describe("Readiness", func() {
 	var pinger *mocks.Pinger
 	var recorder *httptest.ResponseRecorder
+	var err error
 
 	BeforeEach(func() {
 		pinger = &mocks.Pinger{}
@@ -37,12 +29,16 @@ var _ = Describe("Readiness", func() {
 	})
 
 	JustBeforeEach(func() {
-		handler.NewReadinessHandler(pinger).
-			ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/readiness", nil))
+		err = handler.NewReadinessHandler(pinger).ServeHTTP(
+			context.Background(),
+			recorder,
+			httptest.NewRequest(http.MethodGet, "/readiness", nil),
+		)
 	})
 
 	Context("when the db answers", func() {
-		It("answers 200", func() {
+		It("answers 200 OK", func() {
+			Expect(err).NotTo(HaveOccurred())
 			Expect(recorder.Code).To(Equal(http.StatusOK))
 			Expect(recorder.Body.String()).To(Equal("OK"))
 			Expect(pinger.PingContextCallCount()).To(Equal(1))
@@ -51,11 +47,17 @@ var _ = Describe("Readiness", func() {
 
 	Context("when the db does not answer", func() {
 		BeforeEach(func() {
-			pinger.PingContextReturns(errors.New("banana"))
+			pinger.PingContextReturns(stderrors.New("banana"))
 		})
 
-		It("answers 503", func() {
-			Expect(recorder.Code).To(Equal(http.StatusServiceUnavailable))
+		It("returns a 503 unavailable error", func() {
+			Expect(err).To(HaveOccurred())
+			var withStatus libhttp.ErrorWithStatusCode
+			Expect(stderrors.As(err, &withStatus)).To(BeTrue())
+			Expect(withStatus.StatusCode()).To(Equal(http.StatusServiceUnavailable))
+			var withCode libhttp.ErrorWithCode
+			Expect(stderrors.As(err, &withCode)).To(BeTrue())
+			Expect(withCode.Code()).To(Equal(handler.ErrorCodeUnavailable))
 		})
 	})
 })

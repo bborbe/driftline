@@ -43,6 +43,11 @@ func freePort() int {
 }
 
 var _ = Describe("Main", func() {
+	It("Compiles", func() {
+		_, err := gexec.Build("github.com/bborbe/driftline/server", "-mod=mod", "-buildvcs=false")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
 	var dbPath string
 
 	BeforeEach(func() {

@@ -8,8 +8,12 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/golang/glog"
+	"github.com/bborbe/errors"
+	libhttp "github.com/bborbe/http"
 )
+
+// ErrorCodeUnavailable is the JSON error code of a dependency that does not answer (503).
+const ErrorCodeUnavailable = "UNAVAILABLE"
 
 //counterfeiter:generate -o ../../mocks/pinger.go --fake-name Pinger . Pinger
 
@@ -18,14 +22,20 @@ type Pinger interface {
 	PingContext(ctx context.Context) error
 }
 
-// NewReadinessHandler answers 200 OK while the database answers a ping, else 503.
-func NewReadinessHandler(pinger Pinger) http.Handler {
-	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		if err := pinger.PingContext(req.Context()); err != nil {
-			glog.Warningf("readiness: ping db failed: %v", err)
-			http.Error(resp, "db not ready", http.StatusServiceUnavailable)
-			return
-		}
-		_, _ = resp.Write([]byte("OK"))
-	})
+// NewReadinessHandler answers 200 OK while the database answers a ping, and returns a
+// 503 error otherwise.
+func NewReadinessHandler(pinger Pinger) libhttp.WithError {
+	return libhttp.WithErrorFunc(
+		func(ctx context.Context, resp http.ResponseWriter, req *http.Request) error {
+			if err := pinger.PingContext(ctx); err != nil {
+				return libhttp.WrapWithCode(
+					errors.Wrap(ctx, err, "ping db failed"),
+					ErrorCodeUnavailable,
+					http.StatusServiceUnavailable,
+				)
+			}
+			_, _ = resp.Write([]byte("OK"))
+			return nil
+		},
+	)
 }
