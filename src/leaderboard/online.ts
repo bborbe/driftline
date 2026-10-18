@@ -48,6 +48,9 @@ export function createOnline(cfg: LeaderboardConfig, track: string, opts: Online
   let checkpoints: number[] = []
   let waiting: { run: GhostRun; checkpoints: number[] } | null = null
   const changed = () => api.onChange?.()
+  // Settles once the first board answer is in: a lap kept before it waits, so a track the server turns out not to
+  // rank (404) never gets a submit.
+  let firstBoard: Promise<void> = Promise.resolve()
   const name = () => sanitizeName(loadPlayerName(opts.storage))
 
   const refresh = async () => {
@@ -103,10 +106,13 @@ export function createOnline(cfg: LeaderboardConfig, track: string, opts: Online
       checkpoint: (tick) => checkpoints.push(tick - lapStart),
     }),
     lapKept(run) {
-      if (opts.laps() !== 1 || board === null) return
-      send(run, checkpoints.slice())
+      if (opts.laps() !== 1) return
+      const cps = checkpoints.slice()
+      void firstBoard.then(() => {
+        if (board !== null) send(run, cps)
+      })
     },
   }
-  void refresh()
+  firstBoard = refresh()
   return api
 }

@@ -87,6 +87,39 @@ describe('online leaderboard', () => {
     expect(s.posts).toHaveLength(0)
   })
 
+  it('a lap kept before the first board answer waits for it: no submit when the track turns out unranked', async () => {
+    let answer: (r: Response) => void = () => {}
+    const posts: unknown[] = []
+    const fetchFn: Fetch = (_url, init) => {
+      if (init?.method === 'POST') return (posts.push(init.body), Promise.resolve(new Response('{}', { status: 201 })))
+      return new Promise((resolve) => (answer = resolve))
+    }
+    const online = createOnline(CFG, 'test-kit', { storage: memory('Ben'), laps: () => 1, fetch: fetchFn })
+    drive(online, 0, [120], 300)
+    await flush()
+    expect(posts).toHaveLength(0)
+    answer(new Response('{}', { status: 404 }))
+    await flush()
+    expect(online.board()).toBeNull()
+    expect(posts).toHaveLength(0)
+  })
+
+  it('a lap kept before the first board answer is submitted once the track proves ranked', async () => {
+    let answer: (r: Response) => void = () => {}
+    const posts: unknown[] = []
+    const fetchFn: Fetch = (_url, init) => {
+      if (init?.method === 'POST') return (posts.push(init.body), Promise.resolve(new Response('{}', { status: 201 })))
+      return new Promise((resolve) => (answer = resolve))
+    }
+    const online = createOnline(CFG, 'test1', { storage: memory('Ben'), laps: () => 1, fetch: fetchFn })
+    drive(online, 0, [120], 300)
+    await flush()
+    expect(posts).toHaveLength(0)
+    answer(new Response(JSON.stringify(ROWS), { status: 200 }))
+    await flush()
+    expect(posts).toHaveLength(1)
+  })
+
   it('a multi-lap run has no board and submits nothing', async () => {
     const s = server()
     const online = createOnline(CFG, 'test1', { storage: memory('Ben'), laps: () => 3, fetch: s.fetchFn })
