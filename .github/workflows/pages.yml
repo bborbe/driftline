@@ -81,6 +81,12 @@ jobs:
         env:
           VITE_COMMIT_SHA: ${{ matrix.target.ref }}
           VITE_BASE: ${{ matrix.target.base }}
+          # Online leaderboard (server/k8s/). Both empty until the repo variable and
+          # secret are set, and an empty URL keeps the game offline-only. The token
+          # ships in the built JavaScript by design (server/README.md § API), so
+          # handing it to a same-repo PR build exposes nothing the live site doesn't.
+          VITE_LEADERBOARD_URL: ${{ vars.VITE_LEADERBOARD_URL }}
+          VITE_LEADERBOARD_TOKEN: ${{ secrets.VITE_LEADERBOARD_TOKEN }}
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:

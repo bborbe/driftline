@@ -185,7 +185,7 @@ describe('clearing effects', () => {
     expect(loop.effects.active()).toEqual([])
   })
 
-  it('respawn (R) clears them', () => {
+  it('respawn (Backspace / R) clears them', () => {
     const { loop, sim } = armed()
     sim.state = loop.respawn(sim.state.tick)
     expect(loop.effects.active()).toEqual([])
@@ -193,7 +193,7 @@ describe('clearing effects', () => {
     expect(sim.fed[0].input).toEqual({ ...THROTTLE, steer: 1 })
   })
 
-  it('restart (Backspace) clears them', () => {
+  it('restart (Delete) clears them', () => {
     const { loop, sim } = armed()
     sim.state = loop.restart(sim.state.tick)
     expect(loop.effects.active()).toEqual([])

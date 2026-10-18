@@ -61,7 +61,7 @@ export interface RaceEvents {
   /** The run is over after the last lap: total time, whether it beats the stored best, each lap's time. */
   raceFinish?(tick: number, totalMs: number, isNewBest: boolean, lapTimes: number[]): void
   respawn?(tick: number): void
-  /** Restart (Backspace, Esc → Restart, finish → Improve): the car is back on the start line, the countdown begins. */
+  /** Restart (Delete, Esc → Restart, finish → Improve): the car is back on the start line, the countdown begins. */
   restart?(tick: number): void
 }
 

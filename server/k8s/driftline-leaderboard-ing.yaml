@@ -1,0 +1,28 @@
+# Plain :80 ingress — hetzner-1 nginx terminates HTTPS for the public host and
+# forwards HTTP over the VPN to this cluster's traefik web entrypoint, routed by
+# Host header (same as redirect./teamvault.benjamin-borbe.de). No TLS block.
+#
+# Only /api/ is routed. The server answers the admin endpoints (/metrics,
+# /setloglevel, /gc, /healthz, /readiness) on the same :9090, so they stay
+# cluster-internal by not being routed here; hetzner-1 proxies only /api/ as well.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: driftline-leaderboard
+  namespace: '{{ "NAMESPACE" | env }}'
+  annotations:
+    # Without an explicit entrypoint traefik creates no router for this ingress on nuke.
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: 'traefik'
+  rules:
+    - host: '{{ "HOST" | env }}'
+      http:
+        paths:
+          - backend:
+              service:
+                name: driftline-leaderboard
+                port:
+                  name: http
+            path: /api/
+            pathType: Prefix

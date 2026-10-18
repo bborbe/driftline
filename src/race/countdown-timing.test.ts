@@ -1,5 +1,5 @@
 // Countdown timing as the player sees it, through the real path (index.ts frame(): Begin → loop.start,
-// Backspace / Esc → Restart / finish → Improve → loop.restart, then advanceRace on the fixed stepper):
+// Delete / Esc → Restart / finish → Improve → loop.restart, then advanceRace on the fixed stepper):
 // every countdown shows 3, 2, 1, GO one second apart, at any display rate. Track change reloads the page,
 // so it is the Begin path on a fresh loop.
 import { describe, expect, it } from 'vitest'
@@ -56,7 +56,7 @@ describe.each([60, 144])('countdown at %i Hz display', (hz) => {
     expectOneSecondSteps(harness(dt).begin(), dt)
   })
 
-  it('restart while racing (Backspace, Esc → Restart): 3, 2, 1, GO one second apart', () => {
+  it('restart while racing (Delete, Esc → Restart): 3, 2, 1, GO one second apart', () => {
     const h = harness(dt)
     h.begin()
     for (let i = 0; i < 2 * hz; i++) h.frame() // drive for 2 s

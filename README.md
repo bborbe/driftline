@@ -32,8 +32,8 @@ Driving
 Race
 
 - `Enter` / `Space` - Start
-- `R` - Respawn at last checkpoint
-- `Backspace` - Restart the run
+- `Backspace` / `R` - Respawn at last checkpoint
+- `Delete` - Restart the run (Mac: `fn` + `delete`)
 - `Esc` - Pause menu
 - `L` - Leaderboard
 - `F` - Fullscreen
@@ -114,7 +114,7 @@ Debug
 
 - Drive through every checkpoint gate, then over the finish line
 - Each checkpoint flashes a split delta against your best run
-- `R` respawns you at the last checkpoint; `Backspace` restarts the run
+- `Backspace` (or `R`) respawns you at the last checkpoint; `Delete` restarts the run (Trackmania's keys; rebind in Settings → Controls)
 - Beat the bronze, silver, gold and author times to earn medals (single-lap races)
 - Your best lap comes back as a ghost that drives alongside you on every lap
 - Yellow and red turbo pads give a boost

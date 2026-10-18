@@ -107,7 +107,7 @@ export async function createRaceGhosts(
     listener: () => ({
       // Each new lap (every lap of a multi-lap run too) replays the best single lap so far from its own start line.
       lapStart: (tick) => resetLap(tick),
-      // Backspace: put the ghosts back on the start grid with the car now, not after the countdown.
+      // Restart (Delete): put the ghosts back on the start grid with the car now, not after the countdown.
       // A fresh replayer has previous = state = run start, so it snaps there with no blend.
       restart: () => resetLap(Number.POSITIVE_INFINITY), // advanceTo(-Infinity) holds the start pose until lapStart
       checkpoint: (tick, index) => {
