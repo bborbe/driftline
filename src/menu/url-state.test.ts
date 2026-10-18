@@ -16,6 +16,7 @@ const custom: Settings = {
   hudScale: 1.15,
   reflections: true,
   aa: true,
+  ghosts: ['pb', 'author'],
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
 
@@ -37,6 +38,10 @@ describe('url state', () => {
     expect(one('num', '13').livery.number).toBe(13)
     expect(one('hud', '0.75').hudScale).toBe(0.75)
     expect(one('hud', '2').hudScale).toBe(1)
+    expect(one('ghosts', 'author,pb').ghosts).toEqual(['pb', 'author'])
+    expect(one('ghosts', 'none').ghosts).toEqual([])
+    expect(one('ghosts', 'bogus').ghosts).toEqual(DEFAULT_SETTINGS.ghosts)
+    expect(new URLSearchParams(stateQuery('', race({ ...custom, ghosts: [] }))).get('ghosts')).toBe('none')
     expect(one('refl', '0').reflections).toBe(false)
     expect(one('refl', '1').reflections).toBe(true)
     expect(settingsFromUrl('?refl=0', custom).reflections).toBe(false)

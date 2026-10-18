@@ -12,7 +12,8 @@ import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
 import { beginAllowed, GameAudio, KerbProbe, mountAudioControls, mountUiSounds } from './audio'
 import { initRace } from './race'
 import { COUNTDOWN_TICKS, lapCount } from './race/lap'
-import { createGhostCar, GhostRecorder, GhostReplayer } from './ghost'
+import { GhostRecorder } from './ghost'
+import { createRaceGhosts, startPaceLap } from './ghost/race-ghosts'
 import { debugPose, debugRoll, frozen, poseQuery, yawDeg, yawRoll } from './race/debug-pose'
 import { centreline } from './track/centreline'
 import { loopTubes } from './track/pose'
@@ -86,6 +87,8 @@ const menuTrack = fromMenu ? (sel && LAP_NAMES.includes(sel) ? sel : LAP_NAMES[0
 const trackName = menuTrack ?? lapName(location.search)
 const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
+// The medal pace lap records in a worker from now on, through the menu and the countdown (src/ghost/race-ghosts.ts).
+const paceLap = startPaceLap(track)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 let env = resolveEnvironment(location.search, track, settings, Date.now())
 const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, settings.reflections, settings.aa)
@@ -132,10 +135,7 @@ const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
 const inLoop = loopTubes(track)
 const ghostRecorder = new GhostRecorder()
 ghostRecorder.locked = () => taint.locked
-const ghostCar = await createGhostCar(undefined, ghostLivery(settings.livery))
-view.scene.add(ghostCar.object)
-let ghost: GhostReplayer | null = null
-let lapStartTick = 0
+const ghosts = await createRaceGhosts(view.scene, track, sim, ghostRecorder, ghostLivery(settings.livery), paceLap)
 const race = initRace(sim, track, {
   listeners: [
     {
@@ -159,25 +159,7 @@ const race = initRace(sim, track, {
       restart: () => taint.runStart(isTuned()),
     },
     ghostRecorder.listener(() => sim.state),
-    {
-      // Each new lap (every lap of a multi-lap run too) replays the best single lap so far from its own start line.
-      lapStart: (tick) => {
-        lapStartTick = tick
-        ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
-        ghostCar.object.visible = ghost !== null
-      },
-      // Backspace: put the ghost back on the start grid with the car now, not after the countdown.
-      // A fresh replayer has previous = state = run start, so it snaps there with no blend.
-      restart: () => {
-        lapStartTick = Number.POSITIVE_INFINITY // advanceTo(-Infinity) holds the start pose until lapStart
-        ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
-        ghostCar.object.visible = ghost !== null
-      },
-      // Dev-only split log: the lap-2 ghost check compares these against the best lap.
-      checkpoint: (tick, index) => {
-        if (import.meta.env.DEV) console.info(`split: checkpoint ${index} at tick ${tick - lapStartTick}`)
-      },
-    },
+    ghosts.listener(),
   ],
   onPause: (paused) => void audio.setPaused(paused),
   menu: {
@@ -212,7 +194,7 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
   if (change.livery) {
     const livery = clampLivery(change.livery)
     view.setLivery(livery)
-    ghostCar.setLivery(ghostLivery(livery))
+    ghosts.setPbLivery(ghostLivery(livery))
   }
   if (change.fx) view.setFx(change.fx)
   if (change.reflections !== undefined) view.setReflections(change.reflections)
@@ -238,8 +220,8 @@ if (freeze) document.getElementById('begin')?.remove()
 const ghostShow = new URLSearchParams(location.search).get('ghost') === 'show'
 if (ghostShow) {
   const side = rotate(sim.state.orientation, v3(4, 0, 0))
-  ghostCar.update({ ...sim.state, position: v3(sim.state.position.x + side.x, sim.state.position.y + side.y, sim.state.position.z + side.z) }, 0)
-  ghostCar.object.visible = true
+  ghosts.pbCar.update({ ...sim.state, position: v3(sim.state.position.x + side.x, sim.state.position.y + side.y, sim.state.position.z + side.z) }, 0)
+  ghosts.pbCar.object.visible = true
 }
 // Camera views (1/2/3), free-fly (C, ?cam=fly) and orbit (O): while flying the race, ghost and audio hold still,
 // and leaving fly mode carries the race on from the same tick.
@@ -285,10 +267,7 @@ view.renderer.setAnimationLoop(() => {
   taint.observe(isTuned())
   if (!freeze && !fly) race.frame(elapsed, carInput)
   if (!fly) ghostRecorder.consume(sim.fed)
-  if (ghost && !fly) {
-    ghost.advanceTo(sim.state.tick - lapStartTick)
-    ghostCar.update(ghost.render(sim.alpha), race.paused ? 0 : elapsed)
-  }
+  if (!ghostShow) ghosts.frame(elapsed, { paused: race.paused, hold: fly !== null, selected: shown.ghosts, laps: race.laps })
   const s = sim.render()
   const material = materialUnder(s, sim.surface)
   if (!fly) audio.update(s, carInput, material, kerbs.onKerb(s.position))
@@ -305,6 +284,7 @@ view.renderer.setAnimationLoop(() => {
   )
   view.start?.update(race.board())
   view.frame(s, elapsed, material, carInput.brake > 0)
+  if (!ghostShow) ghosts.drawTags(camera)
   if (firstFrame) {
     firstFrame = false
     void fade.to(0)

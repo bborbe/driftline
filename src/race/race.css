@@ -205,3 +205,19 @@
 .race-results-actions { flex-direction: row; justify-content: center; margin: var(--s2) 0 0; min-width: 0; }
 .race-results-actions .menu-item { font-size: calc(15px * var(--hud-scale)); text-align: center; }
 .race-results-actions .menu-item:first-child { background: #fff; color: #111; text-shadow: none; }
+/* Ghost name tags (src/ghost/tags.ts): a small plate above each ghost car, placed by transform each frame. The name
+   in the ghost's colour, then its time or "2nd 0:09.562 +0.007" (gap blue when the car is ahead, red when behind). */
+.ghost-tag {
+  position: fixed; left: 0; top: 0; visibility: hidden; pointer-events: none; user-select: none; white-space: nowrap;
+  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: var(--s1) var(--s2);
+  background: var(--hud-plate); border: var(--hud-edge); border-radius: var(--s1); color: #fff;
+  font-family: var(--hud-font); font-weight: var(--hud-w-regular); font-variant-numeric: tabular-nums;
+  font-size: max(12px, calc(clamp(12px, 1.5vmin, 18px) * var(--hud-scale))); text-shadow: var(--hud-shadow);
+}
+.ghost-tag-name { font-weight: var(--hud-w-bold); font-size: 0.85em; letter-spacing: 0.04em; text-transform: uppercase; }
+.ghost-tag-pb .ghost-tag-name { color: #b9d4ff; }
+.ghost-tag-gold .ghost-tag-name { color: #ffc300; }
+.ghost-tag-author .ghost-tag-name { color: #3fe08a; }
+.ghost-tag-detail { padding: 0 var(--s1); border-radius: 3px; }
+.ghost-tag-detail.race-ahead { background: rgba(30, 110, 255, 0.7); }
+.ghost-tag-detail.race-behind { background: rgba(225, 40, 40, 0.7); }

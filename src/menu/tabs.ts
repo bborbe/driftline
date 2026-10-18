@@ -2,7 +2,7 @@
 import type { KeyValueStore } from './settings'
 
 /** Every control the settings panel builds, one id each. */
-export const CONTROL_IDS = ['volume', 'sfxVolume', 'uiVolume', 'speedlines', 'smoke', 'camera', 'reflections', 'aa', 'laps', 'time', 'weather', 'livery', 'paint', 'number', 'hudScale', 'build'] as const
+export const CONTROL_IDS = ['volume', 'sfxVolume', 'uiVolume', 'speedlines', 'smoke', 'camera', 'reflections', 'aa', 'laps', 'time', 'weather', 'livery', 'paint', 'number', 'hudScale', 'ghosts', 'build'] as const
 export type ControlId = (typeof CONTROL_IDS)[number]
 
 export const TABS = ['car', 'race', 'graphics', 'audio', 'about'] as const
@@ -13,7 +13,7 @@ export const TAB_LABELS: Record<Tab, string> = { car: 'Car', race: 'Race', graph
 /** The controls of each tab, in panel order; every control lives in exactly one tab (tabs.test.ts). */
 export const TAB_CONTROLS: Record<Tab, readonly ControlId[]> = {
   car: ['livery', 'paint', 'number'],
-  race: ['time', 'weather', 'laps'],
+  race: ['time', 'weather', 'laps', 'ghosts'],
   graphics: ['speedlines', 'smoke', 'camera', 'reflections', 'aa', 'hudScale'],
   audio: ['volume', 'sfxVolume', 'uiVolume'],
   about: ['build'],

@@ -7,6 +7,7 @@ import { LIVE_FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
 import { HUD_SCALES, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
 import { buildLabel } from '../build-info'
+import { GHOST_KINDS, GHOST_NAME } from '../ghost/tag'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES, type Environment, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type ControlId, type Tab } from './tabs'
@@ -115,6 +116,18 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     commit()
   })
   add('laps', label('Laps (from the next restart)'), laps)
+  // Ghosts: one checkbox each; gold and author race only in a single-lap race on a track with medals.
+  const ghosts = Object.assign(document.createElement('span'), { id: 'setting-ghosts', className: 'menu-ghosts' })
+  for (const k of GHOST_KINDS) {
+    const cb = Object.assign(document.createElement('input'), { type: 'checkbox', checked: s.ghosts.includes(k), id: `setting-ghost-${k}` })
+    cb.addEventListener('change', () => {
+      s.ghosts = GHOST_KINDS.filter((x) => (x === k ? cb.checked : s.ghosts.includes(x)))
+      commit()
+    })
+    const name = Object.assign(document.createElement('label'), { htmlFor: cb.id, textContent: GHOST_NAME[k] })
+    ghosts.append(cb, name)
+  }
+  add('ghosts', label('Ghosts'), ghosts)
   const time = document.createElement('select')
   time.id = 'setting-time'
   for (const c of TIME_CHOICES) time.append(new Option(choiceLabel(c, hooks.trackDefault?.time), c, false, c === s.time))

@@ -3,6 +3,7 @@ import { FX, type Fx } from '../render/fx/flags'
 import { clampLaps } from '../race/lap'
 import { choiceOf, DEFAULT_CHOICE, TIME_CHOICES, WEATHER_CHOICES, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { clampLivery, DEFAULT_LIVERY, type Livery } from '../render/car/livery'
+import { clampGhosts, DEFAULT_GHOSTS, type GhostKind } from '../ghost/tag'
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -26,6 +27,8 @@ export interface Settings {
   aa: boolean
   /** Race-HUD size multiplier (Settings → Graphics), one of HUD_SCALES. */
   hudScale: number
+  /** Ghosts that race alongside (Settings → Race): personal best, gold and author pace; `?ghosts=` overrides it. */
+  ghosts: GhostKind[]
 }
 
 /** HUD-scale choices, smallest first. */
@@ -34,7 +37,7 @@ export const HUD_SCALES = [0.75, 0.9, 1, 1.15, 1.3] as const
 export const clampHudScale = (v: unknown): number => ((HUD_SCALES as readonly unknown[]).includes(v) ? (v as number) : 1)
 
 const KEY = 'driftline-settings'
-export const DEFAULT_SETTINGS: Settings = { volume: 0.7, sfxVolume: 1, uiVolume: 1, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY, reflections: false, aa: false, hudScale: 1 }
+export const DEFAULT_SETTINGS: Settings = { volume: 0.7, sfxVolume: 1, uiVolume: 1, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY, reflections: false, aa: false, hudScale: 1, ghosts: [...DEFAULT_GHOSTS] }
 /** Window event the settings panel fires after every change; detail is the saved Settings, which the running race applies at once. */
 export const SETTINGS_EVENT = 'driftline:settings'
 
@@ -53,7 +56,7 @@ export function loadSettings(storage: KeyValueStore): Settings {
     const weather = (WEATHER_CHOICES as readonly unknown[]).includes(raw.weather) ? (raw.weather as WeatherChoice) : legacy.weather
     const reflections = typeof raw.reflections === 'boolean' ? raw.reflections : DEFAULT_SETTINGS.reflections
     const aa = typeof raw.aa === 'boolean' ? raw.aa : DEFAULT_SETTINGS.aa
-    return { volume, sfxVolume, uiVolume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery), reflections, aa, hudScale: clampHudScale(raw.hudScale) }
+    return { volume, sfxVolume, uiVolume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery), reflections, aa, hudScale: clampHudScale(raw.hudScale), ghosts: clampGhosts(raw.ghosts) ?? [...DEFAULT_GHOSTS] }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }

@@ -8,6 +8,7 @@ import { TIME_CHOICES, WEATHER_CHOICES } from '../track/environment'
 import { VIEWS, type ViewMode } from '../camera/views'
 import { flyQuery, type FlyCam } from '../camera/fly'
 import { clampHudScale, type Settings } from './settings'
+import { ghostsFromQuery, ghostsQuery } from '../ghost/tag'
 
 /** Where the player is: in a race on `track`, or on the start menu with card `sel` focused (null: none). */
 export type Screen = { track: string } | { sel: string | null }
@@ -56,6 +57,7 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
     hudScale: q.has('hud') ? clampHudScale(Number(q.get('hud'))) : stored.hudScale,
     reflections: refl === '1' ? true : refl === '0' ? false : stored.reflections,
     aa: aa === '1' ? true : aa === '0' ? false : stored.aa,
+    ghosts: ghostsFromQuery(q.get('ghosts')) ?? [...stored.ghosts],
   }
 }
 
@@ -89,6 +91,7 @@ export function stateQuery(search: string, state: UrlState): string {
   q.set('hud', String(s.hudScale))
   q.set('refl', s.reflections ? '1' : '0')
   q.set('aa', s.aa ? '1' : '0')
+  q.set('ghosts', ghostsQuery(s.ghosts))
   if (state.fly && 'track' in state.screen) {
     const pose = new URLSearchParams(flyQuery(state.screen.track, state.fly))
     for (const k of FLY_KEYS) q.set(k, pose.get(k)!)
