@@ -1,9 +1,10 @@
 name: CI
 
+# Also tests every master merge commit, off the deploy path: pages.yml does not test, so a merge
+# reaches the live site in about a minute instead of waiting behind a 5-minute test run.
 on:
   pull_request:
   push:
-    branches-ignore: [master]
   workflow_dispatch:
 
 permissions:
