@@ -47,6 +47,7 @@ export function chooseTrack(names: string[], opts: ChooseOptions = {}): Promise<
     }
     let settingsOpen = false
     const settings = document.createElement('div')
+    settings.id = 'start-settings'
     settings.hidden = true
     settings.append(settingsPanel())
     const toggleSettings = () => {
