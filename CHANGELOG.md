@@ -8,6 +8,13 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- fix: a long start-menu tile name (`showcase`) no longer runs into its medal dot — the label ellipsizes with a 6 px gap before the dot
+- chore: drop the 48 unused Kenney car-kit glbs (5.5 MB → 352 KB); only `race` and `race-future` are loaded, the car-kit licence stays
+- docs: VISION.md matches what shipped — campaign and style tracks, medals and medal ghosts, challenge links, gamepad; online leaderboard and live multiplayer listed as on hold
+- chore: every GitHub Actions job has a `timeout-minutes`, about 3× its slowest recent run
+
 ## v0.7.0
 
 - feat: every screen is playable with a gamepad alone — the post-race name entry saves with A and skips with B (and Esc), the Settings panel (start menu and Esc menu) takes the pad with a yellow focus ring (↑/↓ move, ←/→ change a select, slider or number, A presses, LB / RB switch tabs; key-rebind buttons stay keyboard-only), X opens the leaderboard, B dismisses a broken challenge link's error; `scripts/gamepad-check.js` walks start menu → settings → race → results → name save and skip → leaderboard → Esc menu settings → back to the menu, pad only

@@ -18,6 +18,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,6 +37,7 @@ jobs:
   # The leaderboard server (server/, its own Go module): runs its Go tests.
   server:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: server
