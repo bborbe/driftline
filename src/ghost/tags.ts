@@ -13,7 +13,7 @@ const LIFT = 1.6
 const MAX_STEP = 0.3
 
 /** Standing race HUD panels a tag must not cover (src/race/view.ts). */
-const HUD_PANELS = '.race-status, .race-time, .race-speedo'
+const HUD_PANELS = '.race-status, .race-records, .race-time, .race-speedo'
 
 /** Frames between re-reading the panels' rects and the tags' sizes (they change at a checkpoint, a resize or a HUD-scale change). */
 const PANEL_EVERY = 15
