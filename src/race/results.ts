@@ -1,5 +1,5 @@
 // Results screen data: what the card after the finish shows (medal, time, best, delta, one split row per checkpoint
-// and lap line vs the previous best). Built from the race state at the finish; pure and tested. The card itself is
+// and lap line vs the previous best, with the sector before it — "where did I lose time" — and the worst sector marked). Built from the race state at the finish; pure and tested. The card itself is
 // drawn by RaceView.showResults (view.ts), after the finish orbit has played for RESULTS_HOLD_MS.
 import type { Medal } from './medals'
 
@@ -18,8 +18,18 @@ export interface SplitRow {
   label: string
   /** Run time at this split (ms). */
   ms: number
+  /** The previous best's split here; null without one. */
+  pbMs: number | null
   /** Against the previous best's split; null without one. */
   deltaMs: number | null
+  /** Time since the split before (the first sector runs from the start). */
+  sectorMs: number
+  /** The previous best's sector here; null without one. */
+  pbSectorMs: number | null
+  /** This sector against the previous best's: positive = time lost here; null without one. */
+  sectorDeltaMs: number | null
+  /** The sector that lost the most time vs the previous best (at most one row; none when every sector gained). */
+  worst: boolean
 }
 
 export interface Results {
@@ -60,11 +70,37 @@ export function splitLabel(i: number, checkpoints: number, laps: number): string
   return laps > 1 ? `L${lap} CP${within + 1}` : `CP ${within + 1}`
 }
 
+/** Sector times from split times: each split minus the one before, the first from the start (0). */
+export const sectorTimes = (splits: readonly number[]): number[] => splits.map((ms, i) => ms - (i === 0 ? 0 : splits[i - 1]))
+
+/** Index of the sector that lost the most time (largest positive delta), or -1 when none lost time. */
+export function worstSector(deltas: readonly (number | null)[]): number {
+  let worst = -1
+  deltas.forEach((d, i) => {
+    if (d !== null && d > 0 && (worst < 0 || d > (deltas[worst] as number))) worst = i
+  })
+  return worst
+}
+
 export function buildResults(r: ResultsInput): Results {
-  const splits: SplitRow[] = []
-  r.splits.forEach((ms, i) => {
-    const best = r.previousSplits?.[i]
-    splits.push({ label: splitLabel(i, r.checkpoints, r.laps), ms, deltaMs: best === undefined ? null : ms - best })
+  const sectors = sectorTimes(r.splits)
+  // The previous best's sectors, only over the splits it has (a best stored with fewer splits compares partly).
+  const pb = r.previousSplits ? r.previousSplits.slice(0, r.splits.length) : null
+  const pbSectors = pb ? sectorTimes(pb) : null
+  const sectorDeltas = sectors.map((ms, i) => (pbSectors?.[i] === undefined ? null : ms - pbSectors[i]))
+  const worst = worstSector(sectorDeltas)
+  const splits: SplitRow[] = r.splits.map((ms, i) => {
+    const pbMs = pb?.[i] ?? null
+    return {
+      label: splitLabel(i, r.checkpoints, r.laps),
+      ms,
+      pbMs,
+      deltaMs: pbMs === null ? null : ms - pbMs,
+      sectorMs: sectors[i],
+      pbSectorMs: pbSectors?.[i] ?? null,
+      sectorDeltaMs: sectorDeltas[i],
+      worst: i === worst,
+    }
   })
   return {
     ms: r.ms,
