@@ -1,12 +1,12 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
-// Keys: R = respawn at last checkpoint, Backspace = restart (full 3-2-1-GO countdown), L = toggle leaderboard, T = records panel, F = fullscreen, H = controls help, Esc = pause menu (not when it only leaves fullscreen)
+// Keys (defaults, rebindable in Settings → Controls): Backspace / R = respawn at last checkpoint, Delete = restart (full 3-2-1-GO countdown), L = toggle leaderboard, T = records panel, F = fullscreen, H = controls help, Esc = pause menu (not when it only leaves fullscreen)
 // (Resume / Restart / Settings / Back to menu, arrows + Enter or mouse; Esc again resumes).
 // Checkpoints and lap lines flash the split delta vs the personal best; RESULTS_HOLD_MS after the finish the results
 // card (results.ts, view.ts) shows medal (single-lap runs only), time, best, delta, one split row per checkpoint and lap
 // line, and in a multi-lap run (`laps`) each lap time with the best one marked.
-// Hiding the tab pauses too; R / Backspace from the pause overlay act and resume.
+// Hiding the tab pauses too; the respawn / restart keys from the pause overlay act and resume.
 import { dot, forwardOf, type CarInput, type FixedStepper } from '../physics'
 import { layoutId, type Track } from '../track/schema'
 import { chaseTarget, effectChips, kmh } from './hud'
@@ -47,7 +47,7 @@ export interface Race {
   loop: LapLoop
   /** Laps in the current run. */
   readonly laps: number
-  /** Settings → Laps: the lap count for the next restart (Backspace / Esc → Restart); the current run is unchanged. */
+  /** Settings → Laps: the lap count for the next restart (Delete / Esc → Restart); the current run is unchanged. */
   setLaps(laps: number): void
   readonly paused: boolean
   /** True from the finish until the next restart: the results card is up or about to come in. */
@@ -155,10 +155,12 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
       e.preventDefault()
       return
     }
-    if (isBound(bindings, 'respawn', e.code)) pending = 'respawn'
-    if (isBound(bindings, 'restart', e.code)) pending = 'restart'
-    if (e.code === 'KeyL') view.toggleLeaderboard()
     const tag = (e.target as HTMLElement | null)?.tagName
+    // Backspace / Delete edit text: typing in a settings field (race number …) must not respawn or restart the run.
+    const editing = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
+    if (!editing && isBound(bindings, 'respawn', e.code)) pending = 'respawn'
+    if (!editing && isBound(bindings, 'restart', e.code)) pending = 'restart'
+    if (e.code === 'KeyL') view.toggleLeaderboard()
     if (isControlsKey(e.code) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'SELECT') view.toggleControls()
     if (isRecordsKey(e.code) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'SELECT') view.toggleRecords()
   })

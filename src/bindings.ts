@@ -1,6 +1,7 @@
 // Key bindings: which KeyboardEvent.code drives each rebindable action (Settings → Controls), persisted in
 // localStorage, never in the URL (a player's own keys are not part of a shared setup). Every action has a
-// primary and an optional secondary key; DEFAULT_BINDINGS are the keys the game shipped with. Pure and tested.
+// primary and an optional secondary key; DEFAULT_BINDINGS follow Trackmania's layout (Backspace respawns, Delete
+// restarts; R stays a secondary respawn key). Saved bindings are never rewritten when the defaults change. Pure and tested.
 
 /** Storage this module reads and writes (localStorage in the game, a Map-backed stub in tests). */
 type Store = Pick<Storage, 'getItem' | 'setItem'>
@@ -28,8 +29,8 @@ export const DEFAULT_BINDINGS: Bindings = {
   left: ['KeyA', 'ArrowLeft'],
   right: ['KeyD', 'ArrowRight'],
   handbrake: ['Space', null],
-  respawn: ['KeyR', null],
-  restart: ['Backspace', null],
+  respawn: ['Backspace', 'KeyR'],
+  restart: ['Delete', null],
 }
 
 /**
@@ -144,6 +145,7 @@ const NAMED: Record<string, string> = {
   ArrowRight: '→',
   Space: 'Space',
   Backspace: 'Backspace',
+  Delete: 'Delete',
   ShiftLeft: 'L-Shift',
   ShiftRight: 'R-Shift',
   ControlLeft: 'L-Ctrl',

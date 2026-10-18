@@ -37,7 +37,8 @@ export const controlsFor = (b: Bindings): ControlGroup[] => [
     bindings: [
       { keys: 'Enter / Space', action: 'Start' },
       { keys: keysLabel(b, 'respawn'), action: 'Respawn at last checkpoint' },
-      { keys: keysLabel(b, 'restart'), action: 'Restart the run' },
+      // A Mac's "delete" key sends Backspace; forward Delete is fn + delete.
+      { keys: keysLabel(b, 'restart'), action: b.restart.includes('Delete') ? 'Restart the run (Mac: fn + delete)' : 'Restart the run' },
       { keys: 'Esc', action: 'Pause menu' },
       { keys: 'L', action: 'Leaderboard' },
       { keys: 'T', action: 'Records panel (medals, PB, top 5)' },
