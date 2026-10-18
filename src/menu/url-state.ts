@@ -1,4 +1,4 @@
-// URL state: the query mirrors the screen, every Settings choice, the camera view and the fly pose, so a reload
+// URL state: the query mirrors the screen, every Settings choice (`rec` = Records panel), the camera view and the fly pose, so a reload
 // (or a shared link) restores the same setup. URL beats localStorage beats the defaults; a race reload starts on
 // the grid (no car pose is written). Pure and tested, except startUrlSync, which owns history.replaceState.
 import { FX } from '../render/fx/flags'
@@ -9,6 +9,7 @@ import { VIEWS, type ViewMode } from '../camera/views'
 import { flyQuery, type FlyCam } from '../camera/fly'
 import { clampFrameCap } from '../render/frame-cap'
 import { clampHudScale, type Settings } from './settings'
+import { RECORDS_CHOICES } from '../race/records'
 
 /** Where the player is: in a race on `track`, or on the start menu with card `sel` focused (null: none). */
 export type Screen = { track: string } | { sel: string | null }
@@ -55,6 +56,7 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
       number: Number.isFinite(num) && num >= 1 ? Math.min(MAX_NUMBER, num) : stored.livery.number,
     },
     hudScale: q.has('hud') ? clampHudScale(Number(q.get('hud'))) : stored.hudScale,
+    records: oneOf(q.get('rec'), RECORDS_CHOICES, stored.records),
     reflections: refl === '1' ? true : refl === '0' ? false : stored.reflections,
     aa: aa === '1' ? true : aa === '0' ? false : stored.aa,
     frameCap: q.has('fps') ? clampFrameCap(Number(q.get('fps'))) : stored.frameCap,
@@ -89,6 +91,7 @@ export function stateQuery(search: string, state: UrlState): string {
   q.set('paint', s.livery.paint)
   q.set('num', String(s.livery.number))
   q.set('hud', String(s.hudScale))
+  q.set('rec', s.records)
   q.set('refl', s.reflections ? '1' : '0')
   q.set('aa', s.aa ? '1' : '0')
   q.set('fps', String(s.frameCap))

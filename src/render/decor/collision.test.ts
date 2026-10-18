@@ -1,6 +1,6 @@
 // Scenery collision: every placed scenery object on every shipped track, as an upright box, checked
 // against the drivable road's clearance volume and against every other object. Boxes come from the
-// same planners the scene draws from (planScenery, planStadium, planSigns, planDressing,
+// same planners the scene draws from (planScenery, planTrackside, planStadium, planSigns, planDressing,
 // planDeckPillars, gatePillars / gateLegs); model sizes are read from the glbs themselves.
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
@@ -8,11 +8,15 @@ import { DECK_PILLAR_SIZE, planDeckPillars } from '../../track/bodies'
 import { LAP_NAMES, loadLap } from '../../track/registry'
 import { poses, sampleSegment, segmentLength, widthAt, type Track } from '../../track/schema'
 import { gateLegs, gatePillars } from '../../track/shapes'
-import { planScenery } from '../scenery'
+import * as THREE from 'three/webgpu'
+import { planScenery, sceneryModels } from '../scenery'
 import { resolveTheme } from '../theme'
 import { CLOTH, POLE, START_SCREEN, TOTEM, planDressing } from './dressing'
 import { BOARD, planSigns } from './signs'
 import { SCREEN, planStadium } from './stadium'
+import { BANNER, BRAKE_BOARD, CORNER_BOARD, FENCE, MARSHAL } from './trackside'
+import { planTrackside, sceneryKeepClear } from './trackside-plan'
+import { createGenModel, isGen } from './variants'
 
 /** Road clearance: the road's width plus this much each side, from just under its surface to this high above it. */
 const MARGIN = 0.1
@@ -82,12 +86,48 @@ const modelBox = (what: string, path: string, x: number, y: number, z: number, h
 
 const f = (v: number) => v.toFixed(1)
 
-/** Every scenery object the scene places on `track`. */
+/** A generated model (variants.ts) placed like modelBox, its bounds read from the built model. */
+const genBounds = new Map<string, THREE.Box3>()
+const genBox = (what: string, model: string, x: number, y: number, z: number, heading: number, scale: number): Box => {
+  const b = genBounds.get(model) ?? new THREE.Box3().setFromObject(createGenModel(model as Parameters<typeof createGenModel>[0]))
+  genBounds.set(model, b)
+  const { min, max } = b
+  return at(what, x, z, heading, ((min.x + max.x) / 2) * scale, ((min.z + max.z) / 2) * scale, ((max.x - min.x) / 2) * scale, ((max.z - min.z) / 2) * scale, y + min.y * scale, y + max.y * scale)
+}
+
+/** Every scenery object the scene places on `track`, from the same calls createWorld (scene.ts) makes. */
 const sceneryBoxes = (track: Track): Box[] => {
   const boxes: Box[] = []
-  planScenery(track, 9, 7, resolveTheme(track).scenery).forEach((p, k) =>
-    boxes.push(modelBox(`${p.model}#${k} at ${f(p.x)}, ${f(p.z)}`, `assets/nature-kit/${p.model}.glb`, p.x, p.y, p.z, p.heading, p.scale)),
-  )
+  const trackside = planTrackside(track)
+  planScenery(track, 9, 7, sceneryModels(resolveTheme(track).scenery), sceneryKeepClear(track, trackside)).forEach((p, k) => {
+    const what = `${p.model}#${k} at ${f(p.x)}, ${f(p.z)}`
+    boxes.push(isGen(p.model) ? genBox(what, p.model, p.x, p.y, p.z, p.heading, p.scale) : modelBox(what, `assets/nature-kit/${p.model}.glb`, p.x, p.y, p.z, p.heading, p.scale))
+  })
+  // Trackside dressing (trackside.ts): panels on posts from the ground just behind them, marshal booths with
+  // their flag pole, fence spans.
+  const post = 0.16
+  trackside.boards.forEach((b, k) => {
+    const size = b.kind === 'corner' ? CORNER_BOARD : BRAKE_BOARD
+    const back = size.depth + post
+    boxes.push(at(`${b.kind} ${b.label}#${k} at ${f(b.x)}, ${f(b.z)}`, b.x, b.z, b.heading, 0, size.depth / 2 - back / 2, size.width / 2, back / 2, Math.min(0, b.y), b.y + size.bottom + size.height))
+  })
+  trackside.banners.forEach((b, k) => {
+    const back = BANNER.depth + post
+    boxes.push(at(`banner#${k} at ${f(b.x)}, ${f(b.z)}`, b.x, b.z, b.heading, 0, BANNER.depth / 2 - back / 2, b.length / 2, back / 2, Math.min(0, b.y), b.y + BANNER.bottom + BANNER.height))
+  })
+  trackside.marshals.forEach((m, k) => {
+    const what = `marshal#${k} at ${f(m.x)}, ${f(m.z)}`
+    boxes.push(at(`${what} booth`, m.x, m.z, m.heading, 0, 0.2, MARSHAL.width / 2 + 0.3, MARSHAL.depth / 2 + 0.4, 0, MARSHAL.height + 0.3, what))
+    boxes.push(at(`${what} flag`, m.x, m.z, m.heading, MARSHAL.width / 2 + 0.85, 0, 0.55, post / 2, 0, MARSHAL.pole, what))
+  })
+  trackside.fences.forEach((fence, k) => {
+    for (let i = 0; i + 1 < fence.points.length; i++) {
+      const [x0, z0] = fence.points[i]
+      const [x1, z1] = fence.points[i + 1]
+      const heading = Math.atan2(-(z1 - z0), x1 - x0)
+      boxes.push(at(`fence#${k} span ${i}`, (x0 + x1) / 2, (z0 + z1) / 2, heading, 0, 0, Math.hypot(x1 - x0, z1 - z0) / 2 + post / 2, post / 2, 0, FENCE.height, `fence#${k}`))
+    }
+  })
   planStadium(track).forEach((p, k) => {
     const what = `stadium ${p.model}#${k} at ${f(p.x)}, ${f(p.z)}`
     // A screen is a board with two legs behind it (stadium.ts screenParts); the rest are Kenney models.
