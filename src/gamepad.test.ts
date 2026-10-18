@@ -105,9 +105,10 @@ describe('analog → CarInput', () => {
     expect(i.brake).toBeCloseTo((0.3 - 0.05) / 0.95)
   })
 
-  it('A or RB is the handbrake', () => {
+  it('A or LB is the handbrake, on the brake side; RB is free', () => {
     expect(padInput(pad({ down: [PAD.A] })).handbrake).toBe(true)
-    expect(padInput(pad({ down: [PAD.RB] })).handbrake).toBe(true)
+    expect(padInput(pad({ down: [PAD.LB] })).handbrake).toBe(true)
+    expect(padInput(pad({ down: [PAD.RB] })).handbrake).toBe(false)
     expect(padInput(pad({ down: [PAD.X] })).handbrake).toBe(false)
   })
 })
