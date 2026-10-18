@@ -1,14 +1,15 @@
 // Scene owner: renderer (WebGPU, WebGL2 fallback), track and car mesh; the look lives in scene.ts.
 // main.ts calls createView() once and view.frame(state) every frame; nothing here writes car state.
 import * as THREE from 'three/webgpu'
-import { pass } from 'three/tsl'
+import { pass, uniform, vec4 } from 'three/tsl'
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js'
 import { dot, forwardOf, trackSurface, type CarState, type Material } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
 import type { Livery } from './car/livery'
 import { parseFx, type Fx } from './fx/flags'
-import { BLOOM, bloomFor } from './glow'
+import { BLOOM, bloomFor, glowPreset } from './glow'
+import { createNeon, markReflectable, setNeonGlow } from './neon'
 import { createSkidMarks } from './fx/skid'
 import { createDust } from './fx/dust'
 import { createSparks } from './fx/sparks'
@@ -38,6 +39,8 @@ export type View = {
   setEnvironment: (env: Environment, seed?: number) => Promise<void>
   /** Turn the live effects (fx/flags.ts LIVE_FX) on or off (Settings → Effect). */
   setFx: (fx: Set<Fx>) => void
+  /** Neon Night's road reflection on or off (Settings → Graphics → Reflections). */
+  setReflections: (on: boolean) => void
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
   /** Start lights, arch screens and start road paint; main.ts feeds it race.board() each frame. Null without a start gate. */
@@ -48,6 +51,9 @@ export type View = {
 
 /** Wet asphalt: darker and glossier, so the sky and the lights mirror in it. Road materials are named `road` (mesh.ts, the Kenney pieces). */
 export const WET_ROAD = { roughness: 0.22, darken: 0.7, clearcoat: 0.8, clearcoatRoughness: 0.08 } as const
+
+/** Chassis origin above the road at rest (fx/skid.ts): where the reflection plane goes when the ray finds no road. */
+const RIDE_HEIGHT = 0.68
 
 type DryRoad = { roughness: number; color: THREE.Color; clearcoat: number; clearcoatRoughness: number }
 
@@ -81,13 +87,21 @@ export const setWetRoad = (root: THREE.Object3D, wet: boolean): void => {
   })
 }
 
-/** `env` is the race's time of day and weather (track/environment.ts); `seed` varies its cloud layer; `livery` paints the player car. */
+/** Neon Night colour grade (linear, before tone mapping): a push toward magenta. Every other look is ungraded. */
+export const NEON_GRADE: readonly [number, number, number] = [1.06, 0.9, 1.08]
+const NO_GRADE: readonly [number, number, number] = [1, 1, 1]
+
+/**
+ * `env` is the race's time of day and weather (track/environment.ts); `seed` varies its cloud layer; `livery`
+ * paints the player car; `reflections` is Neon Night's road reflection (Settings → Graphics).
+ */
 export const createView = async (
   track: Track,
   fxQuery: string = location.search,
   env: Environment = DEFAULT_ENVIRONMENT,
   seed = 1,
   livery?: Livery,
+  reflections = false,
 ): Promise<View> => {
   const forceWebGL = new URLSearchParams(location.search).get('renderer') === 'webgl2'
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL })
@@ -107,8 +121,17 @@ export const createView = async (
   ])
   renderer.toneMappingExposure = look.exposure
   scene.add(trackMesh, car.object)
-  // Rain wets the road and falls around the camera, snow drifts around it (render/environment.ts); all switch live with the weather.
-  setWetRoad(trackMesh, look.rain)
+  // Neon Night (neon/): tubes, skyline, sparks, pink rims and the road reflection, switched live with the time of day.
+  // Every glowing mesh already in the scene (edge lines, rail neon, car lights and rims) joins the mirror pass.
+  const neon = createNeon(track, trackMesh)
+  scene.add(neon.object, neon.reflectionTarget)
+  markReflectable(scene)
+  neon.setReflections(reflections)
+  neon.setActive(look.neon)
+  setNeonGlow(scene, look.neon)
+  // Rain wets the road and falls around the camera, snow drifts around it (render/environment.ts); all switch live with
+  // the weather. Neon Night wets it too: the dark, glossy asphalt is what the reflection lands on.
+  setWetRoad(trackMesh, look.rain || look.neon)
   const rain = createRain(seed)
   rain.object.visible = look.rain
   const snow = createSnow(seed)
@@ -131,13 +154,14 @@ export const createView = async (
   // Speed lines and smoke are built always and switched by visibility, so Settings toggles them live.
   let fx = parseFx(fxQuery)
   let draw = () => renderer.render(scene, camera)
-  const glow = bloomFor(location.search, look.night ? 'night' : 'day')
+  const glow = bloomFor(location.search, glowPreset(look))
   let bloomPass: ReturnType<typeof bloom> | null = null
+  const grade = uniform(new THREE.Vector3(...(look.neon ? NEON_GRADE : NO_GRADE)))
   if (glow) {
     const pipeline = new THREE.RenderPipeline(renderer)
     const scenePass = pass(scene, camera)
     bloomPass = bloom(scenePass, glow.strength, glow.radius, glow.threshold)
-    pipeline.outputNode = scenePass.add(bloomPass)
+    pipeline.outputNode = scenePass.add(bloomPass).mul(vec4(grade, 1))
     draw = () => pipeline.render()
   }
   const speedLines = createSpeedLines()
@@ -188,18 +212,24 @@ export const createView = async (
     if (id !== envRequest) return
     if (topCam) scene.fog = null
     renderer.toneMappingExposure = l.exposure
-    setWetRoad(trackMesh, l.rain)
+    setWetRoad(trackMesh, l.rain || l.neon)
     rain.object.visible = l.rain
     snow.object.visible = l.snow
+    neon.setActive(l.neon)
+    setNeonGlow(scene, l.neon)
+    grade.value.set(...(l.neon ? NEON_GRADE : NO_GRADE))
     if (bloomPass) {
-      const b = BLOOM[l.night ? 'night' : 'day']
+      const b = BLOOM[glowPreset(l)]
       bloomPass.strength.value = b.strength
       bloomPass.radius.value = b.radius
       bloomPass.threshold.value = b.threshold
     }
   }
 
+  let elapsed = 0
+  const down = { x: 0, y: -1, z: 0 }
   const frame = (s: CarState, dt: number, material: Material = 'road', braking = false) => {
+    elapsed += dt
     car.update(s, dt, braking)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     if (fx.has('speedlines')) speedLines.update(dot(s.velocity, forwardOf(s)), dt)
@@ -219,6 +249,11 @@ export const createView = async (
     dust.update(s, material, dt, camera)
     sparks.update(s, dt)
     driftGlow.update(s, dt, car.object)
+    if (neon.object.visible) {
+      // The mirror plane sits on the road under the car (the ray the physics drives on), or a ride height below it.
+      const hit = surface.raycast(s.position, down, 50)
+      neon.update(elapsed, camera, hit ? s.position.y - hit.distance : s.position.y - RIDE_HEIGHT)
+    }
     draw()
     stats.push(performance.now(), dt)
     sinceLabel += dt
@@ -228,5 +263,5 @@ export const createView = async (
     }
   }
 
-  return { renderer, camera, backend, car: car.object, setLivery: car.setLivery, setEnvironment, setFx, scene, start, frame }
+  return { renderer, camera, backend, car: car.object, setLivery: car.setLivery, setEnvironment, setFx, setReflections: neon.setReflections, scene, start, frame }
 }

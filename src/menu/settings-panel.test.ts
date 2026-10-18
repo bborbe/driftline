@@ -6,5 +6,6 @@ describe('settings panel labels', () => {
     expect(choiceLabel('default', 'snow')).toBe('Track default (snow)')
     expect(choiceLabel('default')).toBe('Track default')
     expect(choiceLabel('night', 'noon')).toBe('Night')
+    expect(choiceLabel('neon')).toBe('Neon Night')
   })
 })

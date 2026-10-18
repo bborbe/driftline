@@ -30,6 +30,7 @@ describe('environmentLook', () => {
       sunOffset: [40, 80, 30],
       clouds: null,
       night: false,
+      neon: false,
       rain: false,
       snow: false,
     })
@@ -88,8 +89,23 @@ describe('environmentLook', () => {
     expect(look.fogFar).toBeLessThan(theme.fogFar)
   })
 
-  it('switches the night extras on only at night', () => {
-    for (const time of TIMES) expect(environmentLook(DEFAULT_THEME, { time, weather: 'sunny' }, noonSunny).night).toBe(time === 'night')
+  it('switches the night extras on only at night, and the neon extras only in neon', () => {
+    for (const time of TIMES) {
+      const look = environmentLook(DEFAULT_THEME, { time, weather: 'sunny' }, noonSunny)
+      expect(look.night).toBe(time === 'night')
+      expect(look.neon).toBe(time === 'neon')
+    }
+  })
+
+  it('gives neon a black sky, a magenta-purple haze and a dimmer light than night', () => {
+    const neon = environmentLook(DEFAULT_THEME, { time: 'neon', weather: 'sunny' }, noonSunny)
+    const night = environmentLook(DEFAULT_THEME, { time: 'night', weather: 'sunny' }, noonSunny)
+    expect(neon.skyBrightness).toBeLessThan(night.skyBrightness / 4)
+    expect(neon.skyLight).toBeLessThan(night.skyLight)
+    expect(neon.sunIntensity).toBeLessThan(night.sunIntensity)
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(neon.fog.slice(i, i + 2), 16))
+    expect(r).toBeGreaterThan(g) // magenta: red and blue over green
+    expect(b).toBeGreaterThan(r)
   })
 })
 

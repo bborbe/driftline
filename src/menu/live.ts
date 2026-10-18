@@ -6,6 +6,8 @@ import { LIVE_FX, type Fx } from '../render/fx/flags'
 /** The parts of the running race a settings change touches; absent keys are unchanged. */
 export interface SettingsChange {
   volume?: number
+  sfxVolume?: number
+  uiVolume?: number
   /** The live effects now on. */
   fx?: Set<Fx>
   /** Laps for the next restart. */
@@ -13,6 +15,8 @@ export interface SettingsChange {
   /** Time or weather changed: re-resolve the environment from the new choice. */
   environment?: true
   livery?: Settings['livery']
+  /** Neon Night's road reflection turned on or off. */
+  reflections?: boolean
 }
 
 const sameLivery = (a: Settings['livery'], b: Settings['livery']) => a.pattern === b.pattern && a.paint === b.paint && a.number === b.number
@@ -23,11 +27,14 @@ export const liveFx = (s: Pick<Settings, 'fx'>): Set<Fx> => new Set(LIVE_FX.filt
 export function settingsChange(prev: Settings, next: Settings): SettingsChange {
   const out: SettingsChange = {}
   if (prev.volume !== next.volume) out.volume = next.volume
+  if (prev.sfxVolume !== next.sfxVolume) out.sfxVolume = next.sfxVolume
+  if (prev.uiVolume !== next.uiVolume) out.uiVolume = next.uiVolume
   const a = liveFx(prev)
   const b = liveFx(next)
   if (a.size !== b.size || [...a].some((f) => !b.has(f))) out.fx = b
   if (prev.laps !== next.laps) out.laps = next.laps
   if (prev.time !== next.time || prev.weather !== next.weather) out.environment = true
   if (!sameLivery(prev.livery, next.livery)) out.livery = next.livery
+  if (prev.reflections !== next.reflections) out.reflections = next.reflections
   return out
 }

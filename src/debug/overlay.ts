@@ -1,4 +1,4 @@
-// Debug overlay for main.ts: pose readout and build label in the corners, backtick (or ?debug=0) hides them,
+// Debug overlay for main.ts: pose readout and build label in the corners, dev only (?dev=1 / ?debug=1), backtick toggles them,
 // and P copies the current pose as a debug-spawn URL with a short toast. The race HUD lives in src/race/view.ts.
 import { mountBuildLabel } from '../build-info'
 import { debugVisible } from '../race/hud'

@@ -1,9 +1,12 @@
-// DOM overlay: race HUD (timer bottom centre, speedometer bottom right, medal target top left, lap / checkpoint
-// top right, split pop-up), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in the Esc menu), finish panel with name entry, leaderboard, Esc menu. One small "H — controls" hint sits bottom left.
+// DOM overlay: race HUD (timer bottom centre, speedometer bottom right, one race-status panel top right with the medal
+// target + delta, lap and checkpoint, split pop-up), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in
+// the Esc menu), finish panel with name entry, leaderboard, Esc menu. A small "H — controls" hint fades out HINT_MS after the countdown starts.
+// Sizes scale with --hud-scale (Settings → Graphics → HUD scale).
 import './race.css'
 import { menuList, type MenuList } from '../menu/list'
 import { controlsPanel } from './controls'
-import { litTicks, SPEEDO_TICKS, type EffectChip, type Target } from './hud'
+import { litTicks, SPEEDO_TICKS, targetDelta, type EffectChip, type Target } from './hud'
+import { loadSettings, SETTINGS_EVENT, type Settings } from '../menu/settings'
 import { formatDelta, MEDAL_LABEL, type Medal } from './medals'
 import { formatLapTime, type RaceStore } from './store'
 import { LAMPS, startLamps, type Lamp } from './start-board'
@@ -15,6 +18,18 @@ const LAMP_CLASS: Record<Lamp, string> = { off: '', red: 'on', green: 'go' }
 
 /** How long GO! stays up after the countdown. */
 const GO_MS = 900
+/** How long the "H — controls" hint stays before it fades (race.css animates the same 4 s). */
+export const HINT_MS = 4000
+
+/** Restart a one-shot CSS animation class on `e` (lap / checkpoint / record transitions). */
+function replay(e: HTMLElement, cls: string): void {
+  e.classList.remove(cls)
+  void e.offsetWidth
+  e.classList.add(cls)
+}
+
+/** Sets the race-HUD size multiplier every HUD rule multiplies by. */
+const applyHudScale = (scale: number): void => document.documentElement.style.setProperty('--hud-scale', String(scale))
 
 export interface MedalResult {
   earned: Medal | null
@@ -64,7 +79,8 @@ export class RaceView {
   private readonly lap = el('div', 'race-lap')
   private readonly cp = el('div', 'race-cp')
   private readonly chase = el('div', 'race-chase')
-  private readonly target = el('div', 'race-target')
+  private readonly target = el('span', 'race-target')
+  private readonly delta = el('span', 'race-target-delta')
   private readonly best = el('div', 'race-best')
   private readonly lights = el('div', 'race-lights')
   private readonly count = el('div', 'race-count')
@@ -82,6 +98,7 @@ export class RaceView {
   private readonly split = el('div', 'race-split')
   private readonly effects = el('div', 'race-effects')
   private effectsKey = ''
+  private rendered = false
   private splitTimer: ReturnType<typeof setTimeout> | undefined
   typing = false
   private pauseMenu: MenuList | null = null
@@ -95,8 +112,12 @@ export class RaceView {
   constructor(store: RaceStore, actions: MenuActions | null = null) {
     this.store = store
     this.actions = actions
-    this.status.append(this.lap, this.cp)
-    this.chase.append(this.target, this.best)
+    // One race-status panel: medal target (+ the best's delta to it), lap, checkpoint, then best / run times.
+    this.chase.append(el('i', 'race-medal-dot'), this.target, this.delta)
+    this.status.append(this.chase, this.lap, this.cp, this.best)
+    this.keys.style.setProperty('--hint-delay', `${HINT_MS}ms`)
+    applyHudScale(loadSettings(localStorage).hudScale)
+    window.addEventListener(SETTINGS_EVENT, this.onSettings)
     for (let i = 0; i < LAMPS; i++) this.lights.append(el('i', ''))
     this.countdown.append(this.lights, this.count)
     this.countdown.hidden = true
@@ -111,7 +132,7 @@ export class RaceView {
     gauge.append(arc, this.speed, el('div', 'race-unit', 'KM/H'))
     this.speedo.append(gauge, this.time)
     this.split.append(this.splitTime, this.splitDelta)
-    document.body.append(this.status, this.chase, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split, this.effects)
+    document.body.append(this.status, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split, this.effects)
     this.effects.hidden = true
     this.split.hidden = true
     this.panel.hidden = true
@@ -133,6 +154,14 @@ export class RaceView {
     this.help.hidden = true
     this.help.append(el('h2', '', 'CONTROLS'), controlsPanel(), el('p', '', 'H or Esc to close'))
     document.body.append(this.help)
+  }
+
+  /** Live HUD scale from Settings → Graphics. */
+  private readonly onSettings = (e: Event): void => applyHudScale((e as CustomEvent<Settings>).detail.hudScale)
+
+  /** Drops the window listener (the game builds one RaceView per page; tests can build several). */
+  dispose(): void {
+    window.removeEventListener(SETTINGS_EVENT, this.onSettings)
   }
 
   /** True while the Esc menu's settings panel is open (Esc closes it before resuming). */
@@ -189,12 +218,17 @@ export class RaceView {
       )
       this.effects.hidden = s.effects.length === 0
     }
-    setText(this.lap, `LAP ${s.lap}`)
-    setText(this.cp, `CP ${s.checkpoints}`)
+    // Lap and checkpoint pulse when they change (not on the first frame).
+    if (setText(this.lap, `LAP ${s.lap}`) && this.rendered) replay(this.lap, 'race-bump')
+    if (setText(this.cp, `CP ${s.checkpoints}`) && this.rendered) replay(this.cp, 'race-bump')
+    this.rendered = true
     setText(this.target, s.target ? `${s.target.label} ${formatLapTime(s.target.ms)}` : '')
-    // The plate's left edge takes the medal colour too (border uses currentColor).
+    const d = targetDelta(s.target, s.best)
+    setText(this.delta, d === null ? '' : formatDelta(d))
+    this.delta.className = `race-target-delta ${d === null ? '' : Math.round(d) < 0 ? 'race-ahead' : 'race-behind'}`
+    // The medal dot takes the target medal's colour (currentColor).
     this.chase.className = `race-chase race-medal-${s.target?.medal ?? 'best'}`
-    this.chase.hidden = s.target === null && s.best === null && s.runBest === null
+    this.chase.hidden = s.target === null
     const best = s.best === null ? '' : `BEST ${formatLapTime(s.best)}`
     const runBest = s.runBest === null ? '' : `RUN ${formatLapTime(s.runBest)}`
     // The target line already shows the best once every medal is earned.
@@ -211,6 +245,9 @@ export class RaceView {
   /** Countdown step: 3, 2, 1 light the start lights red one by one and pop the number; 0 turns them green with GO!. */
   showCountdown(n: number): void {
     clearTimeout(this.countTimer)
+    // The controls hint stays up until the first race of the page starts, then fades HINT_MS after its countdown begins
+    // (once per page load: a restart does not bring it back).
+    this.keys.classList.add('race-hint')
     this.countdown.hidden = false
     const lamps = startLamps(n)
     ;[...this.lights.children].forEach((l, i) => (l.className = LAMP_CLASS[lamps[i]]))
@@ -250,7 +287,8 @@ export class RaceView {
   showFinish(lapTimeMs: number, isNewBest: boolean, medals?: MedalResult, lapTimes: number[] = [], deltaMs: number | null = null): void {
     this.showSplit(null)
     this.panel.hidden = false
-    this.panel.replaceChildren(el('h2', '', `${isNewBest ? 'NEW BEST! ' : ''}${formatLapTime(lapTimeMs)}`))
+    this.panel.replaceChildren(el('h2', isNewBest ? 'race-record' : '', `${isNewBest ? 'NEW BEST! ' : ''}${formatLapTime(lapTimeMs)}`))
+    replay(this.panel, 'race-panel-in')
     if (deltaMs !== null) this.panel.append(el('div', `race-split-delta ${Math.round(deltaMs) < 0 ? 'race-ahead' : 'race-behind'}`, formatDelta(deltaMs)))
     if (lapTimes.length > 1) this.panel.append(lapList(lapTimes))
     if (medals) this.panel.append(medalLine(medals))
@@ -332,8 +370,11 @@ function medalLine(m: MedalResult): HTMLElement {
   return box
 }
 
-function setText(e: HTMLElement, text: string): void {
-  if (e.textContent !== text) e.textContent = text
+/** Sets the text when it differs; true when it changed. */
+function setText(e: HTMLElement, text: string): boolean {
+  if (e.textContent === text) return false
+  e.textContent = text
+  return true
 }
 
 function el(tag: string, cls: string, text = ''): HTMLElement {

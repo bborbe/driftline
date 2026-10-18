@@ -21,12 +21,12 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
 try {
   for (const lap of laps) {
     mkdirSync(`${out}/${lap}`, { recursive: true })
-    await page.goto(`${base}?track=${lap}&freeze=1&renderer=webgl2`)
+    await page.goto(`${base}?track=${lap}&freeze=1&debug=1&renderer=webgl2`)
     await page.waitForFunction(() => window.driftline?.ready, null, { timeout: 60_000 })
     const poses = await page.evaluate((s) => window.driftline.centreline(s), step)
     for (const [i, p] of poses.entries()) {
       const yaw = (p.heading * 180) / Math.PI
-      await page.goto(`${base}?track=${lap}&x=${p.x}&y=${p.y}&z=${p.z}&yaw=${yaw}&freeze=1&renderer=webgl2`)
+      await page.goto(`${base}?track=${lap}&x=${p.x}&y=${p.y}&z=${p.z}&yaw=${yaw}&freeze=1&debug=1&renderer=webgl2`)
       await page.waitForFunction(() => window.driftline?.ready, null, { timeout: 60_000 })
       await page.waitForTimeout(800) // let the chase camera settle
       const file = `${out}/${lap}/${String(i).padStart(3, '0')}.png`

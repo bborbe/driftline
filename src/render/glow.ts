@@ -1,12 +1,13 @@
 // Glow pass: the bloom post pass and the emissive look it picks up. Bloom is on by default
 // (`?bloom=0` turns it off, for A/B shots and slow GPUs); a night environment (render/environment.ts)
-// selects the night preset, whose bloom is stronger and wider so lights read in the dark. Every glowing material is built
+// selects the night preset, whose bloom is stronger and wider so lights read in the dark, and Neon Night the neon preset,
+// stronger again. Every glowing material is built
 // or tagged here with its class (userData.glow), so a test can prove each class is wired.
 // Pure data plus material factories; nothing here reads car state.
 import * as THREE from 'three/webgpu'
 
-export type GlowPreset = 'day' | 'night'
-export const GLOW_CLASSES = ['edge-line', 'turbo-pad', 'tail-light', 'headlight', 'rim'] as const
+export type GlowPreset = 'day' | 'night' | 'neon'
+export const GLOW_CLASSES = ['edge-line', 'turbo-pad', 'tail-light', 'headlight', 'rim', 'neon-tube'] as const
 export type GlowClass = (typeof GLOW_CLASSES)[number]
 
 /** BloomNode parameters: strength, radius (0..1), luminance threshold (linear HDR, before tone mapping). */
@@ -19,7 +20,12 @@ export type BloomParams = { strength: number; radius: number; threshold: number 
 export const BLOOM: Record<GlowPreset, BloomParams> = {
   day: { strength: 0.35, radius: 0.35, threshold: 1.0 },
   night: { strength: 0.8, radius: 0.55, threshold: 0.6 },
+  // Neon Night: the tubes, rims and skyline windows halo hard against the black sky.
+  neon: { strength: 1.0, radius: 0.35, threshold: 0.6 },
 }
+
+/** The bloom preset for an environment look (render/environment.ts): neon over night over day. */
+export const glowPreset = (look: { night: boolean; neon: boolean }): GlowPreset => (look.neon ? 'neon' : look.night ? 'night' : 'day')
 
 /** Emissive intensity per glow class, set so each class's luminance (glowLuminance) clears the day threshold. */
 export const EMISSIVE: Record<GlowClass, number> = {
@@ -28,6 +34,7 @@ export const EMISSIVE: Record<GlowClass, number> = {
   'tail-light': 6.0,
   'headlight': 3.0,
   'rim': 2.2,
+  'neon-tube': 3.0,
 }
 /** Tail lights while braking. */
 export const BRAKE_EMISSIVE = 12.0
@@ -38,7 +45,11 @@ export const GLOW_COLOR: Record<Exclude<GlowClass, 'turbo-pad'>, number> = {
   'tail-light': 0xff0a0a,
   'headlight': 0xfff2d6,
   'rim': 0x4cc9f0,
+  'neon-tube': 0xffd21f,
 }
+
+/** Neon Night colours (sRGB hex): the rims turn pink, and the tubes run yellow on one side of the road and pink on the other. */
+export const NEON_GLOW = { rim: 0xff3ec8, yellow: 0xffd21f, pink: 0xff2fb4 } as const
 
 /** Bloom stays on unless `?bloom=0` (or `off` / `false`). */
 export const bloomEnabled = (search: string): boolean => {

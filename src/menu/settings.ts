@@ -7,7 +7,10 @@ import { clampLivery, DEFAULT_LIVERY, type Livery } from '../render/car/livery'
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>
 
 export interface Settings {
+  /** Master volume; the SFX (car, surface, race) and UI (menu) buses sit under it. */
   volume: number
+  sfxVolume: number
+  uiVolume: number
   fx: Fx[]
   /** Laps per race; `?laps=` overrides it. */
   laps: number
@@ -17,10 +20,19 @@ export interface Settings {
   weather: WeatherChoice
   /** Player car paint, pattern and race number; the ghost takes ghostLivery() of it. */
   livery: Livery
+  /** Neon Night's road reflection (render/neon/reflection.ts), off by default (its fps cost); `?refl=0|1` overrides it. */
+  reflections: boolean
+  /** Race-HUD size multiplier (Settings → Graphics), one of HUD_SCALES. */
+  hudScale: number
 }
 
+/** HUD-scale choices, smallest first. */
+export const HUD_SCALES = [0.75, 0.9, 1, 1.15, 1.3] as const
+/** The stored HUD scale when it is one of HUD_SCALES, else 1. */
+export const clampHudScale = (v: unknown): number => ((HUD_SCALES as readonly unknown[]).includes(v) ? (v as number) : 1)
+
 const KEY = 'driftline-settings'
-export const DEFAULT_SETTINGS: Settings = { volume: 0.7, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY }
+export const DEFAULT_SETTINGS: Settings = { volume: 0.7, sfxVolume: 1, uiVolume: 1, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY, reflections: false, hudScale: 1 }
 /** Window event the settings panel fires after every change; detail is the saved Settings, which the running race applies at once. */
 export const SETTINGS_EVENT = 'driftline:settings'
 
@@ -28,13 +40,17 @@ export function loadSettings(storage: KeyValueStore): Settings {
   try {
     const raw = JSON.parse(storage.getItem(KEY) ?? 'null')
     if (!raw || typeof raw !== 'object') return { ...DEFAULT_SETTINGS }
-    const volume = Number.isFinite(raw.volume) ? Math.min(1, Math.max(0, raw.volume)) : DEFAULT_SETTINGS.volume
+    const level = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : d)
+    const volume = level(raw.volume, DEFAULT_SETTINGS.volume)
+    const sfxVolume = level(raw.sfxVolume, DEFAULT_SETTINGS.sfxVolume)
+    const uiVolume = level(raw.uiVolume, DEFAULT_SETTINGS.uiVolume)
     const fx = Array.isArray(raw.fx) ? FX.filter((f) => raw.fx.includes(f)) : []
     // Before the Time and Weather selectors one `environment` mode covered both: `random` meant both random.
     const legacy = choiceOf(raw.environment === 'random' ? 'random' : 'fixed')
     const time = (TIME_CHOICES as readonly unknown[]).includes(raw.time) ? (raw.time as TimeChoice) : legacy.time
     const weather = (WEATHER_CHOICES as readonly unknown[]).includes(raw.weather) ? (raw.weather as WeatherChoice) : legacy.weather
-    return { volume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery) }
+    const reflections = typeof raw.reflections === 'boolean' ? raw.reflections : DEFAULT_SETTINGS.reflections
+    return { volume, sfxVolume, uiVolume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery), reflections, hudScale: clampHudScale(raw.hudScale) }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
