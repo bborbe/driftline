@@ -38,7 +38,7 @@ describe('free-fly camera', () => {
   it('toggles on C, orbits on O, and opens from ?cam=fly / &orbit=1', () => {
     expect(flyToggleKey('KeyC')).toBe(true)
     expect(orbitToggleKey('KeyO')).toBe(true)
-    for (const taken of ['KeyR', 'Backspace', 'KeyL', 'KeyP', 'KeyF', 'Escape', 'Enter', 'Space', 'Digit1']) {
+    for (const taken of ['KeyR', 'Backspace', 'Delete', 'KeyL', 'KeyP', 'KeyF', 'Escape', 'Enter', 'Space', 'Digit1']) {
       expect(flyToggleKey(taken)).toBe(false)
       expect(orbitToggleKey(taken)).toBe(false)
     }

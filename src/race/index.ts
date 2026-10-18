@@ -44,7 +44,7 @@ export interface Race {
   loop: LapLoop
   /** Laps in the current run. */
   readonly laps: number
-  /** Settings → Laps: the lap count for the next restart (Backspace / Esc → Restart); the current run is unchanged. */
+  /** Settings → Laps: the lap count for the next restart (Delete / Esc → Restart); the current run is unchanged. */
   setLaps(laps: number): void
   readonly paused: boolean
   /** True from the finish until the next restart: the results card is up or about to come in. */
@@ -150,10 +150,12 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
       e.preventDefault()
       return
     }
-    if (isBound(bindings, 'respawn', e.code)) pending = 'respawn'
-    if (isBound(bindings, 'restart', e.code)) pending = 'restart'
-    if (e.code === 'KeyL') view.toggleLeaderboard()
     const tag = (e.target as HTMLElement | null)?.tagName
+    // Backspace / Delete edit text: typing in a settings field (race number …) must not respawn or restart the run.
+    const editing = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
+    if (!editing && isBound(bindings, 'respawn', e.code)) pending = 'respawn'
+    if (!editing && isBound(bindings, 'restart', e.code)) pending = 'restart'
+    if (e.code === 'KeyL') view.toggleLeaderboard()
     if (isControlsKey(e.code) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'SELECT') view.toggleControls()
     if (isRecordsKey(e.code) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'SELECT') view.toggleRecords()
   })

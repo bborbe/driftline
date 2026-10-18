@@ -14,7 +14,7 @@ describe('camera views', () => {
     expect(viewForKey('Digit1')).toBe('close')
     expect(viewForKey('Digit2')).toBe('far')
     expect(viewForKey('Digit3')).toBe('cockpit')
-    for (const taken of ['KeyR', 'Backspace', 'KeyL', 'KeyP', 'Escape', 'Enter', 'Space']) expect(viewForKey(taken)).toBeNull()
+    for (const taken of ['KeyR', 'Backspace', 'Delete', 'KeyL', 'KeyP', 'Escape', 'Enter', 'Space']) expect(viewForKey(taken)).toBeNull()
   })
 
   it('persists the choice and defaults to close', () => {

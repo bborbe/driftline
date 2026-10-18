@@ -185,7 +185,7 @@ describe('clearing effects', () => {
     expect(loop.effects.active()).toEqual([])
   })
 
-  it('respawn (R) clears them', () => {
+  it('respawn (Backspace / R) clears them', () => {
     const { loop, sim } = armed()
     sim.state = loop.respawn(sim.state.tick)
     expect(loop.effects.active()).toEqual([])

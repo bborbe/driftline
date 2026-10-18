@@ -33,7 +33,7 @@ Race
 
 - `Enter` / `Space` - Start
 - `Backspace` / `R` - Respawn at last checkpoint
-- `Delete` - Restart the run
+- `Delete` - Restart the run (Mac: `fn` + `delete`)
 - `Esc` - Pause menu
 - `L` - Leaderboard
 - `F` - Fullscreen
