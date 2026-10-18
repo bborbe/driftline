@@ -72,7 +72,7 @@ The why for each rule is in the PR it cites and in the operator's *3D Browser Ga
 
 Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). No releases or tags.
 
-- **PRs merge on green CI:** `.github/workflows/ci.yml` runs `npm ci`, `npm test` and `npm run build` on every pull request (no deploy, `contents: read` only). Its result is the test signal for a merge — a local `make test` that times out on a loaded machine does not block it. `pages.yml` deploys production on push to `master`, and PR previews (next bullet).
+- **PRs merge on green CI:** `.github/workflows/ci.yml` runs `npm ci`, `npm test` and `npm run build` on every pull request (no deploy, `contents: read` only). Its result is the test signal for a merge — a local `make test` that times out on a loaded machine does not block it. It also tests every master merge commit; `pages.yml` runs no tests, so a deploy takes about a minute. `pages.yml` deploys production on push to `master`, and PR previews (next bullet). A `cancelled` Pages run is a queued run replaced by a newer one, which deploys the live master head — check `<meta name="commit">`, never re-run it (docs/development.md § Deploy).
 
 - **Every open PR gets a playable preview** at `https://bborbe.github.io/driftline/pr-<n>/`, linked from one bot comment on the PR. Every deploy run refreshes the comment on every open PR, so it is updated on every push, and the preview's `<meta name="commit">` is the PR head SHA. How it works:
   - Mechanism: `pages.yml` builds one Pages artifact per run. Master goes into `/`, and each open same-repo PR goes into `/pr-<n>/` (`VITE_BASE` sets the Vite `base`). It triggers on master pushes and on `pull_request_target` (opened / synchronize / reopened / closed).

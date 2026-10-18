@@ -131,8 +131,10 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
         break
       }
     }
-    // The number stands ~12 m before the entry, or as close after that as the ground allows (past a ramp's drop).
-    for (let d = c.entry - Math.min(12, Math.max(0, approach - 2)); d <= c.entry + 4; d += 2) {
+    // The number stands ~12 m before the entry, or as close after that as the ground allows (past a ramp's drop) —
+    // also when the previous turn runs straight into this one: starting at the entry slid it past an apex arch's
+    // pillar, which then hid it from the approach (test1 corner 3).
+    for (let d = c.entry - 12; d <= c.entry + 4; d += 2) {
       const p = at(d)
       const s = beside(d, out * (p.width / 2 + OFFSET.board))
       if (!clear(s.x, s.y, s.z, REACH.board)) continue
