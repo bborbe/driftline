@@ -192,9 +192,13 @@
 .race-results-medal { -webkit-text-fill-color: #111; }
 .race-results-best { color: var(--hud-muted); }
 .race-results .race-split-delta { margin: 0; padding: 0 var(--s2); border-radius: var(--s2); font-style: italic; font-weight: var(--hud-w-bold); font-size: calc(15px * var(--hud-scale)); }
-.race-results-splits { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--hud-scale)); }
+.race-results-splits { width: 100%; border-collapse: collapse; font-size: calc(12px * var(--hud-scale)); }
 .race-results-splits th { color: var(--hud-muted); font-weight: var(--hud-w-regular); }
-.race-results-splits th, .race-results-splits td { padding: 2px var(--s2); text-align: right; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.race-results-splits th, .race-results-splits td { padding: 2px var(--s1); text-align: right; border-bottom: 1px solid rgba(255, 255, 255, 0.08); white-space: nowrap; }
+.race-results-splits .race-results-pb { color: var(--hud-muted); }
+/* The sector that lost the most time vs the previous best. */
+.race-results-splits .race-results-worst td { background: rgba(225, 40, 40, 0.22); }
+.race-results-splits .race-results-worst td:first-child { box-shadow: inset 3px 0 0 #ff5a4a; }
 .race-results-splits th:first-child, .race-results-splits td:first-child { text-align: left; }
 .race-results-splits .race-ahead { color: #7fb0ff; }
 .race-results-splits .race-behind { color: #ff7a7a; }
@@ -202,6 +206,8 @@
 .race-results .race-medals .race-medal { display: none; }
 .race-results-entry p { margin: var(--s1) 0; }
 .race-results input { font: var(--hud-w-regular) 18px var(--hud-font); text-transform: uppercase; text-align: center; width: 9ch; }
-.race-results-actions { flex-direction: row; justify-content: center; margin: var(--s2) 0 0; min-width: 0; }
-.race-results-actions .menu-item { font-size: calc(15px * var(--hud-scale)); text-align: center; }
-.race-results-actions .menu-item:first-child { background: #fff; color: #111; text-shadow: none; }
+/* One row (the card is the menu-list's parent, so this beats menu.css's column at equal order), wrapping so a fourth
+   action ("Challenge a friend", a later task) fits without widening the card. */
+.race-results .race-results-actions { flex-direction: row; flex-wrap: wrap; justify-content: center; margin: var(--s2) 0 0; min-width: 0; }
+.race-results .race-results-actions .menu-item { flex: 1 1 auto; font-size: calc(15px * var(--hud-scale)); text-align: center; }
+.race-results .race-results-actions .menu-item:first-child { background: #fff; color: #111; text-shadow: none; }
