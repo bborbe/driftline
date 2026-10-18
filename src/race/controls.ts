@@ -2,6 +2,7 @@
 // One list feeds the Esc menu's Controls page and the in-race panel H toggles; the rebindable rows (src/bindings.ts)
 // show the player's own keys. Data is pure and tested.
 import { DEFAULT_BINDINGS, keyLabel, keysLabel, loadBindings, type Bindings } from '../bindings'
+import { PAD, PAD_BINDINGS, PAD_DRIVE } from '../gamepad'
 
 export interface Binding {
   keys: string
@@ -58,6 +59,11 @@ export const controlsFor = (b: Bindings): ControlGroup[] => [
     ],
   },
   {
+    // Built from the gamepad tables (src/gamepad.ts), so the panel can never drift from what the pad does.
+    title: 'Gamepad',
+    bindings: gamepadBindings(),
+  },
+  {
     title: 'Debug',
     bindings: [
       { keys: '`', action: 'Debug overlay on / off (dev only: ?dev=1 or ?debug=1 starts it on)' },
@@ -69,6 +75,20 @@ export const controlsFor = (b: Bindings): ControlGroup[] => [
 
 /** The list with the shipped keys. */
 export const CONTROLS: ControlGroup[] = controlsFor(DEFAULT_BINDINGS)
+
+/** The gamepad rows: analog driving, then each button, the four d-pad directions folded into one row. */
+function gamepadBindings(): Binding[] {
+  const name = (b: number) => Object.entries(PAD).find(([, i]) => i === b)![0]
+  const buttons = PAD_BINDINGS.filter((b) => !b.name.startsWith('D-pad')).map((b) => ({ keys: b.name, action: b.action }))
+  return [
+    { keys: 'Left stick', action: 'Steer (analog)' },
+    { keys: name(PAD_DRIVE.throttle), action: 'Accelerate (analog)' },
+    { keys: name(PAD_DRIVE.brake), action: 'Brake / reverse (analog)' },
+    { keys: PAD_DRIVE.handbrake.map(name).join(' / '), action: 'Handbrake' },
+    ...buttons,
+    { keys: 'D-pad / left stick', action: 'Menus: move' },
+  ]
+}
 
 /** H opens and closes the controls panel. */
 export const isControlsKey = (code: string): boolean => code === 'KeyH'

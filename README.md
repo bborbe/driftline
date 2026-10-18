@@ -50,6 +50,20 @@ Camera
 - `Shift` - Fly: fast
 - `O` - Fly: orbit the track
 
+Gamepad (Xbox / PlayStation over Bluetooth or USB, Chrome or Safari; a "Controller connected" toast shows when it is picked up — press any button if it is not)
+
+- Left stick - Steer (analog, with a dead zone)
+- `RT` - Accelerate (analog)
+- `LT` - Brake / reverse (analog)
+- `A` / `RB` - Handbrake
+- `B` - Respawn at last checkpoint (menus: back)
+- `Y` - Restart the run
+- `Menu` - Pause menu
+- `View` - Next camera view
+- D-pad / left stick + `A` - Move and select in menus, track select, results and settings
+
+Keyboard and pad work side by side: whichever you touched last drives.
+
 Debug
 
 - `` ` `` - Debug overlay on / off (pose, fps, build label; hidden unless the URL carries `?dev=1` or `?debug=1`; the build label is also in Settings → About)
