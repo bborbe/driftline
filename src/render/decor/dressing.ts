@@ -4,10 +4,27 @@
 // canvas atlas and the flag cloth into a second. Visual only: physics never sees any of it.
 import * as THREE from 'three/webgpu'
 import { centreline } from '../../track/centreline'
+import { DECK_DEPTH } from '../../track/bodies'
 import { poses, sampleSegment, segmentLength, widthAt, type Track } from '../../track/schema'
 import { anisotropy } from '../anisotropy'
 import { flat, noCollide, structural } from '../tags'
+import { footprintsOverlap, type Footprint } from './footprint'
 import { merged, placement, prepared } from './instance'
+
+/** A prop's footprint in plan: the pole with its cloth off to the right, a totem, the screen with its legs behind. */
+export const dressingFootprint = (p: DressingProp): Footprint => {
+  const at = (lx: number, lz: number, hx: number, hz: number): Footprint => ({
+    x: p.x + lx * Math.cos(p.heading) + lz * Math.sin(p.heading),
+    z: p.z - lx * Math.sin(p.heading) + lz * Math.cos(p.heading),
+    heading: p.heading,
+    hx,
+    hz,
+  })
+  if (p.kind === 'flag') return at(CLOTH.width / 2, 0, POLE.size / 2 + CLOTH.width / 2, POLE.size / 2)
+  if (p.kind === 'totem') return at(0, 0, TOTEM.width / 2, TOTEM.depth / 2)
+  const back = START_SCREEN.depth / 2 + START_SCREEN.leg
+  return at(0, (START_SCREEN.depth / 2 - back) / 2, START_SCREEN.width / 2, (START_SCREEN.depth / 2 + back) / 2)
+}
 
 /** A run of straight road at least this long carries a flag row. */
 export const FLAG_RUN = 30
@@ -20,17 +37,26 @@ export const CLOTH = { width: 1.4, height: 0.9 } as const
 
 /** Totems and the start screen stand within this distance of the start, on the ground beside the road. */
 export const START_REACH = 60
+/** A start prop whose spot is taken tries these offsets along the lap, in metres, in turn. */
+export const START_SLIDE: readonly number[] = [0, 5, -5, 10, -10, 15, -15, 20, -20, 25, -25]
 export const TOTEM = { width: 2.4, height: 8, depth: 0.8, edge: 6 } as const
 export const START_SCREEN = { width: 14, height: 6, depth: 0.5, bottom: 3, edge: 12, leg: 0.4 } as const
 
 /** Nothing stands within this distance of any road at a similar height, beyond that road's half width: behind its rail. */
 export const CLEAR_EDGE = FLAG_EDGE - 0.5
-/** Roads more than this far above or below do not block a prop. */
+/** Roads more than this far below do not block a prop. */
 const LEVEL = 4
+/**
+ * A road above blocks a prop unless its deck's underside (DECK_DEPTH under the road) clears the prop's
+ * top by this much: crossover's 9 m start screen stood under its 8 m crossing and pierced the road.
+ */
+export const DECK_AIR = 1
 /** Props stand on the ground: none beside road running higher than this (decks, ramp tops). */
 export const GROUND_LEVEL = 1
 
 export type DressingKind = 'flag' | 'totem' | 'startScreen'
+/** Each prop's height above the ground: pole, totem, the screen's top edge. */
+export const DRESSING_TOP: Record<DressingKind, number> = { flag: POLE.height, totem: TOTEM.height, startScreen: START_SCREEN.bottom + START_SCREEN.height }
 /** A prop standing on the ground at (x, z), its face looking toward `heading` (0 = +z). */
 export type DressingProp = { kind: DressingKind; x: number; z: number; heading: number }
 
@@ -53,8 +79,8 @@ const beside = (p: { x: number; z: number; heading: number }, side: number): [nu
 
 export const planDressing = (track: Track): DressingProp[] => {
   const line = centreline(track, 1)
-  const clear = (x: number, z: number, reach: number) =>
-    line.every((c) => Math.abs(c.y) > LEVEL || (c.x - x) ** 2 + (c.z - z) ** 2 >= (c.width / 2 + CLEAR_EDGE + reach) ** 2)
+  const clear = (x: number, z: number, reach: number, top: number) =>
+    line.every((c) => c.y < -LEVEL || c.y - DECK_DEPTH >= top + DECK_AIR || (c.x - x) ** 2 + (c.z - z) ** 2 >= (c.width / 2 + CLEAR_EDGE + reach) ** 2)
   const ps = poses(track)
   const props: DressingProp[] = []
   // Flags: both sides of every long straight, one pole every FLAG_STEP metres, cloth toward the road.
@@ -67,22 +93,29 @@ export const planDressing = (track: Track): DressingProp[] => {
         const half = widthAt(seg, s / len) / 2
         for (const side of [1, -1]) {
           const [x, z] = beside(p, side * (half + FLAG_EDGE))
-          if (clear(x, z, 0)) props.push({ kind: 'flag', x, z, heading: p.heading + (side > 0 ? -Math.PI / 2 : Math.PI / 2) })
+          if (clear(x, z, 0, DRESSING_TOP.flag)) props.push({ kind: 'flag', x, z, heading: p.heading + (side > 0 ? -Math.PI / 2 : Math.PI / 2) })
         }
       }
     }
   }
   // Start: walk forward from the start pose along the lap's centreline; totems 20 m and 40 m on, one
   // each side, facing the approaching car; the screen 30 m on, beside the road, facing it. A spot
-  // blocked by other road tries the other side, else it is left out.
+  // blocked by other road (or a deck overhead) or by a prop already placed tries the other side, then
+  // slides along the lap by START_SLIDE, else it is left out.
   // The centreline is sampled every metre from the start, so index d is d metres on.
   const at = (d: number) => line[Math.min(d, line.length - 1)]
   const place = (kind: DressingKind, d: number, edge: number, side: number, reach: number, face: (h: number, side: number) => number) => {
-    const p = at(d)
-    if (Math.abs(p.y) >= GROUND_LEVEL) return
-    for (const s of [side, -side]) {
-      const [x, z] = beside(p, s * (p.width / 2 + edge))
-      if (clear(x, z, reach)) return void props.push({ kind, x, z, heading: face(p.heading, s) })
+    for (const slide of START_SLIDE) {
+      if (d + slide < 0) continue
+      const p = at(d + slide)
+      if (Math.abs(p.y) >= GROUND_LEVEL) continue
+      for (const s of [side, -side]) {
+        const [x, z] = beside(p, s * (p.width / 2 + edge))
+        const prop = { kind, x, z, heading: face(p.heading, s) }
+        if (!clear(x, z, reach, DRESSING_TOP[kind])) continue
+        if (props.some((q) => footprintsOverlap(dressingFootprint(q), dressingFootprint(prop)))) continue
+        return void props.push(prop)
+      }
     }
   }
   place('totem', 20, TOTEM.edge, 1, TOTEM.width / 2, (h) => h + Math.PI)
