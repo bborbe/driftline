@@ -40,7 +40,9 @@ let shownView: ViewMode = viewFromUrl(location.search, loadView(localStorage))
 saveSettings(localStorage, shown)
 saveView(localStorage, shownView)
 window.addEventListener(SETTINGS_EVENT, (e) => (shown = (e as CustomEvent<Settings>).detail))
-applyAccess(shown) // colour-safe and reduced effects apply on the start screen too
+// Colour-safe and reduced effects apply on the start screen too, and follow every change made there.
+applyAccess(shown)
+window.addEventListener(SETTINGS_EVENT, (e) => applyAccess((e as CustomEvent<Settings>).detail))
 // Audio exists before the start screen so its menu clicks sound (a click may create the context: src/audio/ui-sounds.ts).
 // ?audiolog=1 keeps an event trace on window.__driftlineAudio for automated checks (squeal, kerb, impact, ui, one-shots).
 const audio = new GameAudio()
@@ -91,6 +93,9 @@ const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 let env = resolveEnvironment(location.search, track, settings, Date.now())
 const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, knobsFor(settings), reducedFor(settings))
+// Graphics quality (Low / Medium / High / Auto / Custom) and the Access options, applied live from here on, so a change
+// on the 3D start menu shows at once and carries into the race; Auto probes in the race loop (quality.frame).
+const quality = startQuality(view, shown)
 if (fromMenu) {
   // No shader prewarm (renderer.compileAsync): measured 864 ms on crossover, over the task's 300 ms budget, so the first
   // menu frames compile as they draw, behind the opening fade.
@@ -107,8 +112,6 @@ if (fromMenu) {
 }
 screen = { track: trackName }
 const { camera, backend } = view
-// Graphics quality (Low / Medium / High / Auto / Custom) and the Access options, applied live; Auto probes here.
-const quality = startQuality(view, settings)
 
 // Debug overlay (pose, fps, build label) in the corners, dev only (?dev=1 / ?debug=1; backtick toggles), P copies the debug-spawn URL
 // for the current view. The race HUD lives in src/race/view.ts.

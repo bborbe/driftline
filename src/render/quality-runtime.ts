@@ -48,6 +48,7 @@ export function startQuality(view: Pick<View, 'setKnobs' | 'setReduced'>, initia
   }
   const apply = () => view.setKnobs(effectiveKnobs(settings.quality, settings.knobs, auto))
   startProbe()
+  apply()
   applyAccess(settings)
   view.setReduced(reducedFor(settings))
   window.addEventListener(SETTINGS_EVENT, (e) => {
