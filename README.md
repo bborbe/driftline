@@ -55,7 +55,7 @@ Gamepad (Xbox / PlayStation over Bluetooth or USB, Chrome or Safari; a "Controll
 - Left stick - Steer (analog, with a dead zone)
 - `RT` - Accelerate (analog)
 - `LT` - Brake / reverse (analog)
-- `A` / `LB` - Handbrake
+- `A` - Handbrake
 - `B` - Respawn at last checkpoint (menus: back)
 - `Y` - Restart the run
 - `Menu` - Pause menu
