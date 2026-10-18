@@ -14,7 +14,7 @@ describe('settings tabs', () => {
     expect(new Set(placed).size).toBe(placed.length)
   })
   it('groups car, race, graphics, audio and about as agreed', () => {
-    expect(TAB_CONTROLS.car).toEqual(['livery', 'paint', 'number'])
+    expect(TAB_CONTROLS.car).toEqual(['livery', 'paint', 'number', 'name'])
     expect(TAB_CONTROLS.race).toEqual(['time', 'weather', 'laps'])
     expect(TAB_CONTROLS.graphics).toEqual([...LIVE_FX, 'camera', 'reflections', 'aa', 'hudScale'])
     expect(TAB_CONTROLS.audio).toEqual(['volume', 'sfxVolume', 'uiVolume'])

@@ -5,6 +5,9 @@ import { isBetterMedal, MEDAL_ORDER, type Medal } from './medals'
 export const MAX_LEADERBOARD_ENTRIES = 10
 
 const NAME_KEY = 'driftline-last-name'
+/** The player's name: the leaderboard entry's last name, also set in Settings → Car and carried by challenge links. */
+export const loadPlayerName = (storage: Pick<Storage, 'getItem'>): string => storage.getItem(NAME_KEY) ?? ''
+export const savePlayerName = (storage: Pick<Storage, 'setItem'>, name: string): void => storage.setItem(NAME_KEY, name.trim())
 /** lap1 (now test1) keeps the original unsuffixed keys so existing best times and boards survive. */
 const LEGACY_TRACK = 'lap1'
 // Other tracks are keyed by name and layout, so a redesigned track starts a fresh board.
@@ -107,12 +110,12 @@ export class RaceStore {
     entries.sort((a, b) => a.lapTimeMs - b.lapTimeMs)
     const trimmed = entries.slice(0, MAX_LEADERBOARD_ENTRIES)
     this.storage.setItem(this.boardKey, JSON.stringify(trimmed))
-    this.storage.setItem(NAME_KEY, name.trim())
+    savePlayerName(this.storage, name)
     return trimmed
   }
 
   lastName(): string {
-    return this.storage.getItem(NAME_KEY) ?? ''
+    return loadPlayerName(this.storage)
   }
 }
 

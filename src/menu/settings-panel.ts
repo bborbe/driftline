@@ -9,6 +9,8 @@ import { HUD_SCALES, loadSettings, saveSettings, SETTINGS_EVENT, type Settings }
 import { buildLabel } from '../build-info'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES, type Environment, type TimeChoice, type WeatherChoice } from '../track/environment'
+import { loadPlayerName, savePlayerName } from '../race/store'
+import { MAX_NAME } from '../challenge/link'
 import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type ControlId, type Tab } from './tabs'
 
 export interface SettingsHooks {
@@ -165,6 +167,11 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     num.value = String(s.livery.number)
   })
   add('number', label('Race number'), num)
+  // The player's name (leaderboard and challenge links); typing must not reach the race keys.
+  const name = Object.assign(document.createElement('input'), { type: 'text', maxLength: MAX_NAME, placeholder: 'NAME', value: loadPlayerName(localStorage), id: 'setting-name' })
+  name.addEventListener('keydown', (e) => e.stopPropagation())
+  name.addEventListener('input', () => savePlayerName(localStorage, name.value))
+  add('name', label('Name (challenge links)'), name)
   return tabbed(controls)
 }
 

@@ -29,6 +29,10 @@ import { environmentLabel, resolveEnvironment, trackEnvironment } from './track/
 import { devMode, RunTaint } from './debug/tuning'
 import { mountTuningPanel } from './debug/tuning-panel'
 import { isTuned } from './physics/handling'
+import { layoutId } from './track/schema'
+import { loadPlayerName } from './race/store'
+import { challengeUrl, readChallenge, type Challenge } from './challenge/link'
+import { challengeToast, challengerName, copyLink, mountChallengeBanner, mountGhostTag, showChallengeError } from './challenge/view'
 
 // URL state (src/menu/url-state.ts): settings and the view named in the query beat the stored ones and are stored,
 // so every panel shows them; from here on the address bar follows the screen, every setting, the view and the fly
@@ -62,13 +66,33 @@ const fade = mountFade(noFade(location.search) ? 0 : 1)
 document.documentElement.classList.toggle('debug-off', !debugVisible(location.search))
 type Mode = 'menu' | 'race' | 'results'
 let mode = (): Mode => 'menu'
-const driftline: { mode: Mode; ready: boolean; centreline?: (step: number) => unknown } = {
+const driftline: { mode: Mode; ready: boolean; centreline?: (step: number) => unknown; challengeLink?: string } = {
   get mode() {
     return mode()
   },
   ready: false,
 }
 ;(window as unknown as { driftline: object }).driftline = driftline
+// Challenge link (src/challenge): ?challenge= carries the sender's target time and, when it fit, their best-lap ghost.
+// A link that cannot be read says why over the start menu and is dropped from the URL, track and all.
+const bootQuery = new URLSearchParams(location.search)
+const challengeValue = bootQuery.get('challenge')
+let challenge: Challenge | null = null
+if (challengeValue !== null) {
+  const read = readChallenge(challengeValue, {
+    track: bootQuery.get('track'),
+    laps: lapCount(location.search, loadSettings(localStorage).laps),
+    layoutOf: (name) => (LAP_NAMES.includes(name) ? layoutId(loadLap(name)) : null),
+  })
+  if (read.ok) challenge = read.challenge
+  else {
+    showChallengeError(read.reason)
+    bootQuery.delete('challenge')
+    bootQuery.delete('track')
+    const rest = bootQuery.toString()
+    history.replaceState(history.state, '', `${location.pathname}${rest ? `?${rest}` : ''}${location.hash}`)
+  }
+}
 // A bare URL opens the start screen; ?track= and debug-spawn links go straight in (shared links, `make shots`).
 const fromMenu = !skipMenu(location.search)
 const sel = new URLSearchParams(location.search).get('sel')
@@ -96,6 +120,7 @@ if (fromMenu) {
   const picking = chooseTrack(LAP_NAMES, { focus: sel ?? trackName, onFocus: (t) => (screen = { sel: t }), live: true })
   void fade.to(0)
   const picked = await picking
+  document.getElementById('challenge-error')?.remove()
   await fade.to(1)
   if (picked !== trackName) {
     location.assign(`${location.pathname}${screenQuery(location.search, urlState(), { track: picked })}`)
@@ -105,6 +130,7 @@ if (fromMenu) {
 }
 screen = { track: trackName }
 const { camera, backend } = view
+if (challenge) mountChallengeBanner(challenge)
 
 // Debug overlay (pose, fps, build label) in the corners, dev only (?dev=1 / ?debug=1; backtick toggles), P copies the debug-spawn URL
 // for the current view. The race HUD lives in src/race/view.ts.
@@ -136,6 +162,13 @@ const ghostCar = await createGhostCar(undefined, ghostLivery(settings.livery))
 view.scene.add(ghostCar.object)
 let ghost: GhostReplayer | null = null
 let lapStartTick = 0
+// A challenge with a ghost races the sender's lap, tagged with their name; otherwise the session's fastest lap.
+const ghostRun = () => challenge?.ghost ?? ghostRecorder.best
+const newGhost = () => {
+  const run = ghostRun()
+  return run ? new GhostReplayer(run, sim.surface) : null
+}
+const ghostTag = challenge?.ghost ? mountGhostTag(challengerName(challenge)) : null
 const race = initRace(sim, track, {
   listeners: [
     {
@@ -163,14 +196,14 @@ const race = initRace(sim, track, {
       // Each new lap (every lap of a multi-lap run too) replays the best single lap so far from its own start line.
       lapStart: (tick) => {
         lapStartTick = tick
-        ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
+        ghost = newGhost()
         ghostCar.object.visible = ghost !== null
       },
       // Backspace: put the ghost back on the start grid with the car now, not after the countdown.
       // A fresh replayer has previous = state = run start, so it snaps there with no blend.
       restart: () => {
         lapStartTick = Number.POSITIVE_INFINITY // advanceTo(-Infinity) holds the start pose until lapStart
-        ghost = ghostRecorder.best ? new GhostReplayer(ghostRecorder.best, sim.surface) : null
+        ghost = newGhost()
         ghostCar.object.visible = ghost !== null
       },
       // Dev-only split log: the lap-2 ghost check compares these against the best lap.
@@ -184,6 +217,7 @@ const race = initRace(sim, track, {
     backToMenu: () => leave(screenQuery(location.search, urlState(), { sel: trackName })),
     nextTrack: () => leave(screenQuery(location.search, urlState(), { track: nextLap(track.name) })),
     settings: () => settingsPanel({ onVolume: (v) => audio.setVolume(v), trackDefault: trackEnvironment(track) }),
+    challenge: (runMs) => void shareChallenge(runMs),
   },
   laps,
   recordsLocked: () => taint.locked,
@@ -193,6 +227,22 @@ const race = initRace(sim, track, {
   },
 })
 mode = () => (race.resultsShown ? 'results' : 'race')
+// Results → Challenge a friend: copy a link with this run's target and, in a single-lap run, the session's fastest lap
+// as the ghost (the target is then that lap's time, so ghost and target agree). The link is also on window.driftline.
+async function shareChallenge(runMs: number): Promise<void> {
+  const best = race.laps === 1 ? ghostRecorder.best : null
+  const url = challengeUrl(`${location.origin}${location.pathname}`, {
+    track: trackName,
+    layout: layoutId(track),
+    laps: race.laps,
+    targetMs: best?.lapTimeMs ?? runMs,
+    name: loadPlayerName(localStorage),
+    ghost: best,
+  })
+  driftline.challengeLink = url
+  if (await copyLink(url)) challengeToast('Challenge link copied')
+  else window.prompt('Copy this challenge link:', url)
+}
 // Results / Esc menu → menu or next track: the card and the Esc menu fade with the scene to black, then the page loads.
 let leaving = false
 async function leave(query: string): Promise<void> {
@@ -296,6 +346,7 @@ view.renderer.setAnimationLoop(() => {
 
   view.car.visible = fly !== null || cam.viewMode !== 'cockpit'
   cam.frame(s, speed, elapsed, input.held())
+  ghostTag?.update(ghostCar.object, camera)
 
   const f = cam.fly
   debug.setText(

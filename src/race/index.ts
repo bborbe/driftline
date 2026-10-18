@@ -29,7 +29,7 @@ export interface RaceOptions {
   /** Called whenever pause toggles, e.g. to suspend audio. */
   onPause?: (paused: boolean) => void
   /** Esc-menu / finish-panel navigation; without it the pause overlay only shows key hints. */
-  menu?: Pick<MenuActions, 'backToMenu' | 'nextTrack' | 'settings'>
+  menu?: Pick<MenuActions, 'backToMenu' | 'nextTrack' | 'settings' | 'challenge'>
   /** Laps per run (default 1); `?laps=N` via lapCount, or the menu's Laps setting. Records are kept per lap count. */
   laps?: number
   /** True while the run may not set records (a dev-tuned run, src/debug/tuning.ts). */
