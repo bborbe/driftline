@@ -1,11 +1,17 @@
 // Scene owner: renderer (WebGPU, WebGL2 fallback), track and car mesh; the look lives in scene.ts.
 // main.ts calls createView() once and view.frame(state) every frame; nothing here writes car state.
 import * as THREE from 'three/webgpu'
-import { pass, uniform, vec4 } from 'three/tsl'
+import { builtinAOContext, mrt, normalView, pass, renderOutput, saturation, screenUV, uniform, vec4 } from 'three/tsl'
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js'
+import { fxaa } from 'three/examples/jsm/tsl/display/FXAANode.js'
+import { ao } from 'three/examples/jsm/tsl/display/GTAONode.js'
 import { dot, forwardOf, trackSurface, type CarState, type Material } from '../physics'
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
+import { createContactShadow } from './car/contact-shadow'
+import { setMaxAnisotropy } from './anisotropy'
+import { gradeFor } from './grade'
+import { aoRequested, postPasses } from './post'
 import type { Livery } from './car/livery'
 import { parseFx, type Fx } from './fx/flags'
 import { BLOOM, bloomFor, glowPreset } from './glow'
@@ -41,6 +47,8 @@ export type View = {
   setFx: (fx: Set<Fx>) => void
   /** Neon Night's road reflection on or off (Settings → Graphics → Reflections). */
   setReflections: (on: boolean) => void
+  /** FXAA on or off (Settings → Graphics → Anti-aliasing); a no-op while `?bloom=0` leaves no post pipeline. */
+  setAA: (on: boolean) => void
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
   /** Start lights, arch screens and start road paint; main.ts feeds it race.board() each frame. Null without a start gate. */
@@ -87,13 +95,17 @@ export const setWetRoad = (root: THREE.Object3D, wet: boolean): void => {
   })
 }
 
-/** Neon Night colour grade (linear, before tone mapping): a push toward magenta. Every other look is ungraded. */
-export const NEON_GRADE: readonly [number, number, number] = [1.06, 0.9, 1.08]
-const NO_GRADE: readonly [number, number, number] = [1, 1, 1]
+export { NEON_GRADE } from './grade'
+
+/** Linear mid grey: the pivot the grade's contrast curve turns around. */
+const MID_GREY = 0.18
+
+/** Soft-edged sun shadows: a hard PCF edge reads as a cut-out pasted on the ground. */
+export const SHADOW_MAP_TYPE = THREE.PCFSoftShadowMap
 
 /**
  * `env` is the race's time of day and weather (track/environment.ts); `seed` varies its cloud layer; `livery`
- * paints the player car; `reflections` is Neon Night's road reflection (Settings → Graphics).
+ * paints the player car; `reflections` is Neon Night's road reflection and `aa` the FXAA pass (Settings → Graphics).
  */
 export const createView = async (
   track: Track,
@@ -102,15 +114,18 @@ export const createView = async (
   seed = 1,
   livery?: Livery,
   reflections = false,
+  aa = false,
 ): Promise<View> => {
   const forceWebGL = new URLSearchParams(location.search).get('renderer') === 'webgl2'
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL })
   renderer.setPixelRatio(window.devicePixelRatio)
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = SHADOW_MAP_TYPE
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   document.body.appendChild(renderer.domElement)
   await renderer.init()
+  setMaxAnisotropy(renderer.getMaxAnisotropy()) // before any texture is built (anisotropy.ts)
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2'
   console.log(`renderer: ${backend}`)
 
@@ -121,6 +136,8 @@ export const createView = async (
   ])
   renderer.toneMappingExposure = look.exposure
   scene.add(trackMesh, car.object)
+  const contact = createContactShadow()
+  scene.add(contact.object)
   // Neon Night (neon/): tubes, skyline, sparks, pink rims and the road reflection, switched live with the time of day.
   // Every glowing mesh already in the scene (edge lines, rail neon, car lights and rims) joins the mirror pass.
   const neon = createNeon(track, trackMesh)
@@ -154,14 +171,37 @@ export const createView = async (
   // Speed lines and smoke are built always and switched by visibility, so Settings toggles them live.
   let fx = parseFx(fxQuery)
   let draw = () => renderer.render(scene, camera)
+  // The one post pipeline (post.ts): scene → [ao] → bloom → grade → [aa]. The grade's uniforms follow the look live.
   const glow = bloomFor(location.search, glowPreset(look))
   let bloomPass: ReturnType<typeof bloom> | null = null
-  const grade = uniform(new THREE.Vector3(...(look.neon ? NEON_GRADE : NO_GRADE)))
+  const g = gradeFor(look)
+  const tint = uniform(new THREE.Vector3(...g.tint))
+  const sat = uniform(g.saturation)
+  const contrast = uniform(g.contrast)
+  let setAA = (_on: boolean) => {}
   if (glow) {
+    const passes = postPasses({ bloom: true, ao: aoRequested(location.search), aa: true })
     const pipeline = new THREE.RenderPipeline(renderer)
+    pipeline.outputColorTransform = false // tone mapping happens after the grade, so FXAA gets display colour (post.ts)
     const scenePass = pass(scene, camera)
+    if (passes.includes('ao')) {
+      const prePass = pass(scene, camera, { samples: 0 }) // GTAO gathers depth texels: a multisampled depth texture cannot be read
+      prePass.setMRT(mrt({ output: normalView }))
+      const aoPass = ao(prePass.getTextureNode('depth'), prePass.getTextureNode(), camera)
+      aoPass.resolutionScale = 0.5
+      scenePass.contextNode = builtinAOContext(aoPass.getTextureNode().sample(screenUV).r)
+    }
     bloomPass = bloom(scenePass, glow.strength, glow.radius, glow.threshold)
-    pipeline.outputNode = scenePass.add(bloomPass).mul(vec4(grade, 1))
+    // Grade in linear light before tone mapping: contrast is a power curve around mid grey, so ACES still rolls the highlights off.
+    const hdr = saturation(scenePass.add(bloomPass).rgb.mul(tint), sat).max(0)
+    const contrasted = hdr.div(MID_GREY).pow(contrast).mul(MID_GREY)
+    const graded = renderOutput(vec4(contrasted, 1))
+    const antialiased = fxaa(graded)
+    setAA = (on: boolean) => {
+      pipeline.outputNode = on ? antialiased : graded
+      pipeline.needsUpdate = true
+    }
+    setAA(aa)
     draw = () => pipeline.render()
   }
   const speedLines = createSpeedLines()
@@ -217,7 +257,10 @@ export const createView = async (
     snow.object.visible = l.snow
     neon.setActive(l.neon)
     setNeonGlow(scene, l.neon)
-    grade.value.set(...(l.neon ? NEON_GRADE : NO_GRADE))
+    const lg = gradeFor(l)
+    tint.value.set(...lg.tint)
+    sat.value = lg.saturation
+    contrast.value = lg.contrast
     if (bloomPass) {
       const b = BLOOM[glowPreset(l)]
       bloomPass.strength.value = b.strength
@@ -228,9 +271,14 @@ export const createView = async (
 
   let elapsed = 0
   const down = { x: 0, y: -1, z: 0 }
+  const rayDown = new THREE.Vector3()
   const frame = (s: CarState, dt: number, material: Material = 'road', braking = false) => {
     elapsed += dt
     car.update(s, dt, braking)
+    // The road under the car along its own down axis (banks, loops, wallrides): how far the body has lifted off it.
+    const bodyDown = rayDown.set(0, -1, 0).applyQuaternion(car.object.quaternion)
+    const under = surface.raycast(s.position, bodyDown, 50)
+    contact.update(car.object, under ? under.distance : null)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
     if (fx.has('speedlines')) speedLines.update(dot(s.velocity, forwardOf(s)), dt)
     boost.update(s.turbo, s.turboForce, dt)
@@ -263,5 +311,5 @@ export const createView = async (
     }
   }
 
-  return { renderer, camera, backend, car: car.object, setLivery: car.setLivery, setEnvironment, setFx, setReflections: neon.setReflections, scene, start, frame }
+  return { renderer, camera, backend, car: car.object, setLivery: car.setLivery, setEnvironment, setFx, setReflections: neon.setReflections, setAA: (on: boolean) => setAA(on), scene, start, frame }
 }

@@ -6,6 +6,7 @@ import { centreline } from '../../track/centreline'
 import { poses, turnSign, zoneCorners, type Track } from '../../track/schema'
 import { padForward } from '../../track/shapes'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
+import { anisotropy } from '../anisotropy'
 import { noCollide, structural } from '../tags'
 import { lateralPoint, sampleSegment, segmentLength, TRACK_WIDTH } from '../track/geometry'
 import { widthAt } from '../../track/pose'
@@ -133,7 +134,7 @@ const atlasTexture = (accent: string): THREE.CanvasTexture => {
   g.fillRect(0, KINDS.length * FACE.h, FACE.w, FACE.h)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 8
+  tex.anisotropy = anisotropy()
   return tex
 }
 

@@ -14,6 +14,7 @@ import { createSigns } from './decor/signs'
 import { createDressing } from './decor/dressing'
 import { createStadium } from './decor/stadium'
 import { flat } from './tags'
+import { anisotropy } from './anisotropy'
 import { resolveTheme, skyUrl, type ResolvedTheme } from './theme'
 import { cloudPixels, environmentLook, type CloudLook, type EnvironmentLook } from './environment'
 import { DEFAULT_ENVIRONMENT, trackEnvironment, type Environment } from '../track/environment'
@@ -47,7 +48,7 @@ export const createGround = (grass?: THREE.Texture, tint: THREE.ColorRepresentat
     map.wrapS = map.wrapT = THREE.RepeatWrapping
     map.repeat.set(size / GRASS_TILE, size / GRASS_TILE)
     map.colorSpace = THREE.SRGBColorSpace
-    map.anisotropy = 8
+    map.anisotropy = anisotropy()
   }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(size, size),

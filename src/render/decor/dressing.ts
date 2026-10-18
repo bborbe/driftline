@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu'
 import { centreline } from '../../track/centreline'
 import { poses, sampleSegment, segmentLength, widthAt, type Track } from '../../track/schema'
+import { anisotropy } from '../anisotropy'
 import { flat, noCollide, structural } from '../tags'
 import { merged, placement, prepared } from './instance'
 
@@ -131,7 +132,7 @@ const drawAtlas = (accent: string): THREE.CanvasTexture => {
   g.fillRect(0, 2 * FACE.h, FACE.w, FACE.h)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 8
+  tex.anisotropy = anisotropy()
   return tex
 }
 

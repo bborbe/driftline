@@ -5,6 +5,7 @@
 // still lands on top. No image files: the texture is generated here (AGENTS.md § Assets).
 import * as THREE from 'three/webgpu'
 import { attribute, float, materialColor, materialRoughness, mix, positionWorld, texture } from 'three/tsl'
+import { anisotropy } from '../anisotropy'
 
 /** Texture side in texels. */
 export const ASPHALT_TEXELS = 256
@@ -73,7 +74,7 @@ const asphaltTexture = (): THREE.DataTexture => {
   tex.magFilter = THREE.LinearFilter
   tex.minFilter = THREE.LinearMipmapLinearFilter
   tex.generateMipmaps = true
-  tex.anisotropy = 8
+  tex.anisotropy = anisotropy()
   tex.needsUpdate = true
   return (shared = tex)
 }

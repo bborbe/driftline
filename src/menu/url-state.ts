@@ -38,6 +38,7 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
   const laps = q.get('laps') ? Number(q.get('laps')) : NaN
   const num = q.get('num') ? Math.round(Number(q.get('num'))) : NaN
   const refl = q.get('refl')
+  const aa = q.get('aa')
   return {
     volume: Number.isFinite(vol) ? Math.min(1, Math.max(0, vol)) : stored.volume,
     // The SFX and UI buses stay out of the URL: they are a player's own mix, not part of a shared setup.
@@ -54,6 +55,7 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
     },
     hudScale: q.has('hud') ? clampHudScale(Number(q.get('hud'))) : stored.hudScale,
     reflections: refl === '1' ? true : refl === '0' ? false : stored.reflections,
+    aa: aa === '1' ? true : aa === '0' ? false : stored.aa,
   }
 }
 
@@ -86,6 +88,7 @@ export function stateQuery(search: string, state: UrlState): string {
   q.set('num', String(s.livery.number))
   q.set('hud', String(s.hudScale))
   q.set('refl', s.reflections ? '1' : '0')
+  q.set('aa', s.aa ? '1' : '0')
   if (state.fly && 'track' in state.screen) {
     const pose = new URLSearchParams(flyQuery(state.screen.track, state.fly))
     for (const k of FLY_KEYS) q.set(k, pose.get(k)!)

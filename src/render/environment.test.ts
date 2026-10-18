@@ -21,7 +21,7 @@ describe('environmentLook', () => {
       sky: 'day',
       skyBrightness: 1,
       skyLight: DEFAULT_THEME.skyLight,
-      exposure: 1,
+      exposure: DEFAULT_THEME.exposure,
       fog: DEFAULT_THEME.fog,
       fogNear: DEFAULT_THEME.fogNear,
       fogFar: DEFAULT_THEME.fogFar,
