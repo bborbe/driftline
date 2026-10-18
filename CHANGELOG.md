@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
-## Unreleased
+## v0.3.2
 
 - chore: Go tooling config for the coming leaderboard server (`server/`: golangci-lint, precommit targets, tool versions) and a root `.reviewignore` so the PR reviewer skips generated `go.sum` and counterfeiter mocks
 
