@@ -25,3 +25,6 @@ dist-ssr
 
 # Debug screenshots (scripts/shots.mjs)
 shots
+
+# playwright-cli session snapshots (scripts/live-drive.js)
+.playwright-cli
