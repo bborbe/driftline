@@ -72,6 +72,8 @@ export interface CameraOptions {
   pose: Pose | null
   search: string
   store: Storage
+  /** Settings → Access → Reduced effects: while true the camera effects are off, whatever Camera effects says. */
+  reduced?: () => boolean
   /** Race phase and countdown (seconds left of `countdownTotal`), for the start sweep and the finish orbit. */
   race?: () => { phase: 'ready' | 'countdown' | 'racing' | 'finished'; countdownLeft: number; countdownTotal: number }
 }
@@ -229,7 +231,7 @@ export function createCameraController(o: CameraOptions): CameraController {
         chase = updateChase(chase, s.position, fwd, Math.abs(speed), elapsed, rigFor(), carUp)
         const dt = Math.min(elapsed, 0.1)
         clock += dt
-        const k = fxK
+        const k = o.reduced?.() ? 0 : fxK
         roll = damp(roll, carUp ? 0 : leanFor(signedSlipDeg(fwd, s.velocity), k), 4, dt)
         lookSide = damp(lookSide, carUp ? 0 : lookAheadFor(s.angularVelocity.y, speed, k), 3, dt)
         const impact = prev && dt > 0 ? impactOf(prev.velocity, s.velocity, prev.position, s.position, dt) : 0

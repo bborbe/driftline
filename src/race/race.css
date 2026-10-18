@@ -167,6 +167,27 @@
   flex: 0 0 8em; text-align: right; font: var(--hud-w-bold) 13px var(--hud-font); color: #fff;
 }
 .controls span { color: #dfe7f2; }
+/* Settings → Access → Colour-safe HUD: ahead / behind are blue / orange instead of blue / red, each with an arrow,
+   so the sign never rests on colour alone; the medal dot carries its letter (A G S B). Values pinned in access.test.ts. */
+.colour-safe { --delta-ahead: #2f7dff; --delta-behind: #ff9a1f; }
+.colour-safe .race-target-delta.race-ahead, .colour-safe .race-ahead .race-split-delta, .colour-safe .race-split-delta.race-ahead { background: var(--delta-ahead); color: #fff; }
+.colour-safe .race-target-delta.race-behind, .colour-safe .race-behind .race-split-delta, .colour-safe .race-split-delta.race-behind { background: var(--delta-behind); color: #111; }
+.colour-safe .race-cp-flash.race-ahead { --flash: var(--delta-ahead); }
+.colour-safe .race-cp-flash.race-behind { --flash: var(--delta-behind); }
+.colour-safe .race-target-delta.race-ahead::before, .colour-safe .race-split-delta.race-ahead::before, .colour-safe .race-ahead .race-split-delta::before { content: '▲ '; }
+.colour-safe .race-target-delta.race-behind::before, .colour-safe .race-split-delta.race-behind::before, .colour-safe .race-behind .race-split-delta::before { content: '▼ '; }
+.colour-safe .race-medal-dot { width: calc(var(--s3) * 1.6); height: calc(var(--s3) * 1.6); display: inline-flex; align-items: center; justify-content: center; color: inherit; }
+.colour-safe .race-medal-dot::after { color: #111; font-size: calc(var(--s3) * 1.1); font-weight: bold; font-style: normal; line-height: 1; }
+.colour-safe .race-medal-author .race-medal-dot::after { content: 'A'; }
+.colour-safe .race-medal-gold .race-medal-dot::after { content: 'G'; }
+.colour-safe .race-medal-silver .race-medal-dot::after { content: 'S'; }
+.colour-safe .race-medal-bronze .race-medal-dot::after { content: 'B'; }
+/* Settings → Access → Reduced effects: the HUD's pop, bump and record animations are off (speed lines, boost streaks
+   and camera effects are switched off in view.ts and camera/controller.ts). */
+.reduced-effects .race-bump, .reduced-effects .race-record, .reduced-effects .race-panel-in, .reduced-effects .race-count.race-pop { animation: none; }
+/* The split still has to go away: a plain fade, no scale pop. */
+.reduced-effects .race-split.race-pop { animation: race-split-fade 2.5s linear both; }
+@keyframes race-split-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 /* Records panel (T): top left, the PB and every medal time with the best's delta to it (green beaten, red behind), then
    the local top 5. Collapsed it is just its header; Settings → Graphics → Records panel picks how it starts. */
 .race-records {

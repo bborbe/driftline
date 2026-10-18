@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CarInput } from './physics'
+import { ACTIONS } from './bindings'
 import {
   CYCLE_CAMERA,
   deadZone,
@@ -32,7 +33,7 @@ const IDLE: CarInput = { throttle: 0, brake: 0, steer: 0, handbrake: false }
 describe('mapping table', () => {
   it('maps the Xbox buttons to the keys they stand for', () => {
     const race = Object.fromEntries(PAD_BINDINGS.filter((b) => b.race).map((b) => [b.button, b.race]))
-    expect(race).toEqual({ [PAD.B]: 'KeyR', [PAD.Y]: 'Backspace', [PAD.MENU]: 'Escape', [PAD.VIEW]: CYCLE_CAMERA })
+    expect(race).toEqual({ [PAD.B]: 'respawn', [PAD.Y]: 'restart', [PAD.MENU]: 'Escape', [PAD.VIEW]: CYCLE_CAMERA })
     const menu = Object.fromEntries(PAD_BINDINGS.filter((b) => b.menu).map((b) => [b.button, b.menu]))
     expect(menu).toEqual({
       [PAD.A]: 'Enter',
@@ -43,6 +44,10 @@ describe('mapping table', () => {
       [PAD.LEFT]: 'ArrowLeft',
       [PAD.RIGHT]: 'ArrowRight',
     })
+  })
+
+  it('names only real rebindable actions, so the pad follows the player keys', () => {
+    for (const b of PAD_BINDINGS) for (const a of [b.race, b.menu]) if (a && !/^(Arrow|Enter|Escape)/.test(a) && a !== CYCLE_CAMERA) expect(ACTIONS).toContain(a)
   })
 
   it('binds each button at most once', () => {
@@ -140,10 +145,10 @@ describe('button presses', () => {
   it('fire once on the down edge, by context', () => {
     const k = new PadKeys()
     expect(k.update(pad(), 'race', 0)).toEqual([])
-    expect(k.update(pad({ down: [PAD.B] }), 'race', 16)).toEqual(['KeyR'])
+    expect(k.update(pad({ down: [PAD.B] }), 'race', 16)).toEqual(['respawn'])
     expect(k.update(pad({ down: [PAD.B] }), 'race', 32)).toEqual([])
     expect(k.update(pad(), 'race', 48)).toEqual([])
-    expect(k.update(pad({ down: [PAD.Y, PAD.VIEW] }), 'race', 64)).toEqual(['Backspace', CYCLE_CAMERA])
+    expect(k.update(pad({ down: [PAD.Y, PAD.VIEW] }), 'race', 64)).toEqual(['restart', CYCLE_CAMERA])
     expect(k.update(pad({ down: [PAD.B] }), 'menu', 80)).toEqual(['Escape'])
   })
 

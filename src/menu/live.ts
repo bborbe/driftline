@@ -2,6 +2,7 @@
 // once instead of on a reload. Pure and tested; main.ts owns the side effects (view, ghost, audio, race).
 import type { Settings } from './settings'
 import { LIVE_FX, type Fx } from '../render/fx/flags'
+import { sameKnobs } from '../render/quality'
 
 /** The parts of the running race a settings change touches; absent keys are unchanged. */
 export interface SettingsChange {
@@ -15,10 +16,12 @@ export interface SettingsChange {
   /** Time or weather changed: re-resolve the environment from the new choice. */
   environment?: true
   livery?: Settings['livery']
-  /** Neon Night's road reflection turned on or off. */
-  reflections?: boolean
-  /** FXAA turned on or off. */
-  aa?: boolean
+  /** Quality or a render knob changed: re-resolve the knobs (render/quality.ts effectiveKnobs) and apply them. */
+  quality?: true
+  /** Colour-safe HUD on or off. */
+  colourSafe?: boolean
+  /** Reduced effects choice changed (null: back to the system's reduce-motion). */
+  reducedEffects?: boolean | null
 }
 
 const sameLivery = (a: Settings['livery'], b: Settings['livery']) => a.pattern === b.pattern && a.paint === b.paint && a.number === b.number
@@ -37,7 +40,8 @@ export function settingsChange(prev: Settings, next: Settings): SettingsChange {
   if (prev.laps !== next.laps) out.laps = next.laps
   if (prev.time !== next.time || prev.weather !== next.weather) out.environment = true
   if (!sameLivery(prev.livery, next.livery)) out.livery = next.livery
-  if (prev.reflections !== next.reflections) out.reflections = next.reflections
-  if (prev.aa !== next.aa) out.aa = next.aa
+  if (prev.quality !== next.quality || !sameKnobs(prev.knobs, next.knobs)) out.quality = true
+  if (prev.colourSafe !== next.colourSafe) out.colourSafe = next.colourSafe
+  if (prev.reducedEffects !== next.reducedEffects) out.reducedEffects = next.reducedEffects
   return out
 }

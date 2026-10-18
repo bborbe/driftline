@@ -1,6 +1,7 @@
 // Gamepad shell: polls navigator.getGamepads() once per animation frame, presses the keys the pad's buttons stand for
 // (src/gamepad.ts tables) as synthetic key events on window, and shows a "Controller connected" toast on connect and
 // disconnect. Driving reads the pad fresh each frame through `input()`, mixed with the keyboard by InputMix.
+import { ACTIONS, loadBindings, type Action } from './bindings'
 import { loadView, VIEWS, type ViewMode } from './camera/views'
 import { CYCLE_CAMERA, padInput, PadKeys, pickPad, type PadAction, type PadContext } from './gamepad'
 import type { CarInput } from './physics'
@@ -14,6 +15,10 @@ export interface GamepadShell {
 
 /** Key code that selects the view after `mode` (1 → 2 → 3 → 1). */
 export const nextViewKey = (mode: ViewMode): string => `Digit${((VIEWS.indexOf(mode) + 1) % VIEWS.length) + 1}`
+
+/** The player's key for a rebindable action name (primary, else secondary), or null for a plain key code. */
+const boundKey = (action: PadAction): string | null =>
+  (ACTIONS as readonly string[]).includes(action) ? (loadBindings(localStorage)[action as Action].find((c) => c !== null) ?? null) : null
 
 const TOAST_MS = 2500
 
@@ -29,7 +34,7 @@ export function mountGamepad(nav: Navigator = navigator): GamepadShell {
   let connected: string | null = null
 
   const press = (action: PadAction) => {
-    const code = action === CYCLE_CAMERA ? nextViewKey(loadView(localStorage)) : action
+    const code = action === CYCLE_CAMERA ? nextViewKey(loadView(localStorage)) : (boundKey(action) ?? action)
     const key = code === 'Escape' || code === 'Enter' || code === 'Backspace' || code.startsWith('Arrow') ? code : code.replace(/^(Key|Digit)/, '').toLowerCase()
     window.dispatchEvent(new KeyboardEvent('keydown', { code, key, bubbles: true, cancelable: true }))
     window.dispatchEvent(new KeyboardEvent('keyup', { code, key, bubbles: true }))

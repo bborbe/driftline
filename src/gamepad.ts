@@ -1,8 +1,8 @@
 // Gamepad → CarInput and menu keys (Gamepad API "standard" mapping: Xbox / PlayStation pads in Chrome and Safari).
 // Driving is analog — left stick steers through a dead zone and a response curve, the triggers are throttle and brake —
 // and feeds the same CarInput the keys do, so physics never knows which device drove. Every other button becomes the
-// key it stands for (B = R respawn, Y = Backspace restart, …), dispatched as a key press, so menus, pause and the race
-// need no gamepad code. All bindings live in the tables below, the one place key rebinding can extend. Pure and tested;
+// key it stands for (B = the respawn key, Y = the restart key, Menu = Esc, …), dispatched as a key press, so menus, pause
+// and the race need no gamepad code. All bindings live in the tables below, the one place key rebinding can extend. Pure and tested;
 // src/gamepad-shell.ts polls the pad and dispatches.
 import type { CarInput } from './physics'
 
@@ -32,7 +32,10 @@ export const PAD_DRIVE = {
   handbrake: [PAD.A, PAD.RB],
 } as const
 
-/** What a button does: a key code to press, or CYCLE_CAMERA (next of the 1 / 2 / 3 views). */
+/**
+ * What a button does: a key code to press, a rebindable action name from src/bindings.ts (`respawn`, `restart`: the
+ * player's own key for it is pressed), or CYCLE_CAMERA (next of the 1 / 2 / 3 views).
+ */
 export type PadAction = string
 export const CYCLE_CAMERA = 'cycleCamera'
 
@@ -51,8 +54,8 @@ export interface PadBinding {
 /** Button → key, per context. Driving buttons (triggers, A / RB handbrake) are in PAD_DRIVE. */
 export const PAD_BINDINGS: PadBinding[] = [
   { button: PAD.A, name: 'A', menu: 'Enter', action: 'Menus: select / start' },
-  { button: PAD.B, name: 'B', race: 'KeyR', menu: 'Escape', action: 'Respawn at last checkpoint · menus: back' },
-  { button: PAD.Y, name: 'Y', race: 'Backspace', action: 'Restart the run' },
+  { button: PAD.B, name: 'B', race: 'respawn', menu: 'Escape', action: 'Respawn at last checkpoint · menus: back' },
+  { button: PAD.Y, name: 'Y', race: 'restart', action: 'Restart the run' },
   { button: PAD.MENU, name: 'Menu', race: 'Escape', menu: 'Escape', action: 'Pause menu' },
   { button: PAD.VIEW, name: 'View', race: CYCLE_CAMERA, action: 'Next camera view' },
   { button: PAD.UP, name: 'D-pad ↑', menu: 'ArrowUp', action: 'Menus: move' },

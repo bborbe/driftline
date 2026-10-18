@@ -30,7 +30,9 @@
 .menu-tab { padding: 6px 14px; background: rgba(255, 255, 255, 0.06); border: 2px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: #b8c4d0; font: 600 15px var(--ui-font); cursor: pointer; }
 .menu-tab:hover { color: #fff; }
 .menu-tab-active { color: #fff; background: rgba(255, 195, 0, 0.12); border-color: #ffc300; }
-.menu-tabs .menu-hint { margin-left: auto; }
+.menu-tabs .menu-hint { margin-left: auto; white-space: nowrap; }
+/* Seven tabs: tighter padding so the strip and its Q / E hint fit the Esc panel on one row. */
+.menu-tabs .menu-tab { padding: 6px 10px; font-size: 14px; }
 .menu-hint { color: #889; font-size: 13px; }
 /* Button states for every menu button: hover, pressed, keyboard focus and disabled. */
 .menu-item, .menu-tab, .menu-card { transition: background 120ms, border-color 120ms, transform 80ms; }
@@ -40,6 +42,28 @@
 .menu-item:focus-visible, .menu-tab:focus-visible, .menu-card:focus-visible { outline: 2px solid #8fd0ff; outline-offset: 2px; }
 .menu-item[disabled], .menu-tab[disabled], .menu-card[disabled] { opacity: 0.4; cursor: not-allowed; transform: none; background: rgba(255, 255, 255, 0.04); }
 .menu-build { font: 12px ui-monospace, monospace; color: #b8c4d0; }
+/* Graphics → Quality: a segmented row; Custom lights up (disabled) once a knob is changed by hand. */
+.menu-seg { display: inline-flex; gap: 3px; flex-wrap: wrap; }
+.menu-seg-item { padding: 3px 10px; background: rgba(255, 255, 255, 0.08); border: 2px solid transparent; border-radius: 6px; color: #fff; font: 14px monospace; cursor: pointer; }
+.menu-seg-item:disabled { cursor: default; opacity: 0.45; }
+.menu-seg-item.menu-seg-on { border-color: #ffc300; background: rgba(255, 195, 0, 0.12); opacity: 1; }
+.menu-link { padding: 0 4px; background: none; border: none; color: #ffc300; font: inherit; text-decoration: underline; cursor: pointer; }
+/* A control that spans the label and value columns of the settings grid. */
+.menu-span { grid-column: 1 / -1; }
+.menu-advanced { border-top: 1px dashed rgba(255, 255, 255, 0.15); padding-top: 6px; }
+.menu-advanced summary { color: #b8c4d0; cursor: pointer; }
+.menu-advanced .menu-settings { margin-top: 6px; }
+/* Controls → key bindings: rows turn red while two actions share a key; the listening key blinks. */
+.menu-bindings table { border-collapse: collapse; }
+.menu-bindings td { padding: 2px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+.menu-bindings tr.menu-clash td:first-child { color: #ff5a4a; }
+.menu-bindings tr.menu-clash .menu-key { border-color: #ff5a4a; color: #ff5a4a; }
+.menu-key { min-width: 64px; padding: 2px 8px; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 5px; color: #fff; font: 13px monospace; cursor: pointer; }
+.menu-key-empty { color: #667; border-style: dashed; }
+.menu-key-listen { border-color: #ffc300; color: #ffc300; animation: menu-blink 1s steps(2) infinite; }
+@keyframes menu-blink { 50% { opacity: 0.4; } }
+.menu-toast { margin: 6px 0; padding: 4px 8px; border: 1px solid #ff5a4a; border-radius: 6px; background: rgba(255, 90, 74, 0.15); font-size: 13px; }
+.menu-toast[hidden] { display: none; }
 /* Track select (operator's Lavish pick, 2026-10-18: option A): translucent left panel of rendered tiles + a preview panel.
    Over the live 3D menu scene the screen background turns transparent (.menu-live, src/main.ts). */
 .menu-select { flex-direction: row; align-items: stretch; justify-content: flex-start; gap: var(--s4, 16px); padding: var(--s5, 24px); box-sizing: border-box; overflow: hidden; }
@@ -77,3 +101,5 @@
 .menu-preview-medals td:nth-child(n + 2) { text-align: right; }
 .menu-preview-medals .race-ahead { color: #7fb0ff; } .menu-preview-medals .race-behind { color: #ff7a7a; }
 .menu-race-button { align-self: flex-start; background: #fff; color: #111; }
+/* Colour-safe (Settings → Access, race.css): the medal table's deltas take the same blue / orange. */
+.colour-safe .menu-preview-medals .race-ahead { color: var(--delta-ahead); } .colour-safe .menu-preview-medals .race-behind { color: var(--delta-behind); }

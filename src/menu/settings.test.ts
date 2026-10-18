@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_LIVERY } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES } from '../track/environment'
-import { DEFAULT_SETTINGS, effectiveFxQuery, HUD_SCALES, loadSettings, saveSettings } from './settings'
+import { DEFAULT_SETTINGS, effectiveFxQuery, HUD_SCALES, loadSettings, reducedEffectsOn, saveSettings, type Settings } from './settings'
+import { qualityKnobs } from '../render/quality'
 
 const fake = () => {
   const m = new Map<string, string>()
@@ -17,10 +18,25 @@ describe('settings', () => {
   })
   it('round-trips and drops unknown effects', () => {
     const s = fake()
-    saveSettings(s, { volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 }, reflections: true, aa: true, hudScale: 1.15, records: 'open' as const })
-    expect(loadSettings(s)).toEqual({ volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 }, reflections: true, aa: true, hudScale: 1.15, records: 'open' as const })
-    s.setItem('driftline-settings', JSON.stringify({ volume: 5, sfxVolume: -2, uiVolume: 'loud', fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'hail', reflections: 'yes', aa: 'no', hudScale: 7, records: 'sideways' }))
-    expect(loadSettings(s)).toEqual({ volume: 1, sfxVolume: 0, uiVolume: 1, fx: ['bloom'], laps: 1, time: 'default', weather: 'default', livery: DEFAULT_LIVERY, reflections: false, aa: false, hudScale: 1, records: 'auto' })
+    const knobs = { pixelRatio: 1.5, shadows: 1024 as const, post: true, reflections: false, aa: true, particles: 0.25 }
+    const saved = { volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'] as Settings['fx'], laps: 3, time: 'night' as const, weather: 'rain' as const, livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 }, quality: 'custom' as const, knobs, hudScale: 1.15, colourSafe: true, reducedEffects: false, records: 'closed' as const }
+    saveSettings(s, saved)
+    expect(loadSettings(s)).toEqual(saved)
+    s.setItem('driftline-settings', JSON.stringify({ volume: 5, sfxVolume: -2, uiVolume: 'loud', fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'hail', quality: 'ultra', knobs: { pixelRatio: 9, shadows: 512, post: 'yes', particles: 2 }, hudScale: 7, records: 'sideways', colourSafe: 'yes', reducedEffects: 'no' }))
+    expect(loadSettings(s)).toEqual({ ...DEFAULT_SETTINGS, volume: 1, sfxVolume: 0, uiVolume: 1, fx: ['bloom'], laps: 1, time: 'default', weather: 'default', livery: DEFAULT_LIVERY })
+  })
+  it('reads a save from before the presets: FXAA on is Custom on top of High, otherwise High', () => {
+    const s = fake()
+    s.setItem('driftline-settings', JSON.stringify({ volume: 0.5, reflections: true, aa: true }))
+    expect(loadSettings(s)).toMatchObject({ quality: 'custom', knobs: { ...qualityKnobs('high'), aa: true, reflections: true } })
+    s.setItem('driftline-settings', JSON.stringify({ volume: 0.5, reflections: false, aa: false }))
+    expect(loadSettings(s)).toMatchObject({ quality: 'high', knobs: qualityKnobs('high') })
+  })
+  it('follows the system reduce-motion until the player chooses', () => {
+    expect(reducedEffectsOn({ reducedEffects: null }, true)).toBe(true)
+    expect(reducedEffectsOn({ reducedEffects: null }, false)).toBe(false)
+    expect(reducedEffectsOn({ reducedEffects: false }, true)).toBe(false)
+    expect(reducedEffectsOn({ reducedEffects: true }, false)).toBe(true)
   })
   it('keeps every time and weather choice across a reload', () => {
     const s = fake()
