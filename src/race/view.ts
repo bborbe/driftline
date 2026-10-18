@@ -5,6 +5,7 @@
 // Sizes scale with --hud-scale (Settings → Graphics → HUD scale).
 import './race.css'
 import { menuList, type MenuList } from '../menu/list'
+import { isMenuKey } from '../menu/nav'
 import { controlsPanel } from './controls'
 import { keysLabel, loadBindings } from '../bindings'
 import { litTicks, SPEEDO_TICKS, targetDelta, type EffectChip, type Target } from './hud'
@@ -121,6 +122,8 @@ export class RaceView {
   private rendered = false
   private splitTimer: ReturnType<typeof setTimeout> | undefined
   typing = false
+  /** While the name entry is up: Enter saves the name, Escape skips the board (the input's keys, or a pad's A / B). */
+  private nameEntry: ((code: string) => void) | null = null
   private pauseMenu: MenuList | null = null
   private finishMenu: MenuList | null = null
   private readonly pauseSettings = el('div', '')
@@ -248,6 +251,8 @@ export class RaceView {
 
   /** Arrows / Enter for whichever menu is open; returns true when the key was used. */
   menuKey(code: string, paused: boolean): boolean {
+    // With Settings open the panel's pad focus owns the menu keys (src/menu/pad-focus.ts); the list behind stays put.
+    if (paused && !this.pauseSettings.hidden) return isMenuKey(code)
     if (paused) return this.pauseMenu?.key(code) ?? false
     if ((this.panel.hidden && !this.card.isConnected) || this.typing) return false
     return this.finishMenu?.key(code) ?? false
@@ -403,21 +408,35 @@ export class RaceView {
     name.placeholder = 'NAME'
     this.typing = true
     const entry = el('div', 'race-results-entry')
+    const close = (line: HTMLElement) => {
+      this.typing = false
+      this.nameEntry = null
+      entry.replaceChildren(line)
+      c.append(this.finishActions(r.ms))
+    }
+    this.nameEntry = (code) => {
+      if (code === 'Enter' || code === 'NumpadEnter') {
+        this.store.addToLeaderboard(name.value, r.ms)
+        const rank = this.store.leaderboard().findIndex((x) => x.lapTimeMs === r.ms) + 1
+        close(el('p', 'race-mine', `#${rank} on board — ${name.value.toUpperCase() || 'ANON'}`))
+      } else if (code === 'Escape') close(el('p', '', 'Not saved to the board'))
+    }
     name.addEventListener('keydown', (e) => {
       e.stopPropagation()
-      if (e.key !== 'Enter') return
-      this.store.addToLeaderboard(name.value, r.ms)
-      this.typing = false
-      const rank = this.store.leaderboard().findIndex((x) => x.lapTimeMs === r.ms) + 1
-      entry.replaceChildren(el('p', 'race-mine', `#${rank} on board — ${name.value.toUpperCase() || 'ANON'}`))
-      c.append(this.finishActions(r.ms))
+      this.nameKey(e.key === 'Enter' ? 'Enter' : e.code)
     })
-    entry.append(el('p', '', 'Top 10! Enter your name:'), name)
+    entry.append(el('p', '', 'Top 10! Enter your name:'), name, el('p', 'menu-hint', 'Enter / A save · Esc / B skip'))
     c.append(entry)
     name.focus()
   }
 
+  /** A key while the name entry is up (Enter saves, Escape skips); keys that reach the window, like the pad's, land here too. */
+  nameKey(code: string): void {
+    this.nameEntry?.(code)
+  }
+
   hideFinish(): void {
+    this.nameEntry = null
     clearTimeout(this.resultsTimer)
     this.resultsTimer = undefined
     const shown = this.card.isConnected

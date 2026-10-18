@@ -40,6 +40,8 @@
 .menu-tab:hover { background: rgba(255, 255, 255, 0.1); }
 .menu-item:active, .menu-tab:active, .menu-card:active { transform: scale(0.97); background: rgba(255, 195, 0, 0.22); }
 .menu-item:focus-visible, .menu-tab:focus-visible, .menu-card:focus-visible { outline: 2px solid #8fd0ff; outline-offset: 2px; }
+/* Pad focus over the settings controls (src/menu/pad-focus.ts): the menus' yellow, as an outline so any control can carry it. */
+.pad-focus { outline: 2px solid #ffc300; outline-offset: 2px; }
 .menu-item[disabled], .menu-tab[disabled], .menu-card[disabled] { opacity: 0.4; cursor: not-allowed; transform: none; background: rgba(255, 255, 255, 0.04); }
 .menu-build { font: 12px ui-monospace, monospace; color: #b8c4d0; }
 /* Graphics → Quality: a segmented row; Custom lights up (disabled) once a knob is changed by hand. */

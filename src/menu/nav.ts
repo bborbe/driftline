@@ -10,6 +10,9 @@ export function moveFocus(index: number, count: number, code: string): number {
 
 export const isSelectKey = (code: string): boolean => code === 'Enter' || code === 'NumpadEnter' || code === 'Space'
 
+/** A key a menu takes: an arrow or a select key. */
+export const isMenuKey = (code: string): boolean => code.startsWith('Arrow') || isSelectKey(code)
+
 /** A cell in a menu of rows of different lengths (track groups, then settings). */
 export interface GridPos {
   row: number

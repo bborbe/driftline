@@ -10,6 +10,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
+## Unreleased
+
+- feat: every screen is playable with a gamepad alone — the post-race name entry saves with A and skips with B (and Esc), the Settings panel (start menu and Esc menu) takes the pad with a yellow focus ring (↑/↓ move, ←/→ change a select, slider or number, A presses, LB / RB switch tabs; key-rebind buttons stay keyboard-only), X opens the leaderboard, B dismisses a broken challenge link's error; `scripts/gamepad-check.js` walks start menu → settings → race → results → name save and skip → leaderboard → Esc menu settings → back to the menu, pad only
+
 ## v0.6.2
 
 - chore: the leaderboard server is no longer deployed — the online leaderboard is on hold, so its nuke-prod namespace and the `driftline.benjamin-borbe.de` vhost are torn down; `server/` and `server/k8s/` stay, `server/README.md` § Deploy says what a redeploy needs, and the Pages build no longer passes the leaderboard URL and token

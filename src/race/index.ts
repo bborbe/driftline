@@ -137,7 +137,8 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
   let bindings = loadBindings(localStorage)
   window.addEventListener(BINDINGS_EVENT, (e) => (bindings = (e as CustomEvent<Bindings>).detail))
   window.addEventListener('keydown', (e) => {
-    if (view.typing) return
+    // The name entry's own input keeps its keys; one that reaches the window (the pad's A / B, or focus lost) saves or skips.
+    if (view.typing) return view.nameKey(e.code)
     if (e.code === 'KeyF' && !e.repeat) toggleFullscreen()
     if (e.code === 'Escape') {
       if (escapeLeavesFullscreen(!!document.fullscreenElement, performance.now())) return

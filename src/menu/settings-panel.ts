@@ -1,6 +1,7 @@
 // The settings panel, shared by the start screen and the in-race Esc menu. Writes through to localStorage and fires
 // SETTINGS_EVENT after every change, so the running race applies it at once (src/menu/live.ts); nothing needs a reload.
-// Controls sit in tabs (src/menu/tabs.ts): click a tab or press Q / E; the last open tab is remembered.
+// Controls sit in tabs (src/menu/tabs.ts): click a tab or press Q / E (pad LB / RB); the last open tab is remembered.
+// Pad focus (src/menu/pad-focus.ts): ↑/↓ move a ring over the open tab's controls, ←/→ adjust, A presses.
 import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camera/views'
 import { CAMERA_FX, CAMERA_FX_EVENT, loadCameraFx, saveCameraFx, type CameraFx } from '../camera/feel'
 import { LIVE_FX } from '../render/fx/flags'
@@ -18,6 +19,7 @@ import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type Control
 import { PARTICLE_SCALES, PIXEL_RATIOS, qualityKnobs, SHADOW_SIZES, type Knobs, type Quality } from '../render/quality'
 import { AUTO_PICKED_EVENT, reducedFor, REPROBE_EVENT, storedAuto } from '../render/quality-runtime'
 import { bindingsTable } from './bindings-panel'
+import { nextOption, nudge, padFocusKey, padKind, type PadMove } from './pad-focus'
 
 export interface SettingsHooks {
   /** Live volume change, e.g. GameAudio.setVolume. */
@@ -348,15 +350,72 @@ function tabbed(controls: Record<ControlId, HTMLElement[]>): HTMLElement {
   strip.append(...TABS.map((t) => buttons[t]), Object.assign(document.createElement('span'), { className: 'menu-hint', textContent: 'Q / E' }))
   box.append(strip, ...TABS.map((t) => pages[t]))
   show(current)
+  const pad = padFocus(() => pages[current])
   // One listener per panel; a panel the Esc menu replaced drops its own on the next key.
   const onKey = (e: KeyboardEvent) => {
     if (!box.isConnected) return window.removeEventListener('keydown', onKey, true)
-    if (box.getClientRects().length === 0 || (e.target as HTMLElement | null)?.tagName === 'INPUT' || document.body.dataset.keyCapture) return
+    if (box.getClientRects().length === 0) return pad.clear()
+    const tag = (e.target as HTMLElement | null)?.tagName
+    if (tag === 'INPUT' || document.body.dataset.keyCapture) return
     const next = moveTab(current, e.code)
-    if (next === current) return
-    show(next)
+    if (next !== current) {
+      pad.clear()
+      show(next)
+      e.preventDefault()
+      return
+    }
+    // A focused select or textarea keeps its own keys; the pad (and a keyboard with nothing focused) moves the ring.
+    if (tag === 'SELECT' || tag === 'TEXTAREA' || !pad.key(e.code)) return
     e.preventDefault()
+    e.stopImmediatePropagation()
   }
   window.addEventListener('keydown', onKey, true)
   return box
+}
+
+/** Controls the pad ring can land on: enabled, on screen, and not a key-rebind button (those capture a keyboard key). */
+const PAD_TARGETS = 'button, select, input, summary'
+
+/** The pad focus ring over whichever page `page()` returns: `key` applies a menu key, `clear` drops the ring. */
+function padFocus(page: () => HTMLElement): { key(code: string): boolean; clear(): void } {
+  let focused: HTMLElement | null = null
+  const targets = () =>
+    [...page().querySelectorAll<HTMLElement>(PAD_TARGETS)].filter(
+      (el) => !(el as HTMLButtonElement).disabled && !el.classList.contains('menu-key') && el.getClientRects().length > 0,
+    )
+  const ring = (el: HTMLElement | null) => {
+    focused?.classList.remove('pad-focus')
+    focused = el
+    el?.classList.add('pad-focus')
+    el?.scrollIntoView({ block: 'nearest' })
+  }
+  const apply = (el: HTMLElement, move: PadMove) => {
+    if (move.type === 'focus') return
+    const fire = (...types: string[]) => types.forEach((t) => el.dispatchEvent(new Event(t, { bubbles: true })))
+    if (el instanceof HTMLSelectElement) {
+      el.selectedIndex = nextOption(el.selectedIndex, el.options.length, move.type === 'adjust' ? move.delta : 1, move.type === 'activate')
+      return fire('change')
+    }
+    if (el instanceof HTMLInputElement && (el.type === 'range' || el.type === 'number')) {
+      if (move.type === 'activate') return
+      const min = Number(el.min || 0)
+      el.value = String(nudge(Number(el.value), min, Number(el.max || min + 100), Number(el.step || 1), move.delta))
+      return fire('input', 'change')
+    }
+    if (el instanceof HTMLInputElement && padKind(el.tagName, el.type) === 'text') return el.focus()
+    if (move.type === 'activate') el.click()
+  }
+  return {
+    key(code) {
+      const list = targets()
+      const index = focused ? list.indexOf(focused) : -1
+      const at = index < 0 ? null : index
+      const move = padFocusKey(at, list.length, at === null ? null : padKind(list[at].tagName, (list[at] as HTMLInputElement).type), code)
+      if (!move) return false
+      if (move.type === 'focus') ring(list[move.index])
+      else apply(list[at!], move)
+      return true
+    },
+    clear: () => ring(null),
+  }
 }
