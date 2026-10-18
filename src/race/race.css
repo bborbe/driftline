@@ -135,8 +135,9 @@
 .race-panel input { font: var(--hud-w-regular) 18px var(--hud-font); text-transform: uppercase; text-align: center; }
 .race-board ol { text-align: left; }
 .race-mine { color: #ffc300; }
-/* z-index above the READY? prompt (#begin, 10) so the Esc menu takes clicks before the race starts. */
-.race-pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 15; max-height: 90vh; overflow-y: auto; padding: 16px 24px; background: rgba(0, 0, 0, 0.8); color: #fff; font: var(--hud-w-regular) 16px/1.4 var(--hud-font); font-variant-numeric: tabular-nums; border-radius: 8px; text-align: center; }
+/* z-index above the READY? prompt (#begin, 10) so the Esc menu takes clicks before the race starts, and above the
+   results card (41) and its #fade dimmer (40) so Esc on the results screen shows the menu it drives. */
+.race-pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 42; max-height: 90vh; overflow-y: auto; padding: 16px 24px; background: rgba(0, 0, 0, 0.8); color: #fff; font: var(--hud-w-regular) 16px/1.4 var(--hud-font); font-variant-numeric: tabular-nums; border-radius: 8px; text-align: center; }
 .race-medal { font-weight: bold; font-size: 20px; }
 .race-medal-author { color: #3fe08a; }
 .race-medal-gold { color: #ffc300; }
@@ -172,7 +173,8 @@
 }
 .race-results-in { animation: race-results-in 0.35s ease-out both; }
 @keyframes race-results-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)); } }
-.race-results-out { opacity: 0; }
+/* Leaving the page (main.ts leave()): the card and the Esc menu fade with the scene to black. */
+.screen-leaving .race-results, .screen-leaving .race-pause { opacity: 0; transition: opacity 300ms ease-in-out; }
 .race-results-head, .race-results-row { display: flex; align-items: center; justify-content: center; gap: var(--s3); }
 .race-results-head h2 { margin: 0; font: italic var(--hud-w-bold) calc(40px * var(--hud-scale)) var(--hud-font); }
 .race-results-head .race-record { font-style: italic; font-weight: var(--hud-w-bold); font-size: calc(13px * var(--hud-scale)); letter-spacing: 0.04em; }

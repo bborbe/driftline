@@ -192,12 +192,12 @@ const race = initRace(sim, track, {
   },
 })
 mode = () => (race.resultsShown ? 'results' : 'race')
-// Results / Esc menu → menu or next track: the card fades with the scene to black, then the page loads.
+// Results / Esc menu → menu or next track: the card and the Esc menu fade with the scene to black, then the page loads.
 let leaving = false
 async function leave(query: string): Promise<void> {
   if (leaving) return
   leaving = true
-  document.getElementById('results-card')?.classList.add('race-results-out')
+  document.documentElement.classList.add('screen-leaving')
   await fade.to(1)
   location.assign(`${location.pathname}${query}`)
 }
