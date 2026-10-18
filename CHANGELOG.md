@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.6.3
 
 - docs: final README polish — screenshots retaken from the live site after the wheel fix (chase view, start menu, mid-race), feature list and controls match what shipped (medal ghosts, challenge links, gamepad, rebindable keys, settings, `T` records panel, `L` board is local), online leaderboard and live multiplayer listed under Future ideas (on hold), no online claims elsewhere, credits section, CI badge and a short Development section; the CHANGELOG preamble is back to the standard header (the release note it carried is in AGENTS.md § Test tiers); `assets/LICENSE` lists all five Poly Haven HDRIs and `assets/track/`; docs/development.md documents `scripts/gamepad-check.js` and `scripts/build-pieces.mjs`; `## v0.1.0` gains a short summary of the pre-release work (PRs #1–#155)
 
