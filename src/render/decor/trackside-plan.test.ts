@@ -33,6 +33,22 @@ describe('planTrackside', () => {
       expect(plan.boards.filter((b) => b.kind === 'corner').map((b) => b.label)).toEqual(cs.map((c) => c.label))
     })
 
+    it(`${name}: every corner-number board stands on the approach, before the corner entry`, () => {
+      const line = centreline(track, 1)
+      for (const c of cs) {
+        const b = plan.boards.find((x) => x.kind === 'corner' && x.label === c.label)!
+        // The lap point the board stands beside: the nearest centreline sample.
+        let at = 0
+        line.forEach((p, i) => Math.hypot(p.x - b.x, p.z - b.z) < Math.hypot(line[at].x - b.x, line[at].z - b.z) && (at = i))
+        const before = ((Math.round(c.entry) - at + line.length + line.length / 2) % line.length) - line.length / 2
+        // Level ground before the entry: the board stands there. A raised approach (test1 corner 1 follows a
+        // ramp's drop) leaves no ground for it, so it may stand up to 4 m into the turn.
+        const level = [2, 6, 10, 14].every((k) => line[(Math.round(c.entry) - k + line.length) % line.length].y < 1)
+        expect(before, `${name} corner ${c.label}`).toBeLessThanOrEqual(14)
+        expect(before, `${name} corner ${c.label}`).toBeGreaterThanOrEqual(level ? 2 : -4)
+      }
+    })
+
     it(`${name}: a 100 and a 50 board on every approach long enough for them, each label its real distance to the corner (± BOARD_SLIDE)`, () => {
       const line = centreline(track, 1)
       for (const c of cs) {
