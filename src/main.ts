@@ -17,6 +17,8 @@ import { beginAllowed, GameAudio, KerbProbe, mountAudioControls, mountUiSounds }
 import { initRace } from './race'
 import { COUNTDOWN_TICKS, lapCount } from './race/lap'
 import { GhostRecorder } from './ghost'
+import { leaderboardConfig } from './leaderboard/client'
+import { createOnline } from './leaderboard/online'
 import { createRaceGhosts, startPaceLap } from './ghost/race-ghosts'
 import { debugPose, debugRoll, frozen, poseQuery, yawDeg, yawRoll } from './race/debug-pose'
 import { centreline } from './track/centreline'
@@ -191,7 +193,15 @@ const ghosts = await createRaceGhosts(view.scene, track, sim, ghostRecorder, gho
   pbRun: () => challenge?.ghost ?? ghostRecorder.best,
   pbName: challenge?.ghost ? challengerName(challenge) : undefined,
 })
+// Online leaderboard (src/leaderboard): only when the build sets VITE_LEADERBOARD_URL; without it there is no Global tab
+// and no network call. Each finished single-lap run the recorder keeps is submitted.
+const leaderboard = leaderboardConfig(import.meta.env)
+const online = leaderboard
+  ? createOnline(leaderboard, trackName, { storage: localStorage, laps: () => race.laps, online: () => navigator.onLine })
+  : null
+if (online) ghostRecorder.onKeep = (run) => online.lapKept(run)
 const race = initRace(sim, track, {
+  online,
   listeners: [
     {
       countdown: (_t, n) => audio.onCountdown(n),
@@ -215,6 +225,7 @@ const race = initRace(sim, track, {
     },
     ghostRecorder.listener(() => sim.state),
     ghosts.listener(),
+    ...(online ? [online.listener()] : []),
   ],
   onPause: (paused) => void audio.setPaused(paused),
   menu: {

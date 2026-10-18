@@ -15,6 +15,8 @@ import { formatLapTime, type RaceStore } from './store'
 import { LAMPS, startLamps, type Lamp } from './start-board'
 import { CheckpointFlash } from './checkpoint-flash'
 import { recordsOpen, RECORDS_TOP, type RecordRow, type RecordsChoice } from './records'
+import { rowMs } from '../leaderboard/client'
+import type { OnlineBoard } from '../leaderboard/online'
 
 /** How long a split delta stays on screen. */
 const SPLIT_MS = 2500
@@ -114,6 +116,16 @@ export class RaceView {
   private readonly records = el('div', 'race-records')
   private readonly recordRows = el('ol', 'race-records-rows')
   private readonly recordTop = el('ol', 'race-records-top')
+  // Local / Global tabs over the top list while the online leaderboard ranks this track (src/leaderboard).
+  private readonly recordTabs = el('h4', 'race-rec-tabs')
+  private readonly recordGlobal = el('ol', 'race-records-top')
+  private recordTab: 'local' | 'global' = 'local'
+  // Built once: a redraw that replaced them mid-click (the board answer landing) would swallow the click.
+  private readonly tabButtons = { local: this.tabButton('local', `TOP ${RECORDS_TOP}`), global: this.tabButton('global', 'GLOBAL') }
+  /** The online leaderboard (src/leaderboard), or null when the build has no server: no Global tab, no network. */
+  online: OnlineBoard | null = null
+  /** The results card's global top 10, refreshed when a submit or board answer lands. */
+  private resultsGlobal: HTMLElement | null = null
   private recordsChoice: RecordsChoice
   /** Rows + board last drawn; the panel is rebuilt only when it changes. */
   private recordsKey = ''
@@ -138,7 +150,7 @@ export class RaceView {
     const head = el('div', 'race-records-head')
     head.append(el('span', '', 'RECORDS'), el('kbd', '', 'T'))
     const body = el('div', 'race-records-body')
-    body.append(this.recordRows, el('h4', '', `TOP ${RECORDS_TOP}`), this.recordTop)
+    body.append(this.recordRows, this.recordTabs, this.recordTop, this.recordGlobal)
     this.records.append(head, body)
     this.recordsChoice = loadSettings(localStorage).records
     this.setRecordsOpen(recordsOpen(this.recordsChoice, window.innerWidth))
@@ -298,9 +310,12 @@ export class RaceView {
   /** Rebuilds the records panel when its rows or the stored board changed (one localStorage read per frame). */
   private renderRecords(rows: RecordRow[]): void {
     const board = this.store.leaderboard().slice(0, RECORDS_TOP)
-    const key = JSON.stringify([rows, board])
+    const global = this.online?.board() ?? null
+    const key = JSON.stringify([rows, board, global, this.recordTab, global && this.online?.note()])
     if (key === this.recordsKey) return
     this.recordsKey = key
+    this.renderRecordTabs(global !== null)
+    if (global) this.recordGlobal.replaceChildren(...this.globalRows(global))
     this.recordRows.replaceChildren(
       ...rows.map((r) => {
         const li = el('li', `race-rec race-medal-${r.kind}`)
@@ -315,6 +330,59 @@ export class RaceView {
       return li
     })
     this.recordTop.replaceChildren(...(top.length > 0 ? top : [el('li', 'race-rec-empty', 'No laps yet')]))
+  }
+
+  /** One records tab; a click never takes focus (Space is a race key). */
+  private tabButton(t: 'local' | 'global', label: string): HTMLElement {
+    const b = el('button', 'race-rec-tab', label)
+    b.id = `records-tab-${t}`
+    b.tabIndex = -1
+    b.addEventListener('mousedown', (e) => e.preventDefault())
+    b.addEventListener('click', () => {
+      this.recordTab = t
+      this.recordsKey = ''
+    })
+    return b
+  }
+
+  /** `TOP 5` alone, or TOP 5 / GLOBAL tabs while a global board exists. */
+  private renderRecordTabs(hasGlobal: boolean): void {
+    const tab = hasGlobal ? this.recordTab : 'local'
+    this.recordTop.hidden = tab !== 'local'
+    this.recordGlobal.hidden = tab !== 'global'
+    if (!hasGlobal) {
+      this.recordTabs.replaceChildren(`TOP ${RECORDS_TOP}`)
+      return
+    }
+    const { local, global } = this.tabButtons
+    if (local.parentElement !== this.recordTabs) this.recordTabs.replaceChildren(local, global)
+    local.classList.toggle('race-rec-tab-on', tab === 'local')
+    global.classList.toggle('race-rec-tab-on', tab === 'global')
+  }
+
+  /** Global board rows (own name highlighted), or one line saying why there are none, then the status note. */
+  private globalRows(g: NonNullable<ReturnType<OnlineBoard['board']>>): HTMLElement[] {
+    const note = this.online?.note() ?? ''
+    const mine = this.online?.name() ?? ''
+    const rows =
+      g.state === 'rows' && g.rows.length > 0
+        ? g.rows.map((r, i) => {
+            const li = el('li', r.name === mine ? 'race-mine' : '')
+            li.append(el('span', 'race-rec-label', `${i + 1}. ${r.name}`), el('span', 'race-rec-time', formatLapTime(rowMs(r))))
+            return li
+          })
+        : [el('li', 'race-rec-empty', g.state === 'loading' ? 'Loading…' : g.state === 'offline' ? 'Offline' : 'No laps yet')]
+    return note && !(g.state === 'offline' && note === 'offline') ? [...rows, el('li', 'race-rec-empty race-online-note', note)] : rows
+  }
+
+  /** A submit or board answer landed: redraw the global lists (records panel on the next frame, results card now). */
+  refreshOnline(): void {
+    this.recordsKey = ''
+    const g = this.online?.board() ?? null
+    if (!this.resultsGlobal || !g) return
+    const ol = el('ol', '')
+    ol.append(...this.globalRows(g))
+    this.resultsGlobal.replaceChildren(el('h4', '', 'GLOBAL TOP 10'), ol)
   }
 
   /** Countdown step: 3, 2, 1 light the start lights red one by one and pop the number; 0 turns them green with GO!. */
@@ -390,10 +458,18 @@ export class RaceView {
     if (r.lapTimes.length > 1) c.append(lapList(r.lapTimes))
     if (r.splits.length > 0) c.append(splitTable(r))
     if (r.medal) c.append(medalLine(r.medal))
+    this.resultsGlobal = null
+    if (this.online?.board()) {
+      this.resultsGlobal = el('div', 'race-results-global')
+      c.append(this.resultsGlobal)
+      this.refreshOnline()
+    }
     document.body.append(c)
     replay(c, 'race-results-in')
     this.onResults?.(true)
+    const online = this.online
     if (!this.store.qualifies(r.ms)) {
+      if (online?.needsName()) return this.nameEntry(c, 'Name for the global board:', (name) => online.setName(name), r.ms)
       c.append(this.finishActions(r.ms))
       return
     }
@@ -407,12 +483,35 @@ export class RaceView {
       e.stopPropagation()
       if (e.key !== 'Enter') return
       this.store.addToLeaderboard(name.value, r.ms)
+      this.online?.setName(name.value)
       this.typing = false
       const rank = this.store.leaderboard().findIndex((x) => x.lapTimeMs === r.ms) + 1
       entry.replaceChildren(el('p', 'race-mine', `#${rank} on board — ${name.value.toUpperCase() || 'ANON'}`))
       c.append(this.finishActions(r.ms))
     })
     entry.append(el('p', '', 'Top 10! Enter your name:'), name)
+    c.append(entry)
+    name.focus()
+  }
+
+  /** First finish with no name while online: one name box (stored for later runs), then the finish actions. */
+  private nameEntry(c: HTMLElement, prompt: string, done: (name: string) => void, runMs: number): void {
+    const name = document.createElement('input')
+    name.maxLength = 12
+    name.placeholder = 'NAME'
+    name.id = 'results-online-name'
+    this.typing = true
+    const entry = el('div', 'race-results-entry')
+    name.addEventListener('keydown', (e) => {
+      e.stopPropagation()
+      if (e.key !== 'Enter') return
+      done(name.value)
+      this.typing = false
+      const stored = this.online?.name() ?? ''
+      entry.replaceChildren(el('p', stored ? 'race-mine' : '', stored || 'No name — run not submitted'))
+      c.append(this.finishActions(runMs))
+    })
+    entry.append(el('p', '', prompt), name)
     c.append(entry)
     name.focus()
   }

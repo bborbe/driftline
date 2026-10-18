@@ -21,6 +21,7 @@ import { escapeLeavesFullscreen, toggleFullscreen } from '../fullscreen'
 import { RaceView } from './view'
 import { BINDINGS_EVENT, isBound, loadBindings, type Bindings } from '../bindings'
 import type { MenuActions } from './view'
+import type { OnlineBoard } from '../leaderboard/online'
 
 export type { RaceEvents } from './lap'
 
@@ -38,6 +39,8 @@ export interface RaceOptions {
   recordsLocked?: () => boolean
   /** The results card came in (true) or went (false); main.ts dims the scene behind it. */
   onResults?: (shown: boolean) => void
+  /** The online leaderboard (src/leaderboard): Global tab in the records panel and on the results card. Absent: offline build. */
+  online?: OnlineBoard | null
 }
 
 export interface Race {
@@ -75,6 +78,8 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     menu ? { ...menu, resume: () => setPaused(false), restart: () => (pending = 'restart') } : null,
   )
   view.onResults = opts.onResults ?? null
+  view.online = opts.online ?? null
+  if (opts.online) opts.online.onChange = () => view.refreshOnline()
   const splits = new SplitTracker()
   // The best and its splits as they stood at the run start: the results card compares against these, not the run itself.
   let previousBest: number | null = null

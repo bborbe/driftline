@@ -19,6 +19,17 @@ See [`VISION.md`](../VISION.md) and [`AGENTS.md`](../AGENTS.md). Tracks, the tra
 
 A race is 1 lap by default. Pick 1–10 laps under **Laps** in the start-screen / Esc-menu settings (saved in localStorage), or pass `?laps=N` (e.g. `?track=test2&laps=3`), which overrides the saved setting. In a multi-lap race the HUD shows `LAP 1/3`, split deltas flash at every checkpoint and lap line, and the finish panel shows the total time plus each lap time with the best lap marked. Best time, splits and the top-10 board are kept separately per lap count (1-lap records keep their original keys); medals are single-lap only. The ghost replays the session's best single lap at the start of every lap. Backspace (or R) respawns at the current lap's last checkpoint; Delete restarts at lap 1.
 
+## Online leaderboard
+
+The game talks to the leaderboard server (`server/`) only when the build sets `VITE_LEADERBOARD_URL`; without it there is no Global tab and no network call. No credential ships in the game — the server trusts its Origin allow-list and validates every run:
+
+```bash
+cd server && make run                     # localhost:9090, allowed origin http://localhost:5173
+VITE_LEADERBOARD_URL=http://localhost:9090/api/1.0 make run   # repo root
+```
+
+`src/leaderboard/client.ts` holds the name rule, the config and the two calls; `online.ts` wires them into a race. Each finished single-lap run the ghost recorder keeps (`GhostRecorder.onKeep`) is posted with its checkpoint ticks and `ghostPayload`, retried once, and never holds up the results card; an offline browser skips it with an "offline" note. The name is the Settings name, sanitised to the server's rule (A-Z 0-9 space _ . -, 1–12, no outer spaces); with none set, the first finish asks for it. The records panel's TOP 5 / GLOBAL tabs and the results card show the track's global top 10, the player's row highlighted. A track the server answers 404 for (no finish or no author medal, see `server/pkg/track/tracks.json`) and a multi-lap run show no global board.
+
 ## Cars
 
 The player car is picked at build time from the registry in `src/render/cars.ts`:
