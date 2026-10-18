@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
-## Unreleased
+## v0.6.2
 
 - chore: the leaderboard server is no longer deployed — the online leaderboard is on hold, so its nuke-prod namespace and the `driftline.benjamin-borbe.de` vhost are torn down; `server/` and `server/k8s/` stay, `server/README.md` § Deploy says what a redeploy needs, and the Pages build no longer passes the leaderboard URL and token
 
