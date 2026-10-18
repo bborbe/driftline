@@ -48,7 +48,23 @@ export interface RaceGhosts {
   drawTags(camera: THREE.Camera): void
 }
 
-export async function createRaceGhosts(scene: THREE.Scene, track: Track, sim: FixedStepper, recorder: GhostRecorder, pbLivery: Livery, paceLap: Promise<PaceLap | null>): Promise<RaceGhosts> {
+export interface PbSlot {
+  /** The run the PB ghost replays, read at each lap start: a challenge's ghost, else the session's fastest lap. */
+  pbRun?: () => GhostRun | null
+  /** Tag name for that run when it is not your own (a challenger's); it then races whatever the Ghosts setting says. */
+  pbName?: string
+}
+
+export async function createRaceGhosts(
+  scene: THREE.Scene,
+  track: Track,
+  sim: FixedStepper,
+  recorder: GhostRecorder,
+  pbLivery: Livery,
+  paceLap: Promise<PaceLap | null>,
+  slot: PbSlot = {},
+): Promise<RaceGhosts> {
+  const pbSource = slot.pbRun ?? (() => recorder.best)
   const [pbCar, gold, author] = await Promise.all([createGhostCar(undefined, pbLivery), createGhostCar(undefined, MEDAL_LIVERY.gold), createGhostCar(undefined, MEDAL_LIVERY.author)])
   const medalCars = { gold, author }
   scene.add(pbCar.object, medalCars.gold.object, medalCars.author.object)
@@ -78,9 +94,10 @@ export async function createRaceGhosts(scene: THREE.Scene, track: Track, sim: Fi
     lapStartTick = startTick
     carTimes = []
     carFinished = false
-    pbRun = recorder.best
+    pbRun = pbSource()
     pb = pbRun ? new GhostReplayer(pbRun, sim.surface) : null
-    pbSplits = pbRun ? (lapSplits.get(pbRun.lapTimeMs) ?? []) : []
+    // Splits are known only for your own laps; a challenge ghost shows its finish time until the line.
+    pbSplits = pbRun && pbRun === recorder.best ? (lapSplits.get(pbRun.lapTimeMs) ?? []) : []
     medals = { gold: medal('gold'), author: medal('author') }
   }
 
@@ -110,12 +127,12 @@ export async function createRaceGhosts(scene: THREE.Scene, track: Track, sim: Fi
       if (pace && !medals.gold) medals = { gold: medal('gold'), author: medal('author') }
       const offered = offeredGhosts(selected, { medals: track.medals !== undefined, laps, paceLap: pace !== null })
       const dt = paused ? 0 : elapsed
-      const racing: { kind: GhostKind; car: CarView; splits: readonly number[]; lapMs: number }[] = []
+      const racing: { kind: GhostKind; car: CarView; splits: readonly number[]; lapMs: number; name?: string }[] = []
       // The replay advances even while hidden, so switching the PB ghost back on never re-simulates a whole lap in one frame.
       if (pb) pb.advanceTo(sim.state.tick - lapStartTick)
-      if (pb && pbRun && offered.includes('pb')) {
+      if (pb && pbRun && (offered.includes('pb') || slot.pbName !== undefined)) {
         pbCar.update(pb.render(sim.alpha), dt)
-        racing.push({ kind: 'pb', car: pbCar, splits: pbSplits, lapMs: pbRun.lapTimeMs })
+        racing.push({ kind: 'pb', car: pbCar, splits: pbSplits, lapMs: pbRun.lapTimeMs, name: slot.pbName })
       }
       pbCar.object.visible = racing.some((r) => r.kind === 'pb')
       for (const kind of ['gold', 'author'] as const) {
@@ -134,7 +151,7 @@ export async function createRaceGhosts(scene: THREE.Scene, track: Track, sim: Fi
       inputs = racing.map((r, i) => ({
         kind: r.kind,
         position: r.car.object.position,
-        text: at[i] === null || carMs === null ? tagText(r.kind, r.lapMs, null) : tagText(r.kind, at[i], carMs, field),
+        text: at[i] === null || carMs === null ? tagText(r.kind, r.lapMs, null, [], r.name) : tagText(r.kind, at[i], carMs, field, r.name),
       }))
     },
     drawTags(camera) {

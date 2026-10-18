@@ -56,9 +56,9 @@ export interface TagText {
  * Tag text for one ghost. `ghostMs` is the ghost's time at the last checkpoint (or finish) the car passed, or its
  * finish time while the car has passed none (`carMs` null). `field` is every racer's time at that point (the car and
  * each ghost), for the ghost's place. The gap is car − ghost: `+` the car is behind this ghost, `-` ahead of it.
+ * `name` replaces the kind's own (a challenge ghost carries the sender's name).
  */
-export function tagText(kind: GhostKind, ghostMs: number, carMs: number | null, field: readonly number[] = []): TagText {
-  const name = GHOST_NAME[kind]
+export function tagText(kind: GhostKind, ghostMs: number, carMs: number | null, field: readonly number[] = [], name = GHOST_NAME[kind]): TagText {
   // Whole milliseconds first, so the printed gap is exactly the printed car time minus the printed ghost time.
   const ghost = Math.round(ghostMs)
   if (carMs === null) return { name, detail: formatLapTime(ghost), ahead: null }

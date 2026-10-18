@@ -1,0 +1,26 @@
+/* Challenge links (src/challenge/view.ts): target banner top centre, the menu's link error, copy toast (the ghost's name tag is a sprite).
+   The error and the toast sit above the start menu (20) and the results card (41). */
+.challenge-banner, .challenge-toast {
+  position: fixed; pointer-events: none; color: #fff; font-family: var(--hud-font); font-weight: var(--hud-w-bold);
+  font-variant-numeric: tabular-nums; text-shadow: var(--hud-shadow); user-select: none;
+}
+.challenge-banner {
+  top: calc(var(--debug-top-left) + var(--hud-margin)); left: 50%; transform: translateX(-50%); display: flex; align-items: baseline; gap: var(--s3);
+  padding: var(--s1) var(--s4); border-radius: var(--hud-radius); background: var(--hud-plate); border: var(--hud-edge);
+  font-size: calc(clamp(13px, 2.2vmin, 28px) * var(--hud-scale));
+}
+.challenge-label { color: var(--hud-muted); font-weight: var(--hud-w-regular); letter-spacing: 0.08em; font-size: 0.8em; }
+.challenge-time { color: #ffd34d; }
+/* The banner takes the effect chips' row: they drop below it while a challenge runs. */
+.challenge-on .race-effects { top: calc(var(--debug-top-left) + var(--hud-margin) + clamp(13px, 2.2vmin, 28px) * var(--hud-scale) * 2.2); }
+.challenge-error {
+  position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 45; max-width: 80vw; cursor: pointer;
+  padding: 10px 18px; border-radius: 8px; background: rgba(120, 20, 24, 0.9); border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff; font-family: var(--ui-font); font-weight: 600; font-size: clamp(13px, 2vmin, 20px); text-align: center;
+}
+.challenge-toast {
+  top: var(--hud-margin); left: 50%; transform: translateX(-50%); z-index: 45; padding: var(--s2) var(--s4);
+  border-radius: var(--hud-radius); background: var(--hud-plate); border: var(--hud-edge); opacity: 0; transition: opacity 0.2s;
+  font-size: calc(clamp(13px, 2vmin, 22px) * var(--hud-scale));
+}
+.challenge-toast.show { opacity: 1; }

@@ -150,4 +150,10 @@ describe('url state', () => {
     for (const k of ['x', 'y', 'z', 'yaw', 'pitch', 'cam', 'freeze', 'orbit']) expect(menu.has(k)).toBe(false)
     expect(new URLSearchParams(screenQuery(search, race(custom), { track: 'dustbowl' })).get('track')).toBe('dustbowl')
   })
+  it('Back to menu and Next track drop a challenge link; the race URL keeps it (reload, Restart)', () => {
+    const search = '?track=glacier&laps=1&challenge=abc'
+    expect(new URLSearchParams(screenQuery(search, race(custom), { sel: 'glacier' })).has('challenge')).toBe(false)
+    expect(new URLSearchParams(screenQuery(search, race(custom), { track: 'dustbowl' })).has('challenge')).toBe(false)
+    expect(new URLSearchParams(stateQuery(search, race(custom))).get('challenge')).toBe('abc')
+  })
 })
