@@ -1,5 +1,5 @@
 // DOM overlay: race HUD (timer bottom centre, speedometer bottom right, one race-status panel top right with the medal
-// target + delta, lap and checkpoint, split pop-up), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in
+// target + delta, lap and checkpoint, split pop-up, checkpoint edge flash), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in
 // the Esc menu), finish panel with name entry, leaderboard, Esc menu. A small "H — controls" hint fades out HINT_MS after the countdown starts.
 // Sizes scale with --hud-scale (Settings → Graphics → HUD scale).
 import './race.css'
@@ -10,6 +10,7 @@ import { loadSettings, SETTINGS_EVENT, type Settings } from '../menu/settings'
 import { formatDelta, MEDAL_LABEL, type Medal } from './medals'
 import { formatLapTime, type RaceStore } from './store'
 import { LAMPS, startLamps, type Lamp } from './start-board'
+import { CheckpointFlash } from './checkpoint-flash'
 
 /** How long a split delta stays on screen. */
 const SPLIT_MS = 2500
@@ -96,6 +97,10 @@ export class RaceView {
   private readonly panel = el('div', 'race-panel')
   private readonly pause = el('div', 'race-pause')
   private readonly split = el('div', 'race-split')
+  // Screen-edge glow on each checkpoint / lap-line pass, tinted like the split delta (checkpoint-flash.ts).
+  private readonly cpFlash = el('div', 'race-cp-flash')
+  private readonly flash = new CheckpointFlash()
+  private flashShown = 0
   private readonly effects = el('div', 'race-effects')
   private effectsKey = ''
   private rendered = false
@@ -132,7 +137,7 @@ export class RaceView {
     gauge.append(arc, this.speed, el('div', 'race-unit', 'KM/H'))
     this.speedo.append(gauge, this.time)
     this.split.append(this.splitTime, this.splitDelta)
-    document.body.append(this.status, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split, this.effects)
+    document.body.append(this.status, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split, this.effects, this.cpFlash)
     this.effects.hidden = true
     this.split.hidden = true
     this.panel.hidden = true
@@ -218,6 +223,10 @@ export class RaceView {
       )
       this.effects.hidden = s.effects.length === 0
     }
+    // Only touch the style while a flash runs or has just ended.
+    const flash = this.flash.opacity(performance.now() / 1000)
+    if (flash > 0 || this.flashShown > 0) this.cpFlash.style.opacity = String(flash)
+    this.flashShown = flash
     // Lap and checkpoint pulse when they change (not on the first frame).
     if (setText(this.lap, `LAP ${s.lap}`) && this.rendered) replay(this.lap, 'race-bump')
     if (setText(this.cp, `CP ${s.checkpoints}`) && this.rendered) replay(this.cp, 'race-bump')
@@ -270,6 +279,8 @@ export class RaceView {
     // Restart the pop-in / fade-out animation on every checkpoint, even back to back.
     void this.split.offsetWidth
     this.split.classList.add('race-pop')
+    this.cpFlash.className = `race-cp-flash ${d === null ? '' : Math.round(d) < 0 ? 'race-ahead' : 'race-behind'}`
+    this.flash.trigger(performance.now() / 1000)
     this.splitTimer = setTimeout(() => (this.split.hidden = true), SPLIT_MS)
   }
 
