@@ -41,6 +41,8 @@ export const dustIntensity = (s: CarState, material: Material): number => {
 export class DustPool {
   readonly puffs: Puff[] = []
   private carry = 0
+  /** Particle budget (Settings → Graphics quality): scales the emission rate and the live-puff cap. */
+  scale = 1
   private seed = 7
   emitted = 0
 
@@ -61,11 +63,12 @@ export class DustPool {
     for (let i = this.puffs.length - 1; i >= 0; i--) if (this.puffs[i].age >= LIFE) this.puffs.splice(i, 1)
 
     const k = dustIntensity(s, material)
-    this.carry += k * MAX_RATE * dt
+    this.carry += k * MAX_RATE * this.scale * dt
     if (k === 0) this.carry = 0
     const f = forwardOf(s)
     const h = Math.atan2(f.x, f.z)
-    while (this.carry >= 1 && this.puffs.length < MAX_DUST) {
+    const cap = Math.round(MAX_DUST * this.scale)
+    while (this.carry >= 1 && this.puffs.length < cap) {
       this.carry -= 1
       const side = this.emitted % 2 === 0 ? -1 : 1
       this.puffs.push({

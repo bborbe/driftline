@@ -2,20 +2,23 @@
 import type { KeyValueStore } from './settings'
 
 /** Every control the settings panel builds, one id each. */
-export const CONTROL_IDS = ['volume', 'sfxVolume', 'uiVolume', 'speedlines', 'smoke', 'camera', 'reflections', 'aa', 'laps', 'time', 'weather', 'livery', 'paint', 'number', 'name', 'hudScale', 'build'] as const
+export const CONTROL_IDS = ['volume', 'sfxVolume', 'uiVolume', 'quality', 'advanced', 'speedlines', 'smoke', 'camera', 'laps', 'time', 'weather', 'livery', 'paint', 'number', 'name', 'hudScale', 'records', 'bindings', 'colourSafe', 'reducedEffects', 'build'] as const
 export type ControlId = (typeof CONTROL_IDS)[number]
 
-export const TABS = ['car', 'race', 'graphics', 'audio', 'about'] as const
+export const TABS = ['car', 'race', 'graphics', 'controls', 'audio', 'access', 'about'] as const
 export type Tab = (typeof TABS)[number]
 
-export const TAB_LABELS: Record<Tab, string> = { car: 'Car', race: 'Race', graphics: 'Graphics', audio: 'Audio', about: 'About' }
+export const TAB_LABELS: Record<Tab, string> = { car: 'Car', race: 'Race', graphics: 'Graphics', controls: 'Controls', audio: 'Audio', access: 'Access', about: 'About' }
 
 /** The controls of each tab, in panel order; every control lives in exactly one tab (tabs.test.ts). */
 export const TAB_CONTROLS: Record<Tab, readonly ControlId[]> = {
   car: ['livery', 'paint', 'number', 'name'],
   race: ['time', 'weather', 'laps'],
-  graphics: ['speedlines', 'smoke', 'camera', 'reflections', 'aa', 'hudScale'],
+  // Reflections and FXAA sit in the Advanced fold-out with the other quality knobs (render/quality.ts).
+  graphics: ['quality', 'speedlines', 'smoke', 'camera', 'hudScale', 'records', 'advanced'],
+  controls: ['bindings'],
   audio: ['volume', 'sfxVolume', 'uiVolume'],
+  access: ['colourSafe', 'reducedEffects'],
   about: ['build'],
 }
 

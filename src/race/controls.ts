@@ -1,5 +1,7 @@
 // Controls help: every key the game binds, grouped the way Trackmania's Settings > Controls page lists them.
-// One list feeds the Esc menu's Controls page and the in-race panel H toggles. Data is pure and tested.
+// One list feeds the Esc menu's Controls page and the in-race panel H toggles; the rebindable rows (src/bindings.ts)
+// show the player's own keys. Data is pure and tested.
+import { DEFAULT_BINDINGS, keyLabel, keysLabel, loadBindings, type Bindings } from '../bindings'
 
 export interface Binding {
   keys: string
@@ -11,24 +13,33 @@ export interface ControlGroup {
   bindings: Binding[]
 }
 
-export const CONTROLS: ControlGroup[] = [
+/** Steer as one row: the primary pair, then the secondary pair ("A D / ← →"). */
+const steerLabel = (b: Bindings): string =>
+  ([0, 1] as const)
+    .map((i) => [b.left[i], b.right[i]].filter((c): c is string => c !== null).map(keyLabel).join(' '))
+    .filter((t) => t !== '')
+    .join(' / ')
+
+/** The controls list with the rebindable rows showing `b`'s keys. */
+export const controlsFor = (b: Bindings): ControlGroup[] => [
   {
     title: 'Driving',
     bindings: [
-      { keys: 'W / ↑', action: 'Accelerate' },
-      { keys: 'S / ↓', action: 'Brake / reverse' },
-      { keys: 'A D / ← →', action: 'Steer' },
-      { keys: 'Space', action: 'Handbrake' },
+      { keys: keysLabel(b, 'throttle'), action: 'Accelerate' },
+      { keys: keysLabel(b, 'brake'), action: 'Brake / reverse' },
+      { keys: steerLabel(b), action: 'Steer' },
+      { keys: keysLabel(b, 'handbrake'), action: 'Handbrake' },
     ],
   },
   {
     title: 'Race',
     bindings: [
       { keys: 'Enter / Space', action: 'Start' },
-      { keys: 'R', action: 'Respawn at last checkpoint' },
-      { keys: 'Backspace', action: 'Restart the run' },
+      { keys: keysLabel(b, 'respawn'), action: 'Respawn at last checkpoint' },
+      { keys: keysLabel(b, 'restart'), action: 'Restart the run' },
       { keys: 'Esc', action: 'Pause menu' },
       { keys: 'L', action: 'Leaderboard' },
+      { keys: 'T', action: 'Records panel (medals, PB, top 5)' },
       { keys: 'F', action: 'Fullscreen' },
       { keys: 'M', action: 'Mute' },
       { keys: 'H', action: 'Controls (this list)' },
@@ -56,6 +67,9 @@ export const CONTROLS: ControlGroup[] = [
   },
 ]
 
+/** The list with the shipped keys. */
+export const CONTROLS: ControlGroup[] = controlsFor(DEFAULT_BINDINGS)
+
 /** H opens and closes the controls panel. */
 export const isControlsKey = (code: string): boolean => code === 'KeyH'
 
@@ -66,7 +80,7 @@ export const isDebugKey = (code: string): boolean => code === 'Backquote'
 export function controlsPanel(): HTMLElement {
   const box = document.createElement('div')
   box.className = 'controls'
-  for (const g of CONTROLS) {
+  for (const g of controlsFor(loadBindings(localStorage))) {
     const section = document.createElement('section')
     const h = document.createElement('h3')
     h.textContent = g.title

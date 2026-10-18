@@ -56,12 +56,12 @@ describe('sun shadows', () => {
 
 describe('post pipeline', () => {
   it('runs scene → bloom → grade by default, FXAA off', () => {
-    expect(DEFAULT_SETTINGS.aa).toBe(false)
-    expect(postPasses({ bloom: true, ao: aoRequested(''), aa: DEFAULT_SETTINGS.aa })).toEqual(['scene', 'bloom', 'grade'])
+    expect(DEFAULT_SETTINGS.knobs.aa).toBe(false)
+    expect(postPasses({ bloom: true, ao: aoRequested(''), aa: DEFAULT_SETTINGS.knobs.aa })).toEqual(['scene', 'bloom', 'grade'])
   })
   it('adds FXAA last with ?aa=1 and GTAO after the scene with ?ao=1', () => {
-    expect(postPasses({ bloom: true, ao: false, aa: settingsFromUrl('?aa=1', DEFAULT_SETTINGS).aa })).toEqual(['scene', 'bloom', 'grade', 'aa'])
-    expect(postPasses({ bloom: true, ao: false, aa: settingsFromUrl('?aa=0', DEFAULT_SETTINGS).aa })).toEqual(['scene', 'bloom', 'grade'])
+    expect(postPasses({ bloom: true, ao: false, aa: settingsFromUrl('?aa=1', DEFAULT_SETTINGS).knobs.aa })).toEqual(['scene', 'bloom', 'grade', 'aa'])
+    expect(postPasses({ bloom: true, ao: false, aa: settingsFromUrl('?aa=0', DEFAULT_SETTINGS).knobs.aa })).toEqual(['scene', 'bloom', 'grade'])
     expect(postPasses({ bloom: true, ao: aoRequested('?ao=1'), aa: true })).toEqual(['scene', 'ao', 'bloom', 'grade', 'aa'])
   })
   it('has no pipeline with ?bloom=0', () => {

@@ -167,6 +167,54 @@
   flex: 0 0 8em; text-align: right; font: var(--hud-w-bold) 13px var(--hud-font); color: #fff;
 }
 .controls span { color: #dfe7f2; }
+/* Settings → Access → Colour-safe HUD: ahead / behind are blue / orange instead of blue / red, each with an arrow,
+   so the sign never rests on colour alone; the medal dot carries its letter (A G S B). Values pinned in access.test.ts. */
+.colour-safe { --delta-ahead: #2f7dff; --delta-behind: #ff9a1f; }
+.colour-safe .race-target-delta.race-ahead, .colour-safe .race-ahead .race-split-delta, .colour-safe .race-split-delta.race-ahead { background: var(--delta-ahead); color: #fff; }
+.colour-safe .race-target-delta.race-behind, .colour-safe .race-behind .race-split-delta, .colour-safe .race-split-delta.race-behind { background: var(--delta-behind); color: #111; }
+.colour-safe .race-cp-flash.race-ahead { --flash: var(--delta-ahead); }
+.colour-safe .race-cp-flash.race-behind { --flash: var(--delta-behind); }
+.colour-safe .race-target-delta.race-ahead::before, .colour-safe .race-split-delta.race-ahead::before, .colour-safe .race-ahead .race-split-delta::before { content: '▲ '; }
+.colour-safe .race-target-delta.race-behind::before, .colour-safe .race-split-delta.race-behind::before, .colour-safe .race-behind .race-split-delta::before { content: '▼ '; }
+.colour-safe .race-medal-dot { width: calc(var(--s3) * 1.6); height: calc(var(--s3) * 1.6); display: inline-flex; align-items: center; justify-content: center; color: inherit; }
+.colour-safe .race-medal-dot::after { color: #111; font-size: calc(var(--s3) * 1.1); font-weight: bold; font-style: normal; line-height: 1; }
+.colour-safe .race-medal-author .race-medal-dot::after { content: 'A'; }
+.colour-safe .race-medal-gold .race-medal-dot::after { content: 'G'; }
+.colour-safe .race-medal-silver .race-medal-dot::after { content: 'S'; }
+.colour-safe .race-medal-bronze .race-medal-dot::after { content: 'B'; }
+/* Settings → Access → Reduced effects: the HUD's pop, bump and record animations are off (speed lines, boost streaks
+   and camera effects are switched off in view.ts and camera/controller.ts). */
+.reduced-effects .race-bump, .reduced-effects .race-record, .reduced-effects .race-panel-in, .reduced-effects .race-count.race-pop { animation: none; }
+/* The split still has to go away: a plain fade, no scale pop. */
+.reduced-effects .race-split.race-pop { animation: race-split-fade 2.5s linear both; }
+@keyframes race-split-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+/* Records panel (T): top left, the PB and every medal time with the best's delta to it (green beaten, red behind), then
+   the local top 5. Collapsed it is just its header; Settings → Graphics → Records panel picks how it starts. */
+.race-records {
+  position: fixed; top: calc(var(--debug-top-left) + var(--hud-margin)); left: var(--hud-margin); pointer-events: none; user-select: none;
+  min-width: calc(clamp(150px, 22vmin, 260px) * var(--hud-scale)); padding: var(--s2) var(--s3); color: #fff; font-family: var(--hud-font);
+  font-weight: var(--hud-w-regular); font-variant-numeric: tabular-nums; text-shadow: var(--hud-shadow); line-height: 1.25;
+  font-size: calc(clamp(11px, 1.7vmin, 20px) * var(--hud-scale)); background: var(--hud-plate); border: var(--hud-edge); border-radius: var(--hud-radius);
+}
+.race-records-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); font-weight: var(--hud-w-bold); letter-spacing: 0.08em; }
+.race-records-head kbd { padding: 0 var(--s1); border: var(--hud-edge); border-radius: var(--s1); font: inherit; color: var(--hud-muted); }
+.race-records-closed .race-records-body { display: none; }
+.race-records-body { margin-top: var(--s1); padding-top: var(--s1); border-top: var(--hud-edge); }
+.race-records ol { margin: 0; padding: 0; list-style: none; }
+.race-records li { display: grid; grid-template-columns: var(--s3) 1fr auto auto; align-items: center; gap: var(--s2); padding: 1px 0; }
+.race-records-top li { grid-template-columns: 1fr auto; }
+.race-records .race-medal-dot { width: var(--s2); height: var(--s2); }
+.race-rec.race-medal-pb { color: #fff; font-weight: var(--hud-w-bold); }
+.race-rec.race-medal-pb .race-medal-dot { background: #9fd3ff; box-shadow: 0 0 var(--s1) #9fd3ff; }
+.race-rec-label { color: inherit; letter-spacing: 0.04em; }
+.race-rec-time { color: #fff; text-align: right; }
+.race-rec-delta { min-width: 4.6em; padding: 0 var(--s1); border-radius: var(--s1); text-align: right; color: #fff; }
+.race-rec-delta:empty { visibility: hidden; }
+.race-rec-delta.race-beaten { background: rgba(30, 170, 80, 0.85); }
+.race-rec-delta.race-behind { background: rgba(225, 40, 40, 0.75); }
+.race-records h4 { margin: var(--s2) 0 var(--s1); font-size: 0.85em; letter-spacing: 0.08em; color: var(--hud-muted); }
+.race-records-top li { color: #e8f2ff; }
+.race-rec-empty { color: var(--hud-muted); }
 /* Results card (#results-card, operator pick 2026-10-18: centred card ≤ 440 px): medal badge + time, best + delta,
    split table vs PB, name entry, Restart / Next track / Menu. Sits above the #fade dimmer (render/fade.ts). */
 .race-results {

@@ -12,6 +12,8 @@ import { createCurbs, createEdgeLines, createMarkings } from './track/curbs'
 import { createRails } from './track/rails'
 import { createSigns } from './decor/signs'
 import { createDressing } from './decor/dressing'
+import { createTrackside } from './decor/trackside'
+import { planTrackside, sceneryKeepClear } from './decor/trackside-plan'
 import { createStadium } from './decor/stadium'
 import { flat } from './tags'
 import { anisotropy } from './anisotropy'
@@ -70,6 +72,8 @@ export type SceneSetup = {
   frame: (camera: THREE.Camera) => void
   /** Switch time of day and weather in place (Settings): sky, sun, fog, clouds and floodlights; returns the new look. */
   setEnvironment: (env: Environment, seed?: number) => Promise<EnvironmentLook>
+  /** Sun shadow-map size (Settings → Graphics quality); 0 turns the sun's shadows off. */
+  setShadows: (size: number) => void
 }
 
 /** Cloud layer: a flattened half-sphere around the camera, inside the far plane (view.ts, 3000 m) and drawn without fog. */
@@ -131,15 +135,27 @@ export const createFloodlights = (heads: readonly THREE.Vector3[]): THREE.Group 
 }
 
 /**
- * The static world around the track: ground, scenery, stadium, curbs, edge rails and signs. No sky, lights or
+ * The static world around the track: ground, scenery, stadium, curbs, edge rails, signs and trackside dressing. No sky, lights or
  * textures loaded here, so the geometry lint (geometry-lint.test.ts) builds exactly this, headless.
  */
 export const createWorld = async (track: Track, theme: ResolvedTheme = resolveTheme(track), grass?: THREE.Texture): Promise<THREE.Group> => {
-  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery), createStadium(track, theme.screen, theme.stand)])
+  const trackside = planTrackside(track)
+  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery, sceneryKeepClear(track, trackside)), createStadium(track, theme.screen, theme.stand)])
   const curb = theme.curb === undefined ? undefined : new THREE.Color(theme.curb)
   const world = new THREE.Group()
   world.name = 'world'
-  world.add(createGround(grass, theme.ground), scenery, stadium, createCurbs(track, curb), createMarkings(track), createEdgeLines(track), createRails(track), createSigns(track, theme.sign), createDressing(track, theme.sign, theme.stand))
+  world.add(
+    createGround(grass, theme.ground),
+    scenery,
+    stadium,
+    createCurbs(track, curb),
+    createMarkings(track),
+    createEdgeLines(track),
+    createRails(track),
+    createSigns(track, theme.sign),
+    createDressing(track, theme.sign, theme.stand),
+    createTrackside(trackside, theme.sign, theme.ground),
+  )
   return world
 }
 
@@ -230,5 +246,13 @@ export const createScene = async (track: Track, env: Environment = DEFAULT_ENVIR
     follow(...lastFollow)
     return look
   }
-  return { scene, look, follow, frame, setEnvironment }
+  const setShadows = (size: number) => {
+    sun.castShadow = size > 0
+    if (size > 0 && sun.shadow.mapSize.x !== size) {
+      sun.shadow.mapSize.set(size, size)
+      sun.shadow.map?.dispose() // rebuilt at the new size on the next shadow render
+      sun.shadow.map = null
+    }
+  }
+  return { scene, look, follow, frame, setEnvironment, setShadows }
 }
