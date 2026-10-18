@@ -12,8 +12,8 @@ const LIFT = 1.6
 /** Farthest a tag steps up off its car to clear a panel or another tag, as a share of the viewport height. */
 const MAX_STEP = 0.3
 
-/** Standing race HUD panels a tag must not cover (src/race/view.ts). */
-const HUD_PANELS = '.race-status, .race-records, .race-time, .race-speedo'
+/** Standing HUD a tag must not cover: the race panels (src/race/view.ts), the volume slider and the debug readouts. */
+const HUD_PANELS = '.race-status, .race-records, .race-time, .race-speedo, #volume, #hud, #fps, #build'
 
 /** Frames between re-reading the panels' rects and the tags' sizes (they change at a checkpoint, a resize or a HUD-scale change). */
 const PANEL_EVERY = 15
@@ -95,8 +95,14 @@ export function createGhostTags(): GhostTags {
         shown.push({ e, anchor: { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h } })
       }
       for (const e of els.values()) if (!shown.some((s) => s.e === e)) e.root.style.visibility = 'hidden'
-      // Measure only tags whose text changed (one layout read for all of them), then reuse the size.
-      for (const s of shown) if (s.e.w === 0) [s.e.w, s.e.h] = [s.e.root.offsetWidth, s.e.root.offsetHeight]
+      // Measure only tags whose text changed (one layout read for all of them), then reuse the size. Rounded up:
+      // offsetWidth rounds a fractional width down, and a tag clamped to the right edge then overhangs it.
+      for (const s of shown)
+        if (s.e.w === 0) {
+          const r = s.e.root.getBoundingClientRect()
+          s.e.w = Math.ceil(r.width)
+          s.e.h = Math.ceil(r.height)
+        }
       const sized = shown.map((s) => ({ ...s, tw: s.e.w, th: s.e.h }))
       // Nearest the bottom first (closest ghost, usually); later tags step up above any tag they would cover.
       sized.sort((a, b) => b.anchor.y - a.anchor.y)
