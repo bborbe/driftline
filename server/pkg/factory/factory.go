@@ -6,6 +6,7 @@ package factory
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"time"
 
@@ -17,13 +18,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/bborbe/driftline/server/pkg/handler"
+	"github.com/bborbe/driftline/server/pkg/origin"
+	"github.com/bborbe/driftline/server/pkg/storage"
+	"github.com/bborbe/driftline/server/pkg/track"
 )
 
 // CreateHTTPServer creates the HTTP server with the canonical admin endpoints, the
-// readiness check pinging the database.
-func CreateHTTPServer(listen string, db handler.Pinger) run.Func {
+// readiness check pinging the database, and the leaderboard API under /api/1.0/.
+func CreateHTTPServer(listen string, db handler.Pinger, api http.Handler) run.Func {
 	return func(ctx context.Context) error {
 		router := mux.NewRouter()
+		router.PathPrefix("/api/1.0/").Handler(api)
 		router.Path("/healthz").Handler(CreateHealthzHandler())
 		router.Path("/readiness").Handler(CreateReadinessHandler(db))
 		router.Path("/metrics").Handler(promhttp.Handler())
@@ -34,6 +39,24 @@ func CreateHTTPServer(listen string, db handler.Pinger) run.Func {
 		glog.V(2).Infof("starting http server listen on %s", listen)
 		return libhttp.NewServer(listen, router).Run(ctx)
 	}
+}
+
+// CreateAPIHandler creates the leaderboard API behind the token and Origin guard.
+func CreateAPIHandler(
+	token string,
+	allowedOrigin string,
+	tracks track.Table,
+	db *sql.DB,
+) http.Handler {
+	store := storage.NewRunStore(db)
+	router := mux.NewRouter()
+	router.Path("/api/1.0/runs").Methods(http.MethodPost).
+		Handler(libhttp.NewJSONErrorHandler(handler.NewSubmitRunHandler(tracks, store)))
+	router.Path("/api/1.0/tracks/{track}/runs").Methods(http.MethodGet).
+		Handler(libhttp.NewJSONErrorHandler(handler.NewListRunsHandler(tracks, store)))
+	router.Path("/api/1.0/runs/{id:[0-9]+}/ghost").Methods(http.MethodGet).
+		Handler(libhttp.NewJSONErrorHandler(handler.NewGhostHandler(store)))
+	return origin.NewGuard(token, allowedOrigin, router)
 }
 
 // CreateHealthzHandler creates the `/healthz` liveness handler.

@@ -1,0 +1,77 @@
+[
+  {
+    "name": "crossover",
+    "checkpoints": 4,
+    "floorTicks": 1575
+  },
+  {
+    "name": "dustbowl",
+    "checkpoints": 3,
+    "floorTicks": 1050
+  },
+  {
+    "name": "flatout",
+    "checkpoints": 4,
+    "floorTicks": 1725
+  },
+  {
+    "name": "glacier",
+    "checkpoints": 2,
+    "floorTicks": 1400
+  },
+  {
+    "name": "knot",
+    "checkpoints": 5,
+    "floorTicks": 1875
+  },
+  {
+    "name": "leap",
+    "checkpoints": 7,
+    "floorTicks": 2200
+  },
+  {
+    "name": "looping",
+    "checkpoints": 4,
+    "floorTicks": 965
+  },
+  {
+    "name": "plunge",
+    "checkpoints": 5,
+    "floorTicks": 1500
+  },
+  {
+    "name": "showcase",
+    "checkpoints": 7,
+    "floorTicks": 2465
+  },
+  {
+    "name": "switchback",
+    "checkpoints": 2,
+    "floorTicks": 1150
+  },
+  {
+    "name": "test1",
+    "checkpoints": 2,
+    "floorTicks": 675
+  },
+  {
+    "name": "test2",
+    "checkpoints": 6,
+    "floorTicks": 1700
+  },
+  {
+    "name": "tower",
+    "checkpoints": 5,
+    "floorTicks": 1575
+  },
+  {
+    "name": "velodrome",
+    "checkpoints": 4,
+    "floorTicks": 980
+  },
+  {
+    "name": "washboard",
+    "checkpoints": 1,
+    "floorTicks": 750
+  }
+]
