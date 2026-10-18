@@ -98,11 +98,11 @@ describe('rebinding', () => {
   })
   it('resets one row or all of them to the defaults', () => {
     const r = assign(DEFAULT_BINDINGS, { action: 'throttle', index: 0 }, 'KeyI')
-    const r2 = r.ok ? assign(r.bindings, { action: 'respawn', index: 0 }, 'KeyT') : r
+    const r2 = r.ok ? assign(r.bindings, { action: 'respawn', index: 0 }, 'KeyG') : r
     if (!r2.ok) throw new Error('free keys')
     const one = resetBindings(r2.bindings, 'throttle')
     expect(one.throttle).toEqual(DEFAULT_BINDINGS.throttle)
-    expect(one.respawn).toEqual(['KeyT', null])
+    expect(one.respawn).toEqual(['KeyG', null])
     expect(resetBindings(r2.bindings)).toEqual(DEFAULT_BINDINGS)
   })
 })
@@ -136,9 +136,9 @@ describe('key labels', () => {
     expect(keysLabel(DEFAULT_BINDINGS, 'brake')).toBe('S / ↓')
   })
   it('show rebound keys in the controls help', () => {
-    const r = assign(DEFAULT_BINDINGS, { action: 'respawn', index: 0 }, 'KeyT')
-    if (!r.ok) throw new Error('KeyT is free')
+    const r = assign(DEFAULT_BINDINGS, { action: 'respawn', index: 0 }, 'KeyG')
+    if (!r.ok) throw new Error('KeyG is free')
     const race = controlsFor(r.bindings).find((g) => g.title === 'Race')!
-    expect(race.bindings.find((x) => x.action.startsWith('Respawn'))!.keys).toBe('T')
+    expect(race.bindings.find((x) => x.action.startsWith('Respawn'))!.keys).toBe('G')
   })
 })

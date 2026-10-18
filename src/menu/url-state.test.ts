@@ -21,6 +21,7 @@ const custom: Settings = {
   // Not in the URL either.
   colourSafe: false,
   reducedEffects: null,
+  records: 'closed',
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
 
@@ -45,6 +46,9 @@ describe('url state', () => {
     expect(new URLSearchParams(q).get('quality')).toBe('custom')
     expect(new URLSearchParams(q).get('refl')).toBe('0')
     expect(new URLSearchParams(q).get('aa')).toBe('1')
+    expect(one('rec', 'open').records).toBe('open')
+    expect(one('rec', 'wide').records).toBe('auto')
+    expect(new URLSearchParams(q).get('rec')).toBe('closed')
   })
   it('names the quality, and a knob a link sets that differs from it makes it Custom', () => {
     const one = (k: string, v: string) => settingsFromUrl(`?${k}=${v}`, DEFAULT_SETTINGS)

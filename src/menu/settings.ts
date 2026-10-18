@@ -4,6 +4,7 @@ import { clampLaps } from '../race/lap'
 import { choiceOf, DEFAULT_CHOICE, TIME_CHOICES, WEATHER_CHOICES, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { clampLivery, DEFAULT_LIVERY, type Livery } from '../render/car/livery'
 import { clampKnobs, clampQuality, qualityKnobs, type Knobs, type Quality } from '../render/quality'
+import { clampRecords, type RecordsChoice } from '../race/records'
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -34,6 +35,8 @@ export interface Settings {
   reducedEffects: boolean | null
   /** Race-HUD size multiplier (Settings → Graphics), one of HUD_SCALES. */
   hudScale: number
+  /** Records panel (top left, T): open unless the window is narrow, open, or collapsed (src/race/records.ts). */
+  records: RecordsChoice
 }
 
 /** HUD-scale choices, smallest first. */
@@ -42,7 +45,7 @@ export const HUD_SCALES = [0.75, 0.9, 1, 1.15, 1.3] as const
 export const clampHudScale = (v: unknown): number => ((HUD_SCALES as readonly unknown[]).includes(v) ? (v as number) : 1)
 
 const KEY = 'driftline-settings'
-export const DEFAULT_SETTINGS: Settings = { volume: 0.7, sfxVolume: 1, uiVolume: 1, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY, quality: 'high', knobs: qualityKnobs('high'), hudScale: 1, colourSafe: false, reducedEffects: null }
+export const DEFAULT_SETTINGS: Settings = { volume: 0.7, sfxVolume: 1, uiVolume: 1, fx: [], laps: 1, ...DEFAULT_CHOICE, livery: DEFAULT_LIVERY, quality: 'high', knobs: qualityKnobs('high'), hudScale: 1, colourSafe: false, reducedEffects: null, records: 'auto' }
 /** Window event the settings panel fires after every change; detail is the saved Settings, which the running race applies at once. */
 export const SETTINGS_EVENT = 'driftline:settings'
 
@@ -62,7 +65,7 @@ export function loadSettings(storage: KeyValueStore): Settings {
     const { quality, knobs } = qualityOf(raw)
     const colourSafe = raw.colourSafe === true
     const reducedEffects = typeof raw.reducedEffects === 'boolean' ? raw.reducedEffects : null
-    return { volume, sfxVolume, uiVolume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery), quality, knobs, hudScale: clampHudScale(raw.hudScale), colourSafe, reducedEffects }
+    return { volume, sfxVolume, uiVolume, fx, laps: clampLaps(raw.laps), time, weather, livery: clampLivery(raw.livery), quality, knobs, hudScale: clampHudScale(raw.hudScale), colourSafe, reducedEffects, records: clampRecords(raw.records) }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }

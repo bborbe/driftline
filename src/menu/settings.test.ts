@@ -19,10 +19,10 @@ describe('settings', () => {
   it('round-trips and drops unknown effects', () => {
     const s = fake()
     const knobs = { pixelRatio: 1.5, shadows: 1024 as const, post: true, reflections: false, aa: true, particles: 0.25 }
-    const saved = { volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'] as Settings['fx'], laps: 3, time: 'night' as const, weather: 'rain' as const, livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 }, quality: 'custom' as const, knobs, hudScale: 1.15, colourSafe: true, reducedEffects: false }
+    const saved = { volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'] as Settings['fx'], laps: 3, time: 'night' as const, weather: 'rain' as const, livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 }, quality: 'custom' as const, knobs, hudScale: 1.15, colourSafe: true, reducedEffects: false, records: 'closed' as const }
     saveSettings(s, saved)
     expect(loadSettings(s)).toEqual(saved)
-    s.setItem('driftline-settings', JSON.stringify({ volume: 5, sfxVolume: -2, uiVolume: 'loud', fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'hail', quality: 'ultra', knobs: { pixelRatio: 9, shadows: 512, post: 'yes', particles: 2 }, hudScale: 7, colourSafe: 'yes', reducedEffects: 'no' }))
+    s.setItem('driftline-settings', JSON.stringify({ volume: 5, sfxVolume: -2, uiVolume: 'loud', fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'hail', quality: 'ultra', knobs: { pixelRatio: 9, shadows: 512, post: 'yes', particles: 2 }, hudScale: 7, records: 'sideways', colourSafe: 'yes', reducedEffects: 'no' }))
     expect(loadSettings(s)).toEqual({ ...DEFAULT_SETTINGS, volume: 1, sfxVolume: 0, uiVolume: 1, fx: ['bloom'], laps: 1, time: 'default', weather: 'default', livery: DEFAULT_LIVERY })
   })
   it('reads a save from before the presets: FXAA on is Custom on top of High, otherwise High', () => {

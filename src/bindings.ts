@@ -35,9 +35,9 @@ export const DEFAULT_BINDINGS: Bindings = {
 /**
  * Keys no action may take, because the shell owns them: Esc (pause, closes the panel), backtick (debug overlay),
  * Q / E (settings tab switch), H (controls help), F (fullscreen), M (mute), L (leaderboard), C / O (free-fly, orbit),
- * P (copy view), 1 / 2 / 3 (camera views), F2 (tuning), Tab (focus), Enter (start).
+ * P (copy view), T (records panel), 1 / 2 / 3 (camera views), F2 (tuning), Tab (focus), Enter (start).
  */
-export const RESERVED = new Set(['Escape', 'Backquote', 'KeyQ', 'KeyE', 'KeyH', 'KeyF', 'KeyM', 'KeyL', 'KeyC', 'KeyO', 'KeyP', 'Digit1', 'Digit2', 'Digit3', 'F2', 'Tab', 'Enter', 'NumpadEnter'])
+export const RESERVED = new Set(['Escape', 'Backquote', 'KeyQ', 'KeyE', 'KeyH', 'KeyF', 'KeyM', 'KeyL', 'KeyC', 'KeyO', 'KeyP', 'KeyT', 'Digit1', 'Digit2', 'Digit3', 'F2', 'Tab', 'Enter', 'NumpadEnter'])
 
 export const cloneBindings = (b: Bindings): Bindings => Object.fromEntries(ACTIONS.map((a) => [a, [...b[a]]])) as Bindings
 
