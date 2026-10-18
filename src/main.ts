@@ -17,6 +17,7 @@ import { centreline } from './track/centreline'
 import { loopTubes } from './track/pose'
 import { rotate, v3 } from './physics/vec'
 import { chooseTrack } from './menu/start'
+import { runMenuScene } from './menu/scene'
 import { skipMenu } from './menu/skip'
 import { effectiveFxQuery, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './menu/settings'
 import { settingsChange } from './menu/live'
@@ -75,17 +76,33 @@ let viewNow = (): ViewMode => shownView
 const boot = location.search
 const urlState = (): UrlState => ({ settings: shown, view: viewNow(), screen, fly: flying(), orbiting: orbiting(), boot })
 startUrlSync(urlState)
-const picking = fromMenu ? chooseTrack(LAP_NAMES, { focus: sel, onFocus: (track) => (screen = { sel: track }) }) : null
-if (picking) void fade.to(0)
-const trackName = picking ? await picking : lapName(location.search)
-// Menu → race: fade to black before the race scene is built, fade in on its first frame (setAnimationLoop below).
-if (picking) await fade.to(1)
-screen = { track: trackName }
+// The start menu runs over the live scene of its focused track (?sel=, else the first campaign level): the view is built
+// first, the menu scene (src/menu/scene.ts) circles the car on the grid, and picking that same track starts the race
+// on it with no reload; picking another fades out and loads that track (?track=), as Next track does.
+const menuTrack = fromMenu ? (sel && LAP_NAMES.includes(sel) ? sel : LAP_NAMES[0]) : null
+const trackName = menuTrack ?? lapName(location.search)
 const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 let env = resolveEnvironment(location.search, track, settings, Date.now())
 const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, settings.reflections)
+if (fromMenu) {
+  const stopMenu = runMenuScene(view, track)
+  // Shader prewarm behind the opening fade: compile every pipeline the scene needs before it is revealed.
+  const t0 = performance.now()
+  await view.renderer.compileAsync(view.scene, view.camera)
+  if (import.meta.env.DEV) console.info(`prewarm: ${Math.round(performance.now() - t0)} ms`)
+  const picking = chooseTrack(LAP_NAMES, { focus: sel ?? trackName, onFocus: (t) => (screen = { sel: t }), live: true })
+  void fade.to(0)
+  const picked = await picking
+  await fade.to(1)
+  if (picked !== trackName) {
+    location.assign(`${location.pathname}${screenQuery(location.search, urlState(), { track: picked })}`)
+    await new Promise(() => {}) // the page is going; nothing after this runs
+  }
+  stopMenu()
+}
+screen = { track: trackName }
 const { camera, backend } = view
 
 // Debug overlay (pose, fps, build label) in the corners, dev only (?dev=1 / ?debug=1; backtick toggles), P copies the debug-spawn URL
@@ -208,8 +225,6 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
 mountAudioControls(audio, () => race.start(), () => beginAllowed(race.paused, cam.fly !== null), settings.volume, (volume) =>
   saveSettings(localStorage, { ...loadSettings(localStorage), volume }),
 )
-// The card pick is the start gesture: skip the Begin overlay and go straight into the countdown.
-if (fromMenu) document.getElementById('begin')?.click()
 // Debug spawn for screenshots (docs/development.md § Debug screenshots): ?x&y&z&yaw places the car, freeze=1 holds it.
 // With &cam=fly the same params (plus &pitch) place the free-fly camera instead, and the car stays on the grid.
 const pose = debugPose(location.search)
@@ -244,6 +259,9 @@ const cam = createCameraController({
 flying = () => cam.fly
 orbiting = () => cam.orbiting
 viewNow = () => cam.viewMode
+// The tile pick is the start gesture: skip the Begin overlay and go straight into the countdown. After the camera
+// controller exists — Begin's guard reads cam.fly, and clicking it earlier threw and left READY? up.
+if (fromMenu) document.getElementById('begin')?.click()
 // The one keydown dispatch for the shell; race keys are handled inside src/race.
 window.addEventListener('keydown', (e) => {
   debug.onKeyDown(e)

@@ -28,12 +28,14 @@ export interface ChooseOptions {
   onFocus?: (track: string | null) => void
   /** Query the menu reads `?dev=1` from (default: the page's). */
   search?: string
+  /** Over the live 3D menu scene: transparent screen background, so the canvas shows through (src/menu/scene.ts). */
+  live?: boolean
 }
 
 export function chooseTrack(names: string[], opts: ChooseOptions = {}): Promise<string> {
   return new Promise((resolve) => {
     const screen = document.createElement('div')
-    screen.className = 'menu-screen menu-select'
+    screen.className = `menu-screen menu-select${opts.live ? ' menu-live' : ''}`
     screen.id = 'start-menu'
     const panel = el('div', 'menu-panel')
     const preview = el('aside', 'menu-preview')
