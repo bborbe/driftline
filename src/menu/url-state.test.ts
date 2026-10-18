@@ -22,6 +22,7 @@ const custom: Settings = {
   colourSafe: false,
   reducedEffects: null,
   records: 'closed',
+  frameCap: 30,
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
 
@@ -49,6 +50,11 @@ describe('url state', () => {
     expect(one('rec', 'open').records).toBe('open')
     expect(one('rec', 'wide').records).toBe('auto')
     expect(new URLSearchParams(q).get('rec')).toBe('closed')
+    expect(one('fps', '60').frameCap).toBe(60)
+    expect(one('fps', '0').frameCap).toBe(0)
+    expect(one('fps', '45').frameCap).toBe(0)
+    expect(settingsFromUrl('?fps=0', custom).frameCap).toBe(0)
+    expect(new URLSearchParams(q).get('fps')).toBe('30')
   })
   it('names the quality, and a knob a link sets that differs from it makes it Custom', () => {
     const one = (k: string, v: string) => settingsFromUrl(`?${k}=${v}`, DEFAULT_SETTINGS)

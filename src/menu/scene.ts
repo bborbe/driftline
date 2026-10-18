@@ -6,6 +6,7 @@ import { createCarAt } from '../physics'
 import { add, v3, type Vec3 } from '../physics/vec'
 import type { View } from '../render/view'
 import type { Track } from '../track/schema'
+import { FrameGate } from '../render/frame-cap'
 
 /** Orbit speed, rad/s (~6°/s): slow enough to read as a showroom turntable, not a replay camera. */
 export const MENU_ORBIT_RATE = 0.105
@@ -21,8 +22,9 @@ export function menuCamera(t: number, car: Vec3, heading: number): { eye: Vec3; 
   return { eye: add(car, v3(RADIUS * Math.sin(a), HEIGHT, RADIUS * Math.cos(a))), target: add(car, v3(0, LOOK_HEIGHT, 0)) }
 }
 
-/** Starts the menu loop on `view`; the returned function stops it and hands the renderer back. */
-export function runMenuScene(view: View, track: Track): () => void {
+/** Starts the menu loop on `view`, rendering at most `fps()` frames a second (0: every frame; render/frame-cap.ts); the
+ * returned function stops it and hands the renderer back. */
+export function runMenuScene(view: View, track: Track, fps: () => number = () => 0): () => void {
   const car = createCarAt(track.start)
   const { camera, renderer } = view
   const shift = () => {
@@ -34,8 +36,10 @@ export function runMenuScene(view: View, track: Track): () => void {
   addEventListener('resize', shift)
   let t = 0
   let last = performance.now()
+  const gate = new FrameGate()
   renderer.setAnimationLoop(() => {
     const now = performance.now()
+    if (!gate.due(now, fps(), document.hidden)) return
     const dt = Math.min(0.1, (now - last) / 1000)
     last = now
     t += dt

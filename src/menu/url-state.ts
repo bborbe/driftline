@@ -7,6 +7,7 @@ import { MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES } from '../track/environment'
 import { VIEWS, type ViewMode } from '../camera/views'
 import { flyQuery, type FlyCam } from '../camera/fly'
+import { clampFrameCap } from '../render/frame-cap'
 import { clampHudScale, type Settings } from './settings'
 import { PRESETS, QUALITY, qualityKnobs, sameKnobs, type Knobs, type Quality } from '../render/quality'
 import { RECORDS_CHOICES } from '../race/records'
@@ -61,6 +62,7 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
     // Colour-safe and reduced effects stay out of the URL: they are the player's own needs, not part of a shared setup.
     colourSafe: stored.colourSafe,
     reducedEffects: stored.reducedEffects,
+    frameCap: q.has('fps') ? clampFrameCap(Number(q.get('fps'))) : stored.frameCap,
   }
 }
 
@@ -113,6 +115,7 @@ export function stateQuery(search: string, state: UrlState): string {
     q.delete('refl')
     q.delete('aa')
   }
+  q.set('fps', String(s.frameCap))
   if (state.fly && 'track' in state.screen) {
     const pose = new URLSearchParams(flyQuery(state.screen.track, state.fly))
     for (const k of FLY_KEYS) q.set(k, pose.get(k)!)
