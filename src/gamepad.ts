@@ -135,7 +135,8 @@ export function stickDir(pad: PadSnapshot): Dir | null {
 
 /**
  * Button presses → key actions. A press fires once on its down edge; a menu direction (d-pad or stick) repeats while
- * held. Buttons already down when the pad first appears fire nothing.
+ * held. A button already down when the pad appears is a press too: browsers reveal a pad to a page only once one of its
+ * buttons is pressed (every page load, every reconnect), so that press is the player's first input, never stale.
  */
 export class PadKeys {
   private was: boolean[] | null = null
@@ -148,8 +149,7 @@ export class PadKeys {
       return []
     }
     const now = pad.buttons.map((b) => b.pressed)
-    const was = this.was ?? now
-    const first = this.was === null
+    const was = this.was ?? now.map(() => false)
     this.was = now
     const out: PadAction[] = []
     for (const b of PAD_BINDINGS) {
@@ -164,7 +164,7 @@ export class PadKeys {
     if (!d) this.held = null
     else if (this.held?.dir !== d) {
       this.held = { dir: d, next: nowMs + NAV_REPEAT_DELAY }
-      if (!first) out.push(d)
+      out.push(d)
     } else if (nowMs >= this.held.next) {
       this.held.next = nowMs + NAV_REPEAT_EVERY
       out.push(d)
