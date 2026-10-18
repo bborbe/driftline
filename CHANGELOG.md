@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
-## Unreleased
+## v0.4.0
 
 - feat: leaderboard server skeleton in `server/` — a Go service (go-skeleton layout) with `/healthz` and `/readiness`, SQLite through the pure-Go `modernc.org/sqlite` with a `runs` table migration, env config (`DB_PATH`, `TOKEN`, `ALLOWED_ORIGIN`), a scratch Dockerfile and a `server` CI job running its Go tests; no submit / list API yet
 
