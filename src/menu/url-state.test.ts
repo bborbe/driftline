@@ -13,6 +13,7 @@ const custom: Settings = {
   time: 'night',
   weather: 'snow',
   livery: { pattern: 'checker', paint: 'teal', number: 42 },
+  hudScale: 1.15,
   reflections: true,
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
@@ -33,6 +34,8 @@ describe('url state', () => {
     expect(one('pattern', 'flag').livery.pattern).toBe('flag')
     expect(one('paint', 'pink').livery.paint).toBe('pink')
     expect(one('num', '13').livery.number).toBe(13)
+    expect(one('hud', '0.75').hudScale).toBe(0.75)
+    expect(one('hud', '2').hudScale).toBe(1)
     expect(one('refl', '0').reflections).toBe(false)
     expect(one('refl', '1').reflections).toBe(true)
     expect(settingsFromUrl('?refl=0', custom).reflections).toBe(false)

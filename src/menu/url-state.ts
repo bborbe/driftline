@@ -7,7 +7,7 @@ import { MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES } from '../track/environment'
 import { VIEWS, type ViewMode } from '../camera/views'
 import { flyQuery, type FlyCam } from '../camera/fly'
-import type { Settings } from './settings'
+import { clampHudScale, type Settings } from './settings'
 
 /** Where the player is: in a race on `track`, or on the start menu with card `sel` focused (null: none). */
 export type Screen = { track: string } | { sel: string | null }
@@ -52,6 +52,7 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
       paint: oneOf(q.get('paint'), PAINT_IDS, stored.livery.paint),
       number: Number.isFinite(num) && num >= 1 ? Math.min(MAX_NUMBER, num) : stored.livery.number,
     },
+    hudScale: q.has('hud') ? clampHudScale(Number(q.get('hud'))) : stored.hudScale,
     reflections: refl === '1' ? true : refl === '0' ? false : stored.reflections,
   }
 }
@@ -83,6 +84,7 @@ export function stateQuery(search: string, state: UrlState): string {
   q.set('pattern', s.livery.pattern)
   q.set('paint', s.livery.paint)
   q.set('num', String(s.livery.number))
+  q.set('hud', String(s.hudScale))
   q.set('refl', s.reflections ? '1' : '0')
   if (state.fly && 'track' in state.screen) {
     const pose = new URLSearchParams(flyQuery(state.screen.track, state.fly))

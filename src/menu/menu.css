@@ -1,14 +1,14 @@
 .menu-screen { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 18px; overflow-y: auto;
-  background: radial-gradient(circle at 50% 30%, #1c2a3a, #070b10); color: #fff; font: 16px monospace; }
-.menu-screen h1 { margin: 0; font: bold 56px sans-serif; letter-spacing: 6px; font-style: italic; }
+  background: radial-gradient(circle at 50% 30%, #1c2a3a, #070b10); color: #fff; font: 600 16px var(--ui-font); font-variant-numeric: tabular-nums; }
+.menu-screen h1 { margin: 0; font: italic 800 56px var(--ui-font); letter-spacing: 6px; font-style: italic; }
 .menu-cards { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
-.menu-card { width: 200px; padding: 12px; background: rgba(255, 255, 255, 0.06); border: 2px solid transparent; border-radius: 10px; color: #fff; font: 15px monospace; cursor: pointer; text-align: center; }
+.menu-card { width: 200px; padding: 12px; background: rgba(255, 255, 255, 0.06); border: 2px solid transparent; border-radius: 10px; color: #fff; font: 600 15px var(--ui-font); cursor: pointer; text-align: center; }
 .menu-card svg { display: block; margin: 0 auto 8px; background: #0d1620; border-radius: 6px; }
 .menu-card path { fill: none; stroke: #e8eef4; stroke-width: 3; stroke-linejoin: round; }
 .menu-card h3 { margin: 4px 0; font-size: 20px; text-transform: uppercase; }
 .menu-card p { margin: 2px 0; color: #b8c4d0; }
 .menu-group { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.menu-group h2 { margin: 0; font: bold 18px monospace; letter-spacing: 4px; color: #889; }
+.menu-group h2 { margin: 0; font: 800 18px var(--ui-font); letter-spacing: 4px; color: #889; }
 .menu-card-small { width: 120px; padding: 8px; font-size: 13px; }
 .menu-card-small h3 { font-size: 14px; }
 .menu-card .menu-tier { text-transform: uppercase; font-size: 12px; }
@@ -19,7 +19,7 @@
 .menu-card .menu-tier-black { color: #9a9aa6; }
 .menu-focus { border-color: #ffc300; background: rgba(255, 195, 0, 0.12); }
 .menu-list { display: flex; flex-direction: column; gap: 6px; min-width: 220px; margin: 12px 0; }
-.menu-item { padding: 8px 16px; background: rgba(255, 255, 255, 0.08); border: 2px solid transparent; border-radius: 6px; color: #fff; font: 18px monospace; cursor: pointer; text-align: left; }
+.menu-item { padding: 8px 16px; background: rgba(255, 255, 255, 0.08); border: 2px solid transparent; border-radius: 6px; color: #fff; font: 600 18px var(--ui-font); cursor: pointer; text-align: left; }
 .menu-item.menu-focus { border-color: #ffc300; }
 .menu-settings { display: grid; grid-template-columns: auto auto; gap: 8px 16px; align-items: center; text-align: left; }
 .menu-settings .menu-slot { color: #667; }
@@ -27,8 +27,16 @@
 .menu-settings[hidden] { display: none; }
 .menu-settings-tabs { display: flex; flex-direction: column; gap: 12px; min-width: 360px; }
 .menu-tabs { display: flex; gap: 6px; align-items: center; border-bottom: 2px solid rgba(255, 255, 255, 0.12); }
-.menu-tab { padding: 6px 14px; background: rgba(255, 255, 255, 0.06); border: 2px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: #b8c4d0; font: 15px monospace; cursor: pointer; }
+.menu-tab { padding: 6px 14px; background: rgba(255, 255, 255, 0.06); border: 2px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: #b8c4d0; font: 600 15px var(--ui-font); cursor: pointer; }
 .menu-tab:hover { color: #fff; }
 .menu-tab-active { color: #fff; background: rgba(255, 195, 0, 0.12); border-color: #ffc300; }
 .menu-tabs .menu-hint { margin-left: auto; }
 .menu-hint { color: #889; font-size: 13px; }
+/* Button states for every menu button: hover, pressed, keyboard focus and disabled. */
+.menu-item, .menu-tab, .menu-card { transition: background 120ms, border-color 120ms, transform 80ms; }
+.menu-item:hover, .menu-card:hover { background: rgba(255, 255, 255, 0.14); }
+.menu-tab:hover { background: rgba(255, 255, 255, 0.1); }
+.menu-item:active, .menu-tab:active, .menu-card:active { transform: scale(0.97); background: rgba(255, 195, 0, 0.22); }
+.menu-item:focus-visible, .menu-tab:focus-visible, .menu-card:focus-visible { outline: 2px solid #8fd0ff; outline-offset: 2px; }
+.menu-item[disabled], .menu-tab[disabled], .menu-card[disabled] { opacity: 0.4; cursor: not-allowed; transform: none; background: rgba(255, 255, 255, 0.04); }
+.menu-build { font: 12px ui-monospace, monospace; color: #b8c4d0; }

@@ -49,7 +49,7 @@ export const CONTROLS: ControlGroup[] = [
   {
     title: 'Debug',
     bindings: [
-      { keys: '`', action: 'Debug overlay on / off (?debug=0 starts it off)' },
+      { keys: '`', action: 'Debug overlay on / off (dev only: ?dev=1 or ?debug=1 starts it on)' },
       { keys: 'P', action: 'Copy this view as a URL' },
       { keys: 'F2', action: 'Handling tuning panel (?dev=1 only)' },
     ],

@@ -5,7 +5,8 @@ import { CAMERA_EVENT, loadView, saveView, VIEWS, type ViewMode } from '../camer
 import { CAMERA_FX, CAMERA_FX_EVENT, loadCameraFx, saveCameraFx, type CameraFx } from '../camera/feel'
 import { LIVE_FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
-import { loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
+import { HUD_SCALES, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
+import { buildLabel } from '../build-info'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES, type Environment, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type ControlId, type Tab } from './tabs'
@@ -91,6 +92,15 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     commit()
   })
   add('reflections', label('Reflections (Neon Night)'), refl)
+  const hud = document.createElement('select')
+  hud.id = 'setting-hud-scale'
+  for (const v of HUD_SCALES) hud.append(new Option(`${Math.round(v * 100)}%`, String(v), false, v === s.hudScale))
+  hud.addEventListener('change', () => {
+    s.hudScale = Number(hud.value)
+    commit()
+  })
+  add('hudScale', label('HUD scale'), hud)
+  add('build', label('Build'), Object.assign(document.createElement('span'), { id: 'setting-build', className: 'menu-build', textContent: buildLabel() }))
   const laps = document.createElement('select')
   laps.id = 'setting-laps'
   for (let n = 1; n <= MAX_LAPS; n++) laps.append(new Option(String(n), String(n), false, n === s.laps))
