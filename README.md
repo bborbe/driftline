@@ -1,5 +1,7 @@
 # driftline
 
+[![CI](https://github.com/bborbe/driftline/actions/workflows/ci.yml/badge.svg)](https://github.com/bborbe/driftline/actions/workflows/ci.yml)
+
 **Play online:** https://bborbe.github.io/driftline/
 
 Trackmania-like browser racing game: short tracks, a lap timer with checkpoints, instant respawn and a ghost of your best run.
@@ -135,8 +137,16 @@ An online leaderboard is on hold: there is none on the live site, and the top-10
 
 Models from the [Kenney](https://kenney.nl/) Racing, Car and Nature kits; sky HDRIs and the grass texture from [Poly Haven](https://polyhaven.com/). All CC0; the full list is in [assets/LICENSE](assets/LICENSE) and [assets/LICENSES/](assets/LICENSES/). Engine and audio are original code; sounds are synthesized, no audio files.
 
+## Development
+
+```bash
+make run       # local dev server
+make test      # fast test tier
+make test-all  # fast + slow tiers
+```
+
+Details: [docs/development.md](docs/development.md); agent instructions: [AGENTS.md](AGENTS.md).
+
 ## License
 
 BSD 2-Clause, see [LICENSE](LICENSE).
-
-Development: see [docs/development.md](docs/development.md)
