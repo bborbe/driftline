@@ -473,17 +473,22 @@ function lapList(lapTimes: number[]): HTMLElement {
   return ol
 }
 
-/** One row per checkpoint and lap line: label, run time, delta vs the previous best (blue ahead, red behind). */
+/**
+ * "Where did I lose time": one row per checkpoint and lap line — this run's split, the previous best's split and the
+ * delta, then the sector before it against the previous best's sector (blue ahead, red behind). The sector that lost
+ * the most time is highlighted.
+ */
 function splitTable(r: Results): HTMLElement {
   const table = el('table', 'race-results-splits')
   const head = el('tr', '')
-  head.append(el('th', '', 'CP'), el('th', '', 'SPLIT'), el('th', '', 'VS PB'))
+  head.append(el('th', '', 'CP'), el('th', '', 'SPLIT'), el('th', '', 'PB'), el('th', '', 'Δ'), el('th', '', 'SECTOR'), el('th', '', 'Δ SEC'))
   table.append(head)
+  const delta = (d: number | null) => el('td', d === null ? '' : Math.round(d) < 0 ? 'race-ahead' : 'race-behind', d === null ? '—' : formatDelta(d))
   for (const s of r.splits) {
-    const tr = el('tr', '')
+    const tr = el('tr', s.worst ? 'race-results-worst' : '')
     tr.dataset.split = s.label
-    const d = s.deltaMs
-    tr.append(el('td', '', s.label), el('td', '', formatLapTime(s.ms)), el('td', d === null ? '' : Math.round(d) < 0 ? 'race-ahead' : 'race-behind', d === null ? '—' : formatDelta(d)))
+    if (s.worst) tr.title = 'Most time lost here'
+    tr.append(el('td', '', s.label), el('td', '', formatLapTime(s.ms)), el('td', 'race-results-pb', s.pbMs === null ? '—' : formatLapTime(s.pbMs)), delta(s.deltaMs), el('td', '', formatLapTime(s.sectorMs)), delta(s.sectorDeltaMs))
     table.append(tr)
   }
   return table
