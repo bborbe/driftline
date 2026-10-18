@@ -5,7 +5,7 @@ import { WHEEL_NODES, type Corner } from '../../car/wheels'
 import { GHOST_OPACITY, createGhostCar } from '../../ghost/mesh'
 import { createCar, v3 } from '../../physics'
 import { CARS, resolveCar, type CarEntry } from '../cars'
-import { attachDetail, isDetail } from './detail'
+import { attachDetail, isDetail, strobeFade, strobeLimit, type DetailRig } from './detail'
 import { attachLights } from './lights'
 import { createCarView } from './model'
 import { applyLivery, type LiveryCanvas } from './paint'
@@ -51,11 +51,13 @@ const glbStandIn = (entry: CarEntry): THREE.Object3D => {
 }
 
 /** Every registry car in the car frame, with its detail attached. */
-const detailed = async (entry: CarEntry): Promise<THREE.Object3D> => {
+const detailed = async (entry: CarEntry): Promise<THREE.Object3D> => (await rigged(entry)).root
+
+const rigged = async (entry: CarEntry): Promise<{ root: THREE.Object3D; rig: DetailRig }> => {
   const root = entry.file ? glbStandIn(entry) : await entry.build()
-  attachDetail(root, entry.cockpit)
+  const rig = attachDetail(root, entry.cockpit)
   root.updateMatrixWorld(true)
-  return root
+  return { root, rig }
 }
 
 const boundsOf = (root: THREE.Object3D, keep: (o: THREE.Object3D) => boolean): THREE.Box3 => {
@@ -91,7 +93,7 @@ describe('car detail', () => {
     it(`${entry.id}: has arms, a helmet, tread and hubs as real meshes`, async () => {
       const root = await detailed(entry)
       for (const c of CORNERS) {
-        solidMesh(root, `suspension-${c}`)
+        for (const arm of ['upper', 'lower']) solidMesh(root, `wishbone-${arm}-${c}`)
         const wheel = root.getObjectByName(WHEEL_NODES[c])!
         for (const part of ['tread', 'hub']) expect(solidMesh(root, `${part}-${c}`).parent, `${part}-${c} under its wheel`).toBe(wheel)
       }
@@ -110,6 +112,68 @@ describe('car detail', () => {
       for (const c of CORNERS) expect(envelope.containsBox(new THREE.Box3().setFromObject(root.getObjectByName(`suspension-${c}`)!)), c).toBe(true)
     })
   }
+
+  for (const entry of CARS) {
+    it(`${entry.id}: wheels sit at the spring length and the arms meet them, within 1 mm`, async () => {
+      const { root, rig } = await rigged(entry)
+      // Wheel centre (its own meshes, not the detail) and every arm's outer end, in the car frame.
+      const centreY = (c: Corner): number => boundsOf(root.getObjectByName(WHEEL_NODES[c])!, (o) => !isDetail(o)).getCenter(new THREE.Vector3()).y
+      const ends = (c: Corner): THREE.Vector3[] =>
+        (['upper', 'lower'] as const).map((a) => {
+          const arm = root.getObjectByName(`wishbone-${a}-${c}`)!
+          return arm.localToWorld((arm.userData.end as THREE.Vector3).clone())
+        })
+      const rest = new Map(CORNERS.map((c) => [c, { y: centreY(c), ends: ends(c) }]))
+      const mounts = [-0.8, 0.8].flatMap((x) => [-1.3, 1.3].map((z) => ({ x, z })))
+      for (const [length, expected] of [
+        [0.5, -0.5], // full droop: airborne
+        [0.35, -0.35], // the built pose
+        [0.2, -0.2], // compressed
+      ]) {
+        rig.setTravel(mounts.map((mount) => ({ mount, length })))
+        root.updateMatrixWorld(true)
+        for (const c of CORNERS) {
+          expect(centreY(c), `${c} at ${length}`).toBeCloseTo(expected, 3)
+          const dy = expected - rest.get(c)!.y
+          ends(c).forEach((e, i) => expect(e.distanceTo(rest.get(c)!.ends[i].clone().add(new THREE.Vector3(0, dy, 0))), `${c} arm ${i} at ${length}`).toBeLessThan(0.001))
+        }
+      }
+      // Without springs (the ghost) every wheel is back at its built pose.
+      rig.setTravel()
+      root.updateMatrixWorld(true)
+      for (const c of CORNERS) expect(centreY(c)).toBeCloseTo(rest.get(c)!.y, 6)
+    })
+  }
+
+  it('fades tread and spokes out before they turn half a pitch per 60 fps frame', () => {
+    expect(strobeLimit(20)).toBeCloseTo(3.30, 2) // tread blocks
+    expect(strobeLimit(5)).toBeCloseTo(13.19, 2) // spokes
+    for (const limit of [strobeLimit(20), strobeLimit(5)]) {
+      expect(strobeFade(0, limit)).toBe(1)
+      expect(strobeFade(limit, limit)).toBe(0)
+      expect(strobeFade(-limit, limit)).toBe(0) // reversing strobes too
+      let last = 1
+      for (let v = 0; v <= limit * 1.5; v += limit / 50) {
+        const f = strobeFade(v, limit)
+        expect(f).toBeLessThanOrEqual(last)
+        last = f
+      }
+    }
+  })
+
+  it('shows tread and hubs at rest and hides them at 94 km/h', async () => {
+    const car = await createCarView('stadium')
+    const s = createCar()
+    const parts = (): THREE.Mesh[] => CORNERS.flatMap((c) => ['tread', 'hub'].map((p) => car.object.getObjectByName(`${p}-${c}`) as THREE.Mesh))
+    car.update(s, 1 / 60)
+    for (const m of parts()) {
+      expect(m.visible, m.name).toBe(true)
+      expect((m.material as THREE.Material).opacity, m.name).toBe(1)
+    }
+    s.velocity = v3(0, 0, 94 / 3.6)
+    car.update(s, 1 / 60)
+    for (const m of parts()) expect(m.visible, m.name).toBe(false)
+  })
 
   it('spins the hubs with the wheels', async () => {
     const car = await createCarView('stadium')
@@ -167,7 +231,11 @@ describe('car detail', () => {
       n++
       expect(((o as THREE.Mesh).material as THREE.Material).opacity).toBe(GHOST_OPACITY)
     })
-    expect(n).toBeGreaterThanOrEqual(4 * 3 + 2) // arms, tread and hub per corner, helmet and visor
+    ghost.update(createCar(), 1 / 60) // the speed fade keeps the ghost's own opacity at rest
+    ghost.object.traverse((o) => {
+      if (isDetail(o) && (o as THREE.Mesh).isMesh) expect(((o as THREE.Mesh).material as THREE.Material).opacity).toBe(GHOST_OPACITY)
+    })
+    expect(n).toBeGreaterThanOrEqual(4 * 4 + 2) // two arms, tread and hub per corner, helmet and visor
   })
 
   it('every registry car names a cockpit', () => {
