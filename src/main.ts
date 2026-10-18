@@ -6,6 +6,7 @@ import { CAMERA_EVENT, loadView, saveView, type ViewMode } from './camera/views'
 import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
+import { applyAccess, knobsFor, reducedFor, startQuality } from './render/quality-runtime'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
 import { beginAllowed, GameAudio, KerbProbe, mountAudioControls, mountUiSounds } from './audio'
 import { initRace } from './race'
@@ -36,6 +37,7 @@ let shownView: ViewMode = viewFromUrl(location.search, loadView(localStorage))
 saveSettings(localStorage, shown)
 saveView(localStorage, shownView)
 window.addEventListener(SETTINGS_EVENT, (e) => (shown = (e as CustomEvent<Settings>).detail))
+applyAccess(shown) // colour-safe and reduced effects apply on the start screen too
 // Audio exists before the start screen so its menu clicks sound (a click may create the context: src/audio/ui-sounds.ts).
 // ?audiolog=1 keeps an event trace on window.__driftlineAudio for automated checks (squeal, kerb, impact, ui, one-shots).
 const audio = new GameAudio()
@@ -68,8 +70,10 @@ const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 let env = resolveEnvironment(location.search, track, settings, Date.now())
-const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, settings.reflections, settings.aa)
+const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, knobsFor(settings), reducedFor(settings))
 const { camera, backend } = view
+// Graphics quality (Low / Medium / High / Auto / Custom) and the Access options, applied live; Auto probes here.
+const quality = startQuality(view, settings)
 
 // Debug overlay (pose, fps, build label) in the corners, dev only (?dev=1 / ?debug=1; backtick toggles), P copies the debug-spawn URL
 // for the current view. The race HUD lives in src/race/view.ts.
@@ -166,8 +170,6 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
     ghostCar.setLivery(ghostLivery(livery))
   }
   if (change.fx) view.setFx(change.fx)
-  if (change.reflections !== undefined) view.setReflections(change.reflections)
-  if (change.aa !== undefined) view.setAA(change.aa)
   if (change.laps !== undefined) race.setLaps(change.laps)
   if (change.environment) {
     env = resolveEnvironment('', track, next, Date.now())
@@ -205,6 +207,7 @@ const cam = createCameraController({
   pose,
   search: location.search,
   store: localStorage,
+  reduced: () => reducedFor(shown),
   race: () => ({
     phase: race.loop.phase,
     countdownLeft: race.loop.countdownLeft(sim.state.tick) / TICK_HZ,
@@ -253,4 +256,5 @@ view.renderer.setAnimationLoop(() => {
   )
   view.start?.update(race.board())
   view.frame(s, elapsed, material, carInput.brake > 0)
+  quality.frame(elapsed)
 })

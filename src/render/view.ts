@@ -23,8 +23,9 @@ import { createDriftGlow } from './fx/drift-cue'
 import { createSmoke } from './fx/smoke'
 import { createBoostStreaks } from './fx/boost-streaks'
 import { createSpeedLines } from './fx/speedlines'
-import { createRain } from './fx/rain'
-import { createSnow } from './fx/snow'
+import { createRain, RAIN_DROPS } from './fx/rain'
+import { createSnow, SNOW_FLAKES } from './fx/snow'
+import { qualityKnobs, type Knobs } from './quality'
 import { FrameStats } from './fx/stats'
 import { watchFullscreen } from '../fullscreen'
 import { createScene } from './scene'
@@ -45,10 +46,13 @@ export type View = {
   setEnvironment: (env: Environment, seed?: number) => Promise<void>
   /** Turn the live effects (fx/flags.ts LIVE_FX) on or off (Settings → Effect). */
   setFx: (fx: Set<Fx>) => void
-  /** Neon Night's road reflection on or off (Settings → Graphics → Reflections). */
-  setReflections: (on: boolean) => void
-  /** FXAA on or off (Settings → Graphics → Anti-aliasing); a no-op while `?bloom=0` leaves no post pipeline. */
-  setAA: (on: boolean) => void
+  /**
+   * Apply the graphics-quality knobs (render/quality.ts) live: pixel ratio, sun shadows, the post pipeline,
+   * Neon Night's road reflection, FXAA and the particle budget. Post and FXAA are no-ops while `?bloom=0` leaves no pipeline.
+   */
+  setKnobs: (k: Knobs) => void
+  /** Reduced effects (Settings → Access): hides speed lines and boost streaks. */
+  setReduced: (on: boolean) => void
   /** For extra scene objects owned elsewhere (e.g. the ghost car). */
   scene: THREE.Scene
   /** Start lights, arch screens and start road paint; main.ts feeds it race.board() each frame. Null without a start gate. */
@@ -105,7 +109,7 @@ export const SHADOW_MAP_TYPE = THREE.PCFSoftShadowMap
 
 /**
  * `env` is the race's time of day and weather (track/environment.ts); `seed` varies its cloud layer; `livery`
- * paints the player car; `reflections` is Neon Night's road reflection and `aa` the FXAA pass (Settings → Graphics).
+ * paints the player car; `knobs` are the graphics-quality knobs (render/quality.ts); `reduced` is Settings → Access → Reduced effects.
  */
 export const createView = async (
   track: Track,
@@ -113,12 +117,12 @@ export const createView = async (
   env: Environment = DEFAULT_ENVIRONMENT,
   seed = 1,
   livery?: Livery,
-  reflections = false,
-  aa = false,
+  knobs: Knobs = qualityKnobs('high'),
+  reduced = false,
 ): Promise<View> => {
   const forceWebGL = new URLSearchParams(location.search).get('renderer') === 'webgl2'
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL })
-  renderer.setPixelRatio(window.devicePixelRatio)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, knobs.pixelRatio))
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = SHADOW_MAP_TYPE
@@ -129,7 +133,7 @@ export const createView = async (
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2'
   console.log(`renderer: ${backend}`)
 
-  const [{ scene, look, follow, frame: sky, setEnvironment: setSceneEnvironment }, trackMesh, car] = await Promise.all([
+  const [{ scene, look, follow, frame: sky, setEnvironment: setSceneEnvironment, setShadows }, trackMesh, car] = await Promise.all([
     createScene(track, env, seed),
     createPieceTrack(track),
     createCarView(undefined, livery),
@@ -143,7 +147,7 @@ export const createView = async (
   const neon = createNeon(track, trackMesh)
   scene.add(neon.object, neon.reflectionTarget)
   markReflectable(scene)
-  neon.setReflections(reflections)
+  neon.setReflections(knobs.reflections)
   neon.setActive(look.neon)
   setNeonGlow(scene, look.neon)
   // Rain wets the road and falls around the camera, snow drifts around it (render/environment.ts); all switch live with
@@ -170,7 +174,8 @@ export const createView = async (
   // on by default: ?bloom=0 turns it off; a night environment picks the stronger night preset.
   // Speed lines and smoke are built always and switched by visibility, so Settings toggles them live.
   let fx = parseFx(fxQuery)
-  let draw = () => renderer.render(scene, camera)
+  const plain = () => renderer.render(scene, camera)
+  let post: (() => void) | null = null
   // The one post pipeline (post.ts): scene → [ao] → bloom → grade → [aa]. The grade's uniforms follow the look live.
   const glow = bloomFor(location.search, glowPreset(look))
   let bloomPass: ReturnType<typeof bloom> | null = null
@@ -201,8 +206,8 @@ export const createView = async (
       pipeline.outputNode = on ? antialiased : graded
       pipeline.needsUpdate = true
     }
-    setAA(aa)
-    draw = () => pipeline.render()
+    setAA(knobs.aa)
+    post = () => pipeline.render()
   }
   const speedLines = createSpeedLines()
   camera.add(speedLines.object)
@@ -213,15 +218,24 @@ export const createView = async (
   scene.add(skid.object)
   const smoke = createSmoke()
   scene.add(smoke.object)
-  const setFx = (next: Set<Fx>) => {
-    fx = next
-    speedLines.object.visible = fx.has('speedlines')
-    smoke.object.visible = fx.has('smoke')
-  }
-  setFx(fx)
-  // Boost streaks are turbo feedback, so they are always on (camera space, like speed lines).
+  // Boost streaks are turbo feedback, so they are on unless reduced effects hides them (camera space, like speed lines).
   const boost = createBoostStreaks()
   camera.add(boost.object)
+  let reducedOn = reduced
+  const showFx = () => {
+    speedLines.object.visible = fx.has('speedlines') && !reducedOn
+    smoke.object.visible = fx.has('smoke')
+    boost.object.visible = !reducedOn
+  }
+  const setFx = (next: Set<Fx>) => {
+    fx = next
+    showFx()
+  }
+  setFx(fx)
+  const setReduced = (on: boolean) => {
+    reducedOn = on
+    showFx()
+  }
   // Dust off dirt and grass is surface feedback, so it is always on.
   const dust = createDust()
   scene.add(dust.object)
@@ -269,6 +283,21 @@ export const createView = async (
     }
   }
 
+  let usePost = true
+  const setKnobs = (k: Knobs) => {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, k.pixelRatio))
+    renderer.shadowMap.enabled = k.shadows > 0
+    setShadows(k.shadows)
+    usePost = k.post
+    neon.setReflections(k.reflections)
+    setAA(k.aa)
+    smoke.pool.scale = k.particles
+    dust.pool.scale = k.particles
+    rain.object.count = Math.round(RAIN_DROPS * k.particles)
+    snow.object.count = Math.round(SNOW_FLAKES * k.particles)
+  }
+  setKnobs(knobs)
+
   let elapsed = 0
   const down = { x: 0, y: -1, z: 0 }
   const rayDown = new THREE.Vector3()
@@ -280,8 +309,8 @@ export const createView = async (
     const under = surface.raycast(s.position, bodyDown, 50)
     contact.update(car.object, under ? under.distance : null)
     follow(s.position.x, s.position.y, s.position.z) // shadow frustum follows the car
-    if (fx.has('speedlines')) speedLines.update(dot(s.velocity, forwardOf(s)), dt)
-    boost.update(s.turbo, s.turboForce, dt)
+    if (speedLines.object.visible) speedLines.update(dot(s.velocity, forwardOf(s)), dt)
+    if (boost.object.visible) boost.update(s.turbo, s.turboForce, dt)
     skid.update(s)
     if (topCam) {
       // Debug override of the chase camera main.ts set this frame.
@@ -302,7 +331,7 @@ export const createView = async (
       const hit = surface.raycast(s.position, down, 50)
       neon.update(elapsed, camera, hit ? s.position.y - hit.distance : s.position.y - RIDE_HEIGHT)
     }
-    draw()
+    ;(usePost && post ? post : plain)()
     stats.push(performance.now(), dt)
     sinceLabel += dt
     if (sinceLabel >= 0.5) {
@@ -311,5 +340,5 @@ export const createView = async (
     }
   }
 
-  return { renderer, camera, backend, car: car.object, setLivery: car.setLivery, setEnvironment, setFx, setReflections: neon.setReflections, setAA: (on: boolean) => setAA(on), scene, start, frame }
+  return { renderer, camera, backend, car: car.object, setLivery: car.setLivery, setEnvironment, setFx, setKnobs, setReduced, scene, start, frame }
 }

@@ -16,6 +16,7 @@ import { formatLapTime, RaceStore } from './store'
 import { startBoard, type StartBoard } from './start-board'
 import { escapeLeavesFullscreen, toggleFullscreen } from '../fullscreen'
 import { RaceView } from './view'
+import { BINDINGS_EVENT, isBound, loadBindings, type Bindings } from '../bindings'
 import type { MenuActions } from './view'
 
 export type { RaceEvents } from './lap'
@@ -105,6 +106,9 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     view.showPause(p)
     opts.onPause?.(p)
   }
+  // Respawn and restart follow the player's key bindings (Settings → Controls), live.
+  let bindings = loadBindings(localStorage)
+  window.addEventListener(BINDINGS_EVENT, (e) => (bindings = (e as CustomEvent<Bindings>).detail))
   window.addEventListener('keydown', (e) => {
     if (view.typing) return
     if (e.code === 'KeyF' && !e.repeat) toggleFullscreen()
@@ -119,8 +123,8 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
       e.preventDefault()
       return
     }
-    if (e.code === 'KeyR') pending = 'respawn'
-    if (e.code === 'Backspace') pending = 'restart'
+    if (isBound(bindings, 'respawn', e.code)) pending = 'respawn'
+    if (isBound(bindings, 'restart', e.code)) pending = 'restart'
     if (e.code === 'KeyL') view.toggleLeaderboard()
     const tag = (e.target as HTMLElement | null)?.tagName
     if (isControlsKey(e.code) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'SELECT') view.toggleControls()
