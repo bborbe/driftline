@@ -8,9 +8,14 @@ import { MAX_LAPS } from '../race/lap'
 import { HUD_SCALES, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
 import { buildLabel } from '../build-info'
 import { GHOST_KINDS, GHOST_NAME } from '../ghost/tag'
+import { RECORDS_CHOICES, type RecordsChoice } from '../race/records'
+import { FRAME_CAP_LABELS, FRAME_CAPS } from '../render/frame-cap'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES, type Environment, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type ControlId, type Tab } from './tabs'
+import { PARTICLE_SCALES, PIXEL_RATIOS, qualityKnobs, SHADOW_SIZES, type Knobs, type Quality } from '../render/quality'
+import { AUTO_PICKED_EVENT, reducedFor, REPROBE_EVENT, storedAuto } from '../render/quality-runtime'
+import { bindingsTable } from './bindings-panel'
 
 export interface SettingsHooks {
   /** Live volume change, e.g. GameAudio.setVolume. */
@@ -21,6 +26,7 @@ export interface SettingsHooks {
 
 const VIEW_LABELS: Record<ViewMode, string> = { close: 'Close chase', far: 'Far chase', cockpit: 'In-car' }
 const CAMERA_FX_LABELS: Record<CameraFx, string> = { off: 'Off', low: 'Low', full: 'Full' }
+const RECORDS_LABELS: Record<RecordsChoice, string> = { auto: 'Auto (collapsed when narrow)', open: 'Open', closed: 'Collapsed' }
 /** Choices whose label is more than the capitalised id. */
 const CHOICE_LABELS: Record<string, string> = { neon: 'Neon Night' }
 /** Option label; "Track default" names what it resolves to on the track when that is known: `Track default (snow)`. */
@@ -87,18 +93,9 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     window.dispatchEvent(new CustomEvent(CAMERA_FX_EVENT, { detail: camFx.value }))
   })
   add('camera', label('Camera (1/2/3)'), cam, label('Camera effects'), camFx)
-  const refl = Object.assign(document.createElement('input'), { type: 'checkbox', checked: s.reflections, id: 'setting-reflections' })
-  refl.addEventListener('change', () => {
-    s.reflections = refl.checked
-    commit()
-  })
-  add('reflections', label('Reflections (Neon Night)'), refl)
-  const aa = Object.assign(document.createElement('input'), { type: 'checkbox', checked: s.aa, id: 'setting-aa' })
-  aa.addEventListener('change', () => {
-    s.aa = aa.checked
-    commit()
-  })
-  add('aa', label('Anti-aliasing (FXAA)'), aa)
+  const q = qualityControls(s, commit)
+  add('quality', label('Quality'), q.picker, label(''), q.note)
+  add('advanced', q.advanced)
   const hud = document.createElement('select')
   hud.id = 'setting-hud-scale'
   for (const v of HUD_SCALES) hud.append(new Option(`${Math.round(v * 100)}%`, String(v), false, v === s.hudScale))
@@ -107,6 +104,39 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     commit()
   })
   add('hudScale', label('HUD scale'), hud)
+  add('bindings', bindingsTable())
+  // Access: colour-safe HUD (blue / orange with ▲ ▼, lettered medals) and reduced effects (system reduce-motion until changed).
+  const safe = Object.assign(document.createElement('input'), { type: 'checkbox', checked: s.colourSafe, id: 'setting-colour-safe' })
+  safe.addEventListener('change', () => {
+    s.colourSafe = safe.checked
+    commit()
+  })
+  add('colourSafe', label('Colour-safe HUD'), safe)
+  const reduced = Object.assign(document.createElement('input'), { type: 'checkbox', checked: reducedFor(s), id: 'setting-reduced-effects' })
+  const reducedHint = Object.assign(document.createElement('span'), { className: 'menu-hint', textContent: s.reducedEffects === null ? 'follows the system’s reduce motion until changed' : '' })
+  reduced.addEventListener('change', () => {
+    s.reducedEffects = reduced.checked
+    reducedHint.textContent = ''
+    commit()
+  })
+  add('reducedEffects', label('Reduced effects'), reduced, label(''), reducedHint)
+  // Records panel (top left, T): Auto starts it collapsed on a narrow window.
+  const records = document.createElement('select')
+  records.id = 'setting-records'
+  for (const v of RECORDS_CHOICES) records.append(new Option(RECORDS_LABELS[v], v, false, v === s.records))
+  records.addEventListener('change', () => {
+    s.records = records.value as RecordsChoice
+    commit()
+  })
+  add('records', label('Records panel (T)'), records)
+  const cap = document.createElement('select')
+  cap.id = 'setting-frame-cap'
+  for (const v of FRAME_CAPS) cap.append(new Option(FRAME_CAP_LABELS[v], String(v), false, v === s.frameCap))
+  cap.addEventListener('change', () => {
+    s.frameCap = Number(cap.value)
+    commit()
+  })
+  add('frameCap', label('Frame cap'), cap)
   add('build', label('Build'), Object.assign(document.createElement('span'), { id: 'setting-build', className: 'menu-build', textContent: buildLabel() }))
   const laps = document.createElement('select')
   laps.id = 'setting-laps'
@@ -183,6 +213,101 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
   return tabbed(controls)
 }
 
+const QUALITY_LABELS: Record<Quality, string> = { low: 'Low', medium: 'Medium', high: 'High', auto: 'Auto', custom: 'Custom' }
+const PICKABLE = ['low', 'medium', 'high', 'auto'] as const
+
+/**
+ * Graphics → Quality: Low / Medium / High / Auto buttons (Custom lights up once a knob is changed by hand), the Auto
+ * note with Re-probe, and the Advanced fold-out with every knob. Picking a preset writes its knobs; editing a knob makes it Custom.
+ */
+function qualityControls(s: Settings, commit: () => void): { picker: HTMLElement; note: HTMLElement; advanced: HTMLElement } {
+  const picker = Object.assign(document.createElement('div'), { className: 'menu-seg', id: 'setting-quality' })
+  picker.setAttribute('role', 'radiogroup')
+  const buttons = {} as Record<Quality, HTMLButtonElement>
+  for (const v of [...PICKABLE, 'custom'] as const) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'menu-seg-item', textContent: QUALITY_LABELS[v], id: `setting-quality-${v}` })
+    b.setAttribute('role', 'radio')
+    if (v === 'custom') b.disabled = true
+    else
+      b.addEventListener('click', (e) => {
+        e.stopPropagation()
+        s.quality = v
+        s.knobs = qualityKnobs(v === 'auto' ? (storedAuto() ?? 'high') : v)
+        sync()
+        commit()
+      })
+    buttons[v] = b
+    picker.append(b)
+  }
+  const note = Object.assign(document.createElement('span'), { className: 'menu-hint', id: 'setting-quality-note' })
+  const reprobe = Object.assign(document.createElement('button'), { type: 'button', className: 'menu-link', textContent: 'Re-probe', id: 'setting-quality-reprobe' })
+  reprobe.addEventListener('click', (e) => {
+    e.stopPropagation()
+    window.dispatchEvent(new CustomEvent(REPROBE_EVENT))
+    sync()
+  })
+
+  const advanced = Object.assign(document.createElement('details'), { className: 'menu-span menu-advanced', id: 'setting-advanced' })
+  const grid = Object.assign(document.createElement('div'), { className: 'menu-settings' })
+  advanced.append(Object.assign(document.createElement('summary'), { textContent: 'Advanced' }), grid)
+  const knob = <K extends keyof Knobs>(key: K, text: string, el: HTMLSelectElement | HTMLInputElement, read: () => Knobs[K]) => {
+    el.id = `setting-knob-${key}`
+    el.addEventListener('change', () => {
+      s.knobs = { ...s.knobs, [key]: read() }
+      s.quality = 'custom'
+      sync()
+      commit()
+    })
+    grid.append(Object.assign(document.createElement('span'), { textContent: text }), el)
+  }
+  const select = (opts: readonly (readonly [string, string])[]) => {
+    const el = document.createElement('select')
+    for (const [v, t] of opts) el.append(new Option(t, v))
+    return el
+  }
+  const check = () => Object.assign(document.createElement('input'), { type: 'checkbox' })
+  const ratio: HTMLSelectElement = select(PIXEL_RATIOS.map((v) => [String(v), `${v}×`] as const))
+  knob('pixelRatio', 'Resolution (pixel ratio)', ratio, () => Number(ratio.value))
+  const shadows: HTMLSelectElement = select(SHADOW_SIZES.map((v) => [String(v), v === 0 ? 'Off' : String(v)] as const))
+  knob('shadows', 'Shadows', shadows, () => Number(shadows.value) as Knobs['shadows'])
+  const post = check()
+  knob('post', 'Bloom and colour grade', post, () => post.checked)
+  const refl = check()
+  knob('reflections', 'Reflections (Neon Night)', refl, () => refl.checked)
+  const aa = check()
+  knob('aa', 'Anti-aliasing (FXAA)', aa, () => aa.checked)
+  const particles: HTMLSelectElement = select(PARTICLE_SCALES.map((v) => [String(v), v === 1 ? 'Full' : `${v * 100}%`] as const))
+  knob('particles', 'Particles', particles, () => Number(particles.value))
+
+  const sync = () => {
+    for (const v of [...PICKABLE, 'custom'] as const) {
+      buttons[v].classList.toggle('menu-seg-on', v === s.quality)
+      buttons[v].setAttribute('aria-checked', String(v === s.quality))
+    }
+    const k = s.knobs
+    ratio.value = String(k.pixelRatio)
+    shadows.value = String(k.shadows)
+    post.checked = k.post
+    refl.checked = k.reflections
+    aa.checked = k.aa
+    aa.disabled = !k.post // FXAA is a pass of the post pipeline
+    particles.value = String(k.particles)
+    const picked = storedAuto()
+    note.replaceChildren()
+    if (s.quality === 'auto') note.append(picked ? `Auto → ${QUALITY_LABELS[picked]} · ` : 'Auto: measuring in the next race · ', reprobe)
+  }
+  sync()
+  const onPicked = (e: Event) => {
+    if (!picker.isConnected) return window.removeEventListener(AUTO_PICKED_EVENT, onPicked)
+    if (s.quality !== 'auto') return
+    s.knobs = qualityKnobs((e as CustomEvent<'low' | 'medium' | 'high'>).detail)
+    saveSettings(localStorage, s)
+    sync()
+  }
+  window.addEventListener(AUTO_PICKED_EVENT, onPicked)
+  return { picker, note, advanced }
+}
+
 /** The tab strip over one page per tab; Q / E switch while the panel is on screen. */
 function tabbed(controls: Record<ControlId, HTMLElement[]>): HTMLElement {
   const box = document.createElement('div')
@@ -219,7 +344,7 @@ function tabbed(controls: Record<ControlId, HTMLElement[]>): HTMLElement {
   // One listener per panel; a panel the Esc menu replaced drops its own on the next key.
   const onKey = (e: KeyboardEvent) => {
     if (!box.isConnected) return window.removeEventListener('keydown', onKey, true)
-    if (box.getClientRects().length === 0 || (e.target as HTMLElement | null)?.tagName === 'INPUT') return
+    if (box.getClientRects().length === 0 || (e.target as HTMLElement | null)?.tagName === 'INPUT' || document.body.dataset.keyCapture) return
     const next = moveTab(current, e.code)
     if (next === current) return
     show(next)

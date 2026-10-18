@@ -5,7 +5,11 @@ import { flyQuery, flyRequested, wrapDeg, type FlyCam } from './camera/fly'
 import { CAMERA_EVENT, loadView, saveView, type ViewMode } from './camera/views'
 import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
+import { InputMix } from './gamepad'
+import { mountGamepad } from './gamepad-shell'
 import { createView } from './render/view'
+import { effectiveCap, FrameGate, IDLE_FPS, MENU_FPS, probeable } from './render/frame-cap'
+import { applyAccess, knobsFor, reducedFor, startQuality } from './render/quality-runtime'
 import { mountFade, noFade, RESULTS_DIM } from './render/fade'
 import { debugVisible } from './race/hud'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
@@ -40,6 +44,9 @@ let shownView: ViewMode = viewFromUrl(location.search, loadView(localStorage))
 saveSettings(localStorage, shown)
 saveView(localStorage, shownView)
 window.addEventListener(SETTINGS_EVENT, (e) => (shown = (e as CustomEvent<Settings>).detail))
+// Colour-safe and reduced effects apply on the start screen too, and follow every change made there.
+applyAccess(shown)
+window.addEventListener(SETTINGS_EVENT, (e) => applyAccess((e as CustomEvent<Settings>).detail))
 // Audio exists before the start screen so its menu clicks sound (a click may create the context: src/audio/ui-sounds.ts).
 // ?audiolog=1 keeps an event trace on window.__driftlineAudio for automated checks (squeal, kerb, impact, ui, one-shots).
 const audio = new GameAudio()
@@ -59,6 +66,8 @@ window.addEventListener(CAMERA_EVENT, (e) => (shownView = (e as CustomEvent<View
 // Screen fades (src/render/fade.ts): the page opens black and fades in on the menu or the first race frame; debug
 // spawns and frozen shots never fade. `window.driftline.mode` tells automated checks which screen is up.
 const fade = mountFade(noFade(location.search) ? 0 : 1)
+// Gamepad (src/gamepad.ts): buttons press keys — menu keys until the race runs, then race keys; driving mixes below.
+const pad = mountGamepad()
 // The debug overlay (fps, pose) mounts after the menu; hide its parts from the first frame on a plain URL.
 document.documentElement.classList.toggle('debug-off', !debugVisible(location.search))
 type Mode = 'menu' | 'race' | 'results'
@@ -91,11 +100,16 @@ const track = loadLap(trackName)
 const paceLap = startPaceLap(track)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 let env = resolveEnvironment(location.search, track, settings, Date.now())
-const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, settings.reflections, settings.aa)
+const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, knobsFor(settings), reducedFor(settings))
+// Graphics quality (Low / Medium / High / Auto / Custom) and the Access options, applied live from here on, so a change
+// on the 3D start menu shows at once and carries into the race; Auto probes in the race loop (quality.frame).
+const quality = startQuality(view, shown)
 if (fromMenu) {
   // No shader prewarm (renderer.compileAsync): measured 864 ms on crossover, over the task's 300 ms budget, so the first
   // menu frames compile as they draw, behind the opening fade.
-  const stopMenu = runMenuScene(view, track)
+  // Frame cap (render/frame-cap.ts): the turntable holds MENU_FPS, its settings panel IDLE_FPS, under the player's cap.
+  const menuIdle = () => document.getElementById('start-settings')?.hidden === false
+  const stopMenu = runMenuScene(view, track, () => effectiveCap(shown.frameCap, menuIdle() ? IDLE_FPS : MENU_FPS))
   const picking = chooseTrack(LAP_NAMES, { focus: sel ?? trackName, onFocus: (t) => (screen = { sel: t }), live: true })
   void fade.to(0)
   const picked = await picking
@@ -128,6 +142,7 @@ const tuning = devMode(location.search) ? mountTuningPanel(localStorage) : null
 const taint = new RunTaint()
 taint.runStart(isTuned())
 const input = new KeyboardInput()
+const inputMix = new InputMix()
 const kerbs = new KerbProbe(track)
 const laps = lapCount(location.search, settings.laps)
 const sim = new FixedStepper(createCarAt(track.start), trackSurface(track))
@@ -175,6 +190,7 @@ const race = initRace(sim, track, {
   },
 })
 mode = () => (race.resultsShown ? 'results' : 'race')
+pad.setContext(() => (race.paused || race.resultsShown || document.getElementById('begin') ? 'menu' : 'race'))
 // Results / Esc menu → menu or next track: the card and the Esc menu fade with the scene to black, then the page loads.
 let leaving = false
 async function leave(query: string): Promise<void> {
@@ -197,8 +213,6 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
     ghosts.setPbLivery(ghostLivery(livery))
   }
   if (change.fx) view.setFx(change.fx)
-  if (change.reflections !== undefined) view.setReflections(change.reflections)
-  if (change.aa !== undefined) view.setAA(change.aa)
   if (change.laps !== undefined) race.setLaps(change.laps)
   if (change.environment) {
     env = resolveEnvironment('', track, next, Date.now())
@@ -234,6 +248,7 @@ const cam = createCameraController({
   pose,
   search: location.search,
   store: localStorage,
+  reduced: () => reducedFor(shown),
   race: () => ({
     phase: race.loop.phase,
     countdownLeft: race.loop.countdownLeft(sim.state.tick) / TICK_HZ,
@@ -256,14 +271,21 @@ driftline.centreline = (step: number) => centreline(track, step)
 driftline.ready = true
 let last = performance.now()
 let firstFrame = true
+// Frame cap (render/frame-cap.ts): a skipped callback does nothing and the next one gets the whole elapsed time, so the
+// 100 Hz physics sees the same time under every cap. The Begin prompt, the Esc menu and the results card hold IDLE_FPS;
+// a debug spawn (freeze=1) and the fly camera never do, so fps measurements and fly-around stay at the player's cap.
+const gate = new FrameGate()
+const idle = () => !freeze && cam.fly === null && (race.paused || race.resultsShown || race.loop.phase === 'ready')
 
 view.renderer.setAnimationLoop(() => {
   const now = performance.now()
+  const fps = effectiveCap(shown.frameCap, idle() ? IDLE_FPS : 0)
+  if (!gate.due(now, fps, document.hidden)) return
   const elapsed = (now - last) / 1000
   last = now
   const fly = cam.fly
 
-  const carInput = input.read()
+  const carInput = inputMix.mix(input.read(), pad.input())
   taint.observe(isTuned())
   if (!freeze && !fly) race.frame(elapsed, carInput)
   if (!fly) ghostRecorder.consume(sim.fed)
@@ -285,6 +307,7 @@ view.renderer.setAnimationLoop(() => {
   view.start?.update(race.board())
   view.frame(s, elapsed, material, carInput.brake > 0)
   if (!ghostShow) ghosts.drawTags(camera)
+  if (probeable(fps)) quality.frame(elapsed)
   if (firstFrame) {
     firstFrame = false
     void fade.to(0)

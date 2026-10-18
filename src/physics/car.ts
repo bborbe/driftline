@@ -611,6 +611,16 @@ export const wheelContacts = (s: CarState, surface: Surface = FLAT): number => {
   return n
 }
 
+// Each wheel's spring length (m, mount to wheel centre along body-down; REST_LENGTH when off the
+// ground) with its mount in the car frame. Read by the car view to move the wheels and arms, never by step().
+export const wheelTravel = (s: CarState, surface: Surface = FLAT): { mount: Vec3; length: number }[] => {
+  const up = rotate(s.orientation, v3(0, 1, 0))
+  return WHEELS.map((wheel) => {
+    const c = wheelContact(add(s.position, rotate(s.orientation, wheel.mount)), up, surface)
+    return { mount: wheel.mount, length: c ? REST_LENGTH - c.compression : REST_LENGTH }
+  })
+}
+
 // Suspension ray along body-down from RAY_LIFT above the mount. Null when the wheel is
 // off the ground; otherwise the hit and the spring compression (> REST_LENGTH = penetrating).
 function wheelContact(mount: Vec3, up: Vec3, surface: Surface): { hit: RayHit; compression: number } | null {

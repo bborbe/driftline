@@ -1,0 +1,17 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "args": [
+        "--mute-audio"
+      ],
+      "channel": "chrome"
+    },
+    "contextOptions": {
+      "viewport": {
+        "width": 960,
+        "height": 540
+      }
+    }
+  }
+}

@@ -1,9 +1,11 @@
 name: CI
 
+# Runs the fast test tier on every PR and every master merge commit, off the deploy path: pages.yml
+# does not test, so a merge reaches the live site in about a minute. The slow tier runs in release.yml
+# (v* tags) and nightly.yml (master) — docs/development.md § Test tiers.
 on:
   pull_request:
   push:
-    branches-ignore: [master]
   workflow_dispatch:
 
 permissions:
@@ -26,7 +28,7 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Test
+      - name: Test (fast tier)
         run: npm test
       - name: Build
         run: npm run build

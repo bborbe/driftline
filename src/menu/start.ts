@@ -47,6 +47,7 @@ export function chooseTrack(names: string[], opts: ChooseOptions = {}): Promise<
     }
     let settingsOpen = false
     const settings = document.createElement('div')
+    settings.id = 'start-settings'
     settings.hidden = true
     settings.append(settingsPanel())
     const toggleSettings = () => {
@@ -161,10 +162,12 @@ function showPreview(preview: HTMLElement, name: string, rendered: boolean, race
   const track = loadLap(name)
   const store = new RaceStore(localStorage, track.name, layoutId(track))
   const pb = store.best()
+  // A track with no rendered frame (test tracks, or one `make thumbs` has not shot) shows no frame box at all.
   const shot = el('div', 'menu-preview-shot')
+  shot.hidden = !rendered
   if (rendered) {
     const img = Object.assign(document.createElement('img'), { src: thumbUrl(import.meta.env.BASE_URL, name, 'drive'), alt: '' })
-    img.addEventListener('error', () => img.remove())
+    img.addEventListener('error', () => (shot.hidden = true))
     shot.append(img)
   }
   const entry = menuGroups([name], true)[0]?.entries[0]
