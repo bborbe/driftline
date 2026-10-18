@@ -223,7 +223,7 @@ export const createTrackside = (plan: TracksidePlan, accent: string = SIGN_YELLO
     const mesh = merged(boards, new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.8 }))
     mesh.name = 'trackside-boards'
     mesh.castShadow = true
-    group.add(noCollide(structural(mesh, 'sign'), 'roadside-sign'))
+    group.add(noCollide(structural(mesh, 'sign'), 'trackside'))
   }
   const structures = structureParts(plan)
   if (structures.length > 0) {

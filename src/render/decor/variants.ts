@@ -131,6 +131,9 @@ export const createGenModel = (model: GenModel): THREE.Group => {
   root.name = model
   for (const o of BUILD[model]()) {
     o.castShadow = o.receiveShadow = true
+    // One material per mesh: drop the primitives' per-face groups, which would index materials that do not exist
+    // when instance.ts bakeModel() bakes the model.
+    ;(o as THREE.Mesh).geometry.clearGroups()
     root.add(o)
   }
   return root

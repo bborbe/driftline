@@ -10,6 +10,7 @@ import { onPad, type Track } from '../track/schema'
 import { TRACK_WIDTH } from './track/geometry'
 import { DEFAULT_SCENERY } from './theme'
 import { createGenModel, GEN_BUILDINGS, GEN_RADIUS, GEN_TREES, isGen } from './decor/variants'
+import { bakeModel, merged, placement } from './decor/instance'
 
 const MODEL_URLS = import.meta.glob('/assets/nature-kit/*.glb', { query: '?url', import: 'default', eager: true }) as Record<
   string,
@@ -146,12 +147,26 @@ export const createScenery = async (
   )
   const group = new THREE.Group()
   group.name = 'scenery'
+  // Generated models are 2–7 meshes each: bake every placed copy into one mesh (decor/instance.ts) instead of a
+  // clone per prop, which on WebGL2 would cost a draw call per part. Kit glbs are cloned as before.
+  const baked = new Map<string, THREE.Matrix4[]>()
   for (const p of planScenery(track, 9, 7, all, keepClear)) {
+    if (isGen(p.model)) {
+      baked.set(p.model, [...(baked.get(p.model) ?? []), placement(p.x, p.y, p.z, p.heading, p.scale)])
+      continue
+    }
     const obj = models.get(p.model)!.clone()
     obj.position.set(p.x, p.y, p.z)
     obj.rotation.y = p.heading
     obj.scale.setScalar(p.scale)
     group.add(obj)
+  }
+  const parts = [...baked].flatMap(([m, at]) => bakeModel(models.get(m)!, at))
+  if (parts.length > 0) {
+    const mesh = merged(parts, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true }))
+    mesh.name = 'generated-scenery'
+    mesh.castShadow = mesh.receiveShadow = true
+    group.add(mesh)
   }
   return group
 }
