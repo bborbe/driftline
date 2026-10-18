@@ -1,0 +1,5 @@
+# Files the PR reviewer and its size gate skip: generated, never hand-edited.
+# Go module checksums (go mod tidy)
+**/go.sum
+# counterfeiter mocks (go generate)
+server/mocks/
