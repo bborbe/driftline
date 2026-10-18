@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createCarAt, FixedStepper, TICK_HZ, type CarInput } from '../physics'
-import { clampFrameCap, effectiveCap, FRAME_CAPS, FrameGate, IDLE_FPS, MENU_FPS } from './frame-cap'
+import { clampFrameCap, effectiveCap, FRAME_CAPS, FrameGate, IDLE_FPS, MENU_FPS, probeable } from './frame-cap'
 
 const DRIVE: CarInput = { throttle: 1, brake: 0, steer: 0.3, handbrake: false }
 
@@ -71,6 +71,12 @@ describe('frame cap', () => {
     expect(effectiveCap(120, MENU_FPS)).toBe(MENU_FPS)
     expect(effectiveCap(30, IDLE_FPS)).toBe(IDLE_FPS)
     expect(effectiveCap(30, MENU_FPS)).toBe(30)
+  })
+
+  it('feeds the Auto quality probe only frames a cap cannot slow below its High threshold', () => {
+    expect(probeable(0)).toBe(true)
+    expect(probeable(120)).toBe(true)
+    for (const fps of [60, 30, MENU_FPS, IDLE_FPS]) expect(probeable(fps), String(fps)).toBe(fps > 55)
   })
 
   it('accepts only the listed caps', () => {

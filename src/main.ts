@@ -6,7 +6,8 @@ import { CAMERA_EVENT, loadView, saveView, type ViewMode } from './camera/views'
 import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
-import { effectiveCap, FrameGate, IDLE_FPS, MENU_FPS } from './render/frame-cap'
+import { effectiveCap, FrameGate, IDLE_FPS, MENU_FPS, probeable } from './render/frame-cap'
+import { applyAccess, knobsFor, reducedFor, startQuality } from './render/quality-runtime'
 import { mountFade, noFade, RESULTS_DIM } from './render/fade'
 import { debugVisible } from './race/hud'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
@@ -40,6 +41,9 @@ let shownView: ViewMode = viewFromUrl(location.search, loadView(localStorage))
 saveSettings(localStorage, shown)
 saveView(localStorage, shownView)
 window.addEventListener(SETTINGS_EVENT, (e) => (shown = (e as CustomEvent<Settings>).detail))
+// Colour-safe and reduced effects apply on the start screen too, and follow every change made there.
+applyAccess(shown)
+window.addEventListener(SETTINGS_EVENT, (e) => applyAccess((e as CustomEvent<Settings>).detail))
 // Audio exists before the start screen so its menu clicks sound (a click may create the context: src/audio/ui-sounds.ts).
 // ?audiolog=1 keeps an event trace on window.__driftlineAudio for automated checks (squeal, kerb, impact, ui, one-shots).
 const audio = new GameAudio()
@@ -89,7 +93,10 @@ const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 let env = resolveEnvironment(location.search, track, settings, Date.now())
-const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, settings.reflections, settings.aa)
+const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, knobsFor(settings), reducedFor(settings))
+// Graphics quality (Low / Medium / High / Auto / Custom) and the Access options, applied live from here on, so a change
+// on the 3D start menu shows at once and carries into the race; Auto probes in the race loop (quality.frame).
+const quality = startQuality(view, shown)
 if (fromMenu) {
   // No shader prewarm (renderer.compileAsync): measured 864 ms on crossover, over the task's 300 ms budget, so the first
   // menu frames compile as they draw, behind the opening fade.
@@ -218,8 +225,6 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
     ghostCar.setLivery(ghostLivery(livery))
   }
   if (change.fx) view.setFx(change.fx)
-  if (change.reflections !== undefined) view.setReflections(change.reflections)
-  if (change.aa !== undefined) view.setAA(change.aa)
   if (change.laps !== undefined) race.setLaps(change.laps)
   if (change.environment) {
     env = resolveEnvironment('', track, next, Date.now())
@@ -255,6 +260,7 @@ const cam = createCameraController({
   pose,
   search: location.search,
   store: localStorage,
+  reduced: () => reducedFor(shown),
   race: () => ({
     phase: race.loop.phase,
     countdownLeft: race.loop.countdownLeft(sim.state.tick) / TICK_HZ,
@@ -285,7 +291,8 @@ const idle = () => !freeze && cam.fly === null && (race.paused || race.resultsSh
 
 view.renderer.setAnimationLoop(() => {
   const now = performance.now()
-  if (!gate.due(now, effectiveCap(shown.frameCap, idle() ? IDLE_FPS : 0), document.hidden)) return
+  const fps = effectiveCap(shown.frameCap, idle() ? IDLE_FPS : 0)
+  if (!gate.due(now, fps, document.hidden)) return
   const elapsed = (now - last) / 1000
   last = now
   const fly = cam.fly
@@ -314,6 +321,7 @@ view.renderer.setAnimationLoop(() => {
   )
   view.start?.update(race.board())
   view.frame(s, elapsed, material, carInput.brake > 0)
+  if (probeable(fps)) quality.frame(elapsed)
   if (firstFrame) {
     firstFrame = false
     void fade.to(0)

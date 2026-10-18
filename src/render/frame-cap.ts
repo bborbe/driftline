@@ -3,6 +3,7 @@
 // full elapsed time, so the fixed 100 Hz physics step sees the same simulated time and lap times and replays are
 // identical under every cap. Idle screens hold a lower ceiling whatever the cap; a hidden tab renders nothing.
 // Quality presets never change the cap. Pure and tested.
+import { AUTO_HIGH_FPS } from './quality'
 
 /** Frame-cap choices, uncapped first (0 = no cap). */
 export const FRAME_CAPS = [0, 120, 60, 30] as const
@@ -20,6 +21,10 @@ export function effectiveCap(cap: number, ceiling: number): number {
   if (ceiling <= 0) return cap
   return cap <= 0 ? ceiling : Math.min(cap, ceiling)
 }
+
+/** Auto quality's probe reads frame times, so it only sees frames whose cap cannot pass for a slow device: uncapped,
+ * or above its High threshold. Under 60 / 30 or an idle ceiling it waits (Auto draws High until it has probed). */
+export const probeable = (fps: number): boolean => fps <= 0 || fps > AUTO_HIGH_FPS
 
 /** Early allowance, ms: vsync jitter must not push a due frame to the next vsync (30 on 60 Hz stays 30, not 20). */
 const SLACK_MS = 2

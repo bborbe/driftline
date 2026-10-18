@@ -9,6 +9,7 @@ import { VIEWS, type ViewMode } from '../camera/views'
 import { flyQuery, type FlyCam } from '../camera/fly'
 import { clampFrameCap } from '../render/frame-cap'
 import { clampHudScale, type Settings } from './settings'
+import { PRESETS, QUALITY, qualityKnobs, sameKnobs, type Knobs, type Quality } from '../render/quality'
 import { RECORDS_CHOICES } from '../race/records'
 
 /** Where the player is: in a race on `track`, or on the start menu with card `sel` focused (null: none). */
@@ -39,8 +40,7 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
   const vol = q.get('vol') ? Number(q.get('vol')) : NaN
   const laps = q.get('laps') ? Number(q.get('laps')) : NaN
   const num = q.get('num') ? Math.round(Number(q.get('num'))) : NaN
-  const refl = q.get('refl')
-  const aa = q.get('aa')
+  const { quality, knobs } = qualityFromUrl(q, stored)
   return {
     volume: Number.isFinite(vol) ? Math.min(1, Math.max(0, vol)) : stored.volume,
     // The SFX and UI buses stay out of the URL: they are a player's own mix, not part of a shared setup.
@@ -57,10 +57,24 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
     },
     hudScale: q.has('hud') ? clampHudScale(Number(q.get('hud'))) : stored.hudScale,
     records: oneOf(q.get('rec'), RECORDS_CHOICES, stored.records),
-    reflections: refl === '1' ? true : refl === '0' ? false : stored.reflections,
-    aa: aa === '1' ? true : aa === '0' ? false : stored.aa,
+    quality,
+    knobs,
+    // Colour-safe and reduced effects stay out of the URL: they are the player's own needs, not part of a shared setup.
+    colourSafe: stored.colourSafe,
+    reducedEffects: stored.reducedEffects,
     frameCap: q.has('fps') ? clampFrameCap(Number(q.get('fps'))) : stored.frameCap,
   }
+}
+
+/** `?quality=` names the quality (a preset brings its knobs); `?refl=` / `?aa=` then override one knob, and a knob that differs makes it Custom. */
+function qualityFromUrl(q: URLSearchParams, stored: Settings): { quality: Quality; knobs: Knobs } {
+  let quality = oneOf(q.get('quality'), QUALITY, stored.quality)
+  let knobs: Knobs = (PRESETS as readonly string[]).includes(quality) ? qualityKnobs(quality as (typeof PRESETS)[number]) : { ...stored.knobs }
+  const base = { ...knobs }
+  const flag = (key: string, v: boolean) => (q.get(key) === '1' ? true : q.get(key) === '0' ? false : v)
+  knobs = { ...knobs, reflections: flag('refl', knobs.reflections), aa: flag('aa', knobs.aa) }
+  if (!sameKnobs(base, knobs)) quality = 'custom'
+  return { quality, knobs }
 }
 
 /** `?view=` when it names a view, else the stored one. */
@@ -92,8 +106,15 @@ export function stateQuery(search: string, state: UrlState): string {
   q.set('num', String(s.livery.number))
   q.set('hud', String(s.hudScale))
   q.set('rec', s.records)
-  q.set('refl', s.reflections ? '1' : '0')
-  q.set('aa', s.aa ? '1' : '0')
+  q.set('quality', s.quality)
+  // A preset or Auto names every knob itself; only Custom writes the two knobs a link can carry.
+  if (s.quality === 'custom') {
+    q.set('refl', s.knobs.reflections ? '1' : '0')
+    q.set('aa', s.knobs.aa ? '1' : '0')
+  } else {
+    q.delete('refl')
+    q.delete('aa')
+  }
   q.set('fps', String(s.frameCap))
   if (state.fly && 'track' in state.screen) {
     const pose = new URLSearchParams(flyQuery(state.screen.track, state.fly))

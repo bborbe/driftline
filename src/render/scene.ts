@@ -72,6 +72,8 @@ export type SceneSetup = {
   frame: (camera: THREE.Camera) => void
   /** Switch time of day and weather in place (Settings): sky, sun, fog, clouds and floodlights; returns the new look. */
   setEnvironment: (env: Environment, seed?: number) => Promise<EnvironmentLook>
+  /** Sun shadow-map size (Settings → Graphics quality); 0 turns the sun's shadows off. */
+  setShadows: (size: number) => void
 }
 
 /** Cloud layer: a flattened half-sphere around the camera, inside the far plane (view.ts, 3000 m) and drawn without fog. */
@@ -244,5 +246,13 @@ export const createScene = async (track: Track, env: Environment = DEFAULT_ENVIR
     follow(...lastFollow)
     return look
   }
-  return { scene, look, follow, frame, setEnvironment }
+  const setShadows = (size: number) => {
+    sun.castShadow = size > 0
+    if (size > 0 && sun.shadow.mapSize.x !== size) {
+      sun.shadow.mapSize.set(size, size)
+      sun.shadow.map?.dispose() // rebuilt at the new size on the next shadow render
+      sun.shadow.map = null
+    }
+  }
+  return { scene, look, follow, frame, setEnvironment, setShadows }
 }

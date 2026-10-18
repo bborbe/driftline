@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { v3 } from '../physics/vec'
 import { DEFAULT_SETTINGS, type Settings } from './settings'
 import { screenQuery, settingsFromUrl, stateQuery, viewFromUrl, type UrlState } from './url-state'
+import { qualityKnobs } from '../render/quality'
 
 const custom: Settings = {
   volume: 0.25,
@@ -14,8 +15,12 @@ const custom: Settings = {
   weather: 'snow',
   livery: { pattern: 'checker', paint: 'teal', number: 42 },
   hudScale: 1.15,
-  reflections: true,
-  aa: true,
+  // Custom: only the two knobs a link carries differ from the stored (High) ones.
+  quality: 'custom',
+  knobs: { ...qualityKnobs('high'), reflections: false, aa: true },
+  // Not in the URL either.
+  colourSafe: false,
+  reducedEffects: null,
   records: 'closed',
   frameCap: 30,
 }
@@ -39,13 +44,8 @@ describe('url state', () => {
     expect(one('num', '13').livery.number).toBe(13)
     expect(one('hud', '0.75').hudScale).toBe(0.75)
     expect(one('hud', '2').hudScale).toBe(1)
-    expect(one('refl', '0').reflections).toBe(false)
-    expect(one('refl', '1').reflections).toBe(true)
-    expect(settingsFromUrl('?refl=0', custom).reflections).toBe(false)
-    expect(new URLSearchParams(q).get('refl')).toBe('1')
-    expect(one('aa', '1').aa).toBe(true)
-    expect(one('aa', '0').aa).toBe(false)
-    expect(settingsFromUrl('?aa=0', custom).aa).toBe(false)
+    expect(new URLSearchParams(q).get('quality')).toBe('custom')
+    expect(new URLSearchParams(q).get('refl')).toBe('0')
     expect(new URLSearchParams(q).get('aa')).toBe('1')
     expect(one('rec', 'open').records).toBe('open')
     expect(one('rec', 'wide').records).toBe('auto')
@@ -55,6 +55,25 @@ describe('url state', () => {
     expect(one('fps', '45').frameCap).toBe(0)
     expect(settingsFromUrl('?fps=0', custom).frameCap).toBe(0)
     expect(new URLSearchParams(q).get('fps')).toBe('30')
+  })
+  it('names the quality, and a knob a link sets that differs from it makes it Custom', () => {
+    const one = (k: string, v: string) => settingsFromUrl(`?${k}=${v}`, DEFAULT_SETTINGS)
+    expect(one('quality', 'low')).toMatchObject({ quality: 'low', knobs: qualityKnobs('low') })
+    expect(one('quality', 'medium').knobs).toEqual(qualityKnobs('medium'))
+    expect(one('quality', 'auto').quality).toBe('auto')
+    expect(one('quality', 'ultra').quality).toBe(DEFAULT_SETTINGS.quality)
+    // High already has reflections on, so ?refl=1 keeps it High; ?refl=0 or ?aa=1 is a Custom setup.
+    expect(one('refl', '1').quality).toBe('high')
+    expect(one('refl', '0')).toMatchObject({ quality: 'custom', knobs: { ...qualityKnobs('high'), reflections: false } })
+    expect(one('aa', '1')).toMatchObject({ quality: 'custom', knobs: { ...qualityKnobs('high'), aa: true } })
+    expect(settingsFromUrl('?quality=low&refl=1', DEFAULT_SETTINGS)).toMatchObject({ quality: 'custom', knobs: { ...qualityKnobs('low'), reflections: true } })
+    expect(settingsFromUrl('?aa=0', custom).knobs.aa).toBe(false)
+  })
+  it('writes the knobs only for Custom: a preset or Auto names them itself', () => {
+    const low = new URLSearchParams(stateQuery('?refl=1&aa=1', race({ ...DEFAULT_SETTINGS, quality: 'low', knobs: qualityKnobs('low') })))
+    expect(low.get('quality')).toBe('low')
+    expect(low.has('refl')).toBe(false)
+    expect(low.has('aa')).toBe(false)
   })
   it('keeps random and default choices, and no effects', () => {
     const s = { ...DEFAULT_SETTINGS, time: 'random' as const, weather: 'default' as const, fx: [] }
