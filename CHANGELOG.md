@@ -10,6 +10,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
+## Unreleased
+
+- feat: medal ghosts — gold and author pace ghosts (the autopilot lap, recorded in a worker and replayed time-scaled to the medal time) race alongside the personal-best ghost, each with a floating name tag showing its place, time and gap at the car's last checkpoint; pick them in Settings → Race → Ghosts or `?ghosts=pb,gold,author`
+
 ## v0.2.1
 
 - fix: the gamepad press that wakes the pad now counts — browsers reveal a pad only on its first button press after each page load, and that press (A on Begin after a track pick, the first d-pad step) was swallowed; the H panel says to press any button, then reload, when no "Controller connected" toast shows

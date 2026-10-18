@@ -103,3 +103,6 @@
 .menu-race-button { align-self: flex-start; background: #fff; color: #111; }
 /* Colour-safe (Settings → Access, race.css): the medal table's deltas take the same blue / orange. */
 .colour-safe .menu-preview-medals .race-ahead { color: var(--delta-ahead); } .colour-safe .menu-preview-medals .race-behind { color: var(--delta-behind); }
+/* Settings → Race → Ghosts: one checkbox per ghost, each with its name. */
+.menu-ghosts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.menu-ghost { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }

@@ -23,6 +23,7 @@ const custom: Settings = {
   reducedEffects: null,
   records: 'closed',
   frameCap: 30,
+  ghosts: ['pb', 'author'],
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
 
@@ -52,6 +53,10 @@ describe('url state', () => {
     expect(new URLSearchParams(q).get('rec')).toBe('closed')
     expect(one('fps', '60').frameCap).toBe(60)
     expect(one('fps', '0').frameCap).toBe(0)
+    expect(one('ghosts', 'author,pb').ghosts).toEqual(['pb', 'author'])
+    expect(one('ghosts', 'none').ghosts).toEqual([])
+    expect(one('ghosts', 'bogus').ghosts).toEqual(DEFAULT_SETTINGS.ghosts)
+    expect(new URLSearchParams(stateQuery('', race({ ...custom, ghosts: [] }))).get('ghosts')).toBe('none')
     expect(one('fps', '45').frameCap).toBe(0)
     expect(settingsFromUrl('?fps=0', custom).frameCap).toBe(0)
     expect(new URLSearchParams(q).get('fps')).toBe('30')

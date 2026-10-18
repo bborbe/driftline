@@ -29,6 +29,7 @@ const SLOW_TESTS = [
   'src/physics/barriers.test.ts',
   'src/race/effects.test.ts',
   'src/race/loop-gate.test.ts',
+  'src/ghost/pace.test.ts',
 ]
 
 // Served from https://bborbe.github.io/driftline/ (GitHub Pages project site); PR previews build under

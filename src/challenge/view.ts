@@ -1,6 +1,5 @@
-// Challenge UI: the target banner over the race, the error a bad link shows on the menu, the copy toast and the name
-// tag over the challenger's ghost (a scene sprite). Link encoding lives in link.ts; main.ts wires these up.
-import * as THREE from 'three/webgpu'
+// Challenge UI: the target banner over the race, the error a bad link shows on the menu and the copy toast; the
+// challenger's ghost carries its name on its ghost tag (src/ghost/tags.ts). Link encoding lives in link.ts; main.ts wires these up.
 import './challenge.css'
 import { formatLapTime } from '../race/store'
 import type { Challenge } from './link'
@@ -54,45 +53,5 @@ export async function copyLink(url: string): Promise<boolean> {
     return true
   } catch {
     return false
-  }
-}
-
-const ABOVE = 1.6 // m over the ghost's origin: above the roof
-const TAG_HEIGHT = 0.045 // screen-size sprite (sizeAttenuation off): about 4 % of the view height
-
-/**
- * A name label over the ghost car: a sprite in the scene, drawn on top and the same size at any distance. It follows
- * the ghost by copying its position each frame, so no DOM is touched per frame.
- */
-export function createGhostTag(name: string, scene: THREE.Object3D): { update(ghost: THREE.Object3D): void } {
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')!
-  const font = 'bold 40px system-ui, sans-serif'
-  ctx.font = font
-  canvas.width = Math.ceil(ctx.measureText(name).width) + 32
-  canvas.height = 56
-  ctx.font = font
-  ctx.fillStyle = 'rgba(10, 14, 22, 0.6)'
-  ctx.beginPath()
-  ctx.roundRect(0, 0, canvas.width, canvas.height, 10)
-  ctx.fill()
-  ctx.fillStyle = '#fff'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2 + 2)
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, depthTest: false, depthWrite: false, transparent: true }))
-  sprite.center.set(0.5, 0)
-  sprite.scale.set((TAG_HEIGHT * canvas.width) / canvas.height, TAG_HEIGHT, 1)
-  sprite.renderOrder = 10
-  sprite.name = 'challenge-tag'
-  sprite.visible = false
-  scene.add(sprite)
-  return {
-    update(ghost) {
-      sprite.visible = ghost.visible
-      sprite.position.set(ghost.position.x, ghost.position.y + ABOVE, ghost.position.z)
-    },
   }
 }

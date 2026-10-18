@@ -11,6 +11,7 @@ import { clampFrameCap } from '../render/frame-cap'
 import { clampHudScale, type Settings } from './settings'
 import { PRESETS, QUALITY, qualityKnobs, sameKnobs, type Knobs, type Quality } from '../render/quality'
 import { RECORDS_CHOICES } from '../race/records'
+import { ghostsFromQuery, ghostsQuery } from '../ghost/tag'
 
 /** Where the player is: in a race on `track`, or on the start menu with card `sel` focused (null: none). */
 export type Screen = { track: string } | { sel: string | null }
@@ -63,6 +64,7 @@ export function settingsFromUrl(search: string, stored: Settings): Settings {
     colourSafe: stored.colourSafe,
     reducedEffects: stored.reducedEffects,
     frameCap: q.has('fps') ? clampFrameCap(Number(q.get('fps'))) : stored.frameCap,
+    ghosts: ghostsFromQuery(q.get('ghosts')) ?? [...stored.ghosts],
   }
 }
 
@@ -116,6 +118,7 @@ export function stateQuery(search: string, state: UrlState): string {
     q.delete('aa')
   }
   q.set('fps', String(s.frameCap))
+  q.set('ghosts', ghostsQuery(s.ghosts))
   if (state.fly && 'track' in state.screen) {
     const pose = new URLSearchParams(flyQuery(state.screen.track, state.fly))
     for (const k of FLY_KEYS) q.set(k, pose.get(k)!)
