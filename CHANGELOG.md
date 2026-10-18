@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
-## Unreleased
+## v0.3.0
 
 - feat: medal ghosts — gold and author pace ghosts (the autopilot lap, recorded in a worker and replayed time-scaled to the medal time) race alongside the personal-best ghost, each with a floating name tag showing its place, time and gap at the car's last checkpoint; pick them in Settings → Race → Ghosts or `?ghosts=pb,gold,author`
 
