@@ -57,10 +57,6 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	return service.Run(
 		ctx,
-		factory.CreateHTTPServer(
-			a.Listen,
-			db,
-			factory.CreateAPIHandler(a.Token, a.AllowedOrigin, tracks, db),
-		),
+		factory.CreateHTTPServer(a.Listen, a.Token, a.AllowedOrigin, tracks, db),
 	)
 }

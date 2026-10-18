@@ -25,10 +25,16 @@ import (
 
 // CreateHTTPServer creates the HTTP server with the canonical admin endpoints, the
 // readiness check pinging the database, and the leaderboard API under /api/1.0/.
-func CreateHTTPServer(listen string, db handler.Pinger, api http.Handler) run.Func {
+func CreateHTTPServer(
+	listen string,
+	token string,
+	allowedOrigin string,
+	tracks track.Table,
+	db *sql.DB,
+) run.Func {
 	return func(ctx context.Context) error {
 		router := mux.NewRouter()
-		router.PathPrefix("/api/1.0/").Handler(api)
+		router.PathPrefix("/api/1.0/").Handler(CreateAPIHandler(token, allowedOrigin, tracks, db))
 		router.Path("/healthz").Handler(CreateHealthzHandler())
 		router.Path("/readiness").Handler(CreateReadinessHandler(db))
 		router.Path("/metrics").Handler(promhttp.Handler())

@@ -18,7 +18,7 @@ const TokenHeader = "X-Driftline-Token" //nolint:gosec // a header name, not a c
 // NewGuard lets a request through to next only from allowedOrigin and with the shared token: a
 // foreign or missing Origin is 403, a missing or wrong token 401. A CORS preflight (OPTIONS) from
 // allowedOrigin is answered 204 here, since browsers send it without the token. This deters, it does
-// not secure: the token ships in the game's JavaScript (goal decision 2026-10-18).
+// not secure: the token ships in the game's JavaScript.
 func NewGuard(token string, allowedOrigin string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Origin") != allowedOrigin {

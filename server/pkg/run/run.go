@@ -51,7 +51,8 @@ func Decode(ctx context.Context, body io.Reader) (*Submission, error) {
 }
 
 // Validate checks the submission against its track: name, track, tick floor, checkpoint splits
-// and the ghost. Every error names the reason.
+// and the ghost. Every error names the reason. The checks are cross-field and read the track
+// table, so they stay a plain sequence rather than bborbe/validation's per-field All.
 func (s *Submission) Validate(ctx context.Context, tracks track.Table) error {
 	if !namePattern.MatchString(*s.Name) {
 		return errors.Errorf(ctx, "name %q must be %s", *s.Name, nameRule)
@@ -73,8 +74,15 @@ func (s *Submission) Validate(ctx context.Context, tracks track.Table) error {
 	if total > MaxGhostTicks {
 		return errors.Errorf(ctx, "totalTicks %d is above %d", total, MaxGhostTicks)
 	}
-	if err := checkSplits(ctx, s.CheckpointTicks, t, total); err != nil {
-		return errors.Wrap(ctx, err, "checkpoints invalid")
+	if n := len(s.CheckpointTicks); n != t.Checkpoints {
+		return errors.Errorf(ctx, "%s has %d checkpoints, got %d", t.Name, t.Checkpoints, n)
+	}
+	previous := 0
+	for i, tick := range s.CheckpointTicks {
+		if tick <= previous || tick >= total {
+			return errors.Errorf(ctx, "split %d at %d out of order or outside the lap", i+1, tick)
+		}
+		previous = tick
 	}
 	ticks, ms, err := GhostTicks(ctx, s.Ghost)
 	if err != nil {
@@ -96,24 +104,4 @@ func (s *Submission) GhostJSON(ctx context.Context) ([]byte, error) {
 		return nil, errors.Wrap(ctx, err, "compact ghost failed")
 	}
 	return buf.Bytes(), nil
-}
-
-func checkSplits(ctx context.Context, splits []int, t track.Track, total int) error {
-	if len(splits) != t.Checkpoints {
-		return errors.Errorf(
-			ctx,
-			"%s has %d checkpoints, got %d",
-			t.Name,
-			t.Checkpoints,
-			len(splits),
-		)
-	}
-	previous := 0
-	for i, tick := range splits {
-		if tick <= previous || tick >= total {
-			return errors.Errorf(ctx, "split %d at %d out of order or outside the lap", i+1, tick)
-		}
-		previous = tick
-	}
-	return nil
 }
