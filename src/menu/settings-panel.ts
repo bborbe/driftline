@@ -7,6 +7,7 @@ import { LIVE_FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
 import { HUD_SCALES, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
 import { buildLabel } from '../build-info'
+import { FRAME_CAP_LABELS, FRAME_CAPS } from '../render/frame-cap'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES, type Environment, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type ControlId, type Tab } from './tabs'
@@ -106,6 +107,14 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     commit()
   })
   add('hudScale', label('HUD scale'), hud)
+  const cap = document.createElement('select')
+  cap.id = 'setting-frame-cap'
+  for (const v of FRAME_CAPS) cap.append(new Option(FRAME_CAP_LABELS[v], String(v), false, v === s.frameCap))
+  cap.addEventListener('change', () => {
+    s.frameCap = Number(cap.value)
+    commit()
+  })
+  add('frameCap', label('Frame cap'), cap)
   add('build', label('Build'), Object.assign(document.createElement('span'), { id: 'setting-build', className: 'menu-build', textContent: buildLabel() }))
   const laps = document.createElement('select')
   laps.id = 'setting-laps'

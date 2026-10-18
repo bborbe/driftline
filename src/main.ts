@@ -6,6 +6,7 @@ import { CAMERA_EVENT, loadView, saveView, type ViewMode } from './camera/views'
 import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
+import { effectiveCap, FrameGate, IDLE_FPS, MENU_FPS } from './render/frame-cap'
 import { mountFade, noFade, RESULTS_DIM } from './render/fade'
 import { debugVisible } from './race/hud'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
@@ -92,7 +93,9 @@ const view = await createView(track, effectiveFxQuery(location.search, settings)
 if (fromMenu) {
   // No shader prewarm (renderer.compileAsync): measured 864 ms on crossover, over the task's 300 ms budget, so the first
   // menu frames compile as they draw, behind the opening fade.
-  const stopMenu = runMenuScene(view, track)
+  // Frame cap (render/frame-cap.ts): the turntable holds MENU_FPS, its settings panel IDLE_FPS, under the player's cap.
+  const menuIdle = () => document.getElementById('start-settings')?.hidden === false
+  const stopMenu = runMenuScene(view, track, () => effectiveCap(shown.frameCap, menuIdle() ? IDLE_FPS : MENU_FPS))
   const picking = chooseTrack(LAP_NAMES, { focus: sel ?? trackName, onFocus: (t) => (screen = { sel: t }), live: true })
   void fade.to(0)
   const picked = await picking
@@ -274,9 +277,15 @@ driftline.centreline = (step: number) => centreline(track, step)
 driftline.ready = true
 let last = performance.now()
 let firstFrame = true
+// Frame cap (render/frame-cap.ts): a skipped callback does nothing and the next one gets the whole elapsed time, so the
+// 100 Hz physics sees the same time under every cap. The Begin prompt, the Esc menu and the results card hold IDLE_FPS;
+// a debug spawn (freeze=1) and the fly camera never do, so fps measurements and fly-around stay at the player's cap.
+const gate = new FrameGate()
+const idle = () => !freeze && cam.fly === null && (race.paused || race.resultsShown || race.loop.phase === 'ready')
 
 view.renderer.setAnimationLoop(() => {
   const now = performance.now()
+  if (!gate.due(now, effectiveCap(shown.frameCap, idle() ? IDLE_FPS : 0), document.hidden)) return
   const elapsed = (now - last) / 1000
   last = now
   const fly = cam.fly

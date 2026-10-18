@@ -16,6 +16,7 @@ const custom: Settings = {
   hudScale: 1.15,
   reflections: true,
   aa: true,
+  frameCap: 30,
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
 
@@ -45,6 +46,11 @@ describe('url state', () => {
     expect(one('aa', '0').aa).toBe(false)
     expect(settingsFromUrl('?aa=0', custom).aa).toBe(false)
     expect(new URLSearchParams(q).get('aa')).toBe('1')
+    expect(one('fps', '60').frameCap).toBe(60)
+    expect(one('fps', '0').frameCap).toBe(0)
+    expect(one('fps', '45').frameCap).toBe(0)
+    expect(settingsFromUrl('?fps=0', custom).frameCap).toBe(0)
+    expect(new URLSearchParams(q).get('fps')).toBe('30')
   })
   it('keeps random and default choices, and no effects', () => {
     const s = { ...DEFAULT_SETTINGS, time: 'random' as const, weather: 'default' as const, fx: [] }
