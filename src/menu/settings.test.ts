@@ -17,10 +17,10 @@ describe('settings', () => {
   })
   it('round-trips and drops unknown effects', () => {
     const s = fake()
-    saveSettings(s, { volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 } })
-    expect(loadSettings(s)).toEqual({ volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 } })
-    s.setItem('driftline-settings', JSON.stringify({ volume: 5, sfxVolume: -2, uiVolume: 'loud', fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'hail' }))
-    expect(loadSettings(s)).toEqual({ volume: 1, sfxVolume: 0, uiVolume: 1, fx: ['bloom'], laps: 1, time: 'default', weather: 'default', livery: DEFAULT_LIVERY })
+    saveSettings(s, { volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 }, reflections: true })
+    expect(loadSettings(s)).toEqual({ volume: 0.3, sfxVolume: 0.4, uiVolume: 0.5, fx: ['bloom', 'skid'], laps: 3, time: 'night', weather: 'rain', livery: { pattern: 'checker' as const, paint: 'teal' as const, number: 42 }, reflections: true })
+    s.setItem('driftline-settings', JSON.stringify({ volume: 5, sfxVolume: -2, uiVolume: 'loud', fx: ['bloom', 'x'], laps: 0, time: 'dawn', weather: 'hail', reflections: 'yes' }))
+    expect(loadSettings(s)).toEqual({ volume: 1, sfxVolume: 0, uiVolume: 1, fx: ['bloom'], laps: 1, time: 'default', weather: 'default', livery: DEFAULT_LIVERY, reflections: false })
   })
   it('keeps every time and weather choice across a reload', () => {
     const s = fake()

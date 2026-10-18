@@ -15,6 +15,8 @@ export interface SettingsChange {
   /** Time or weather changed: re-resolve the environment from the new choice. */
   environment?: true
   livery?: Settings['livery']
+  /** Neon Night's road reflection turned on or off. */
+  reflections?: boolean
 }
 
 const sameLivery = (a: Settings['livery'], b: Settings['livery']) => a.pattern === b.pattern && a.paint === b.paint && a.number === b.number
@@ -33,5 +35,6 @@ export function settingsChange(prev: Settings, next: Settings): SettingsChange {
   if (prev.laps !== next.laps) out.laps = next.laps
   if (prev.time !== next.time || prev.weather !== next.weather) out.environment = true
   if (!sameLivery(prev.livery, next.livery)) out.livery = next.livery
+  if (prev.reflections !== next.reflections) out.reflections = next.reflections
   return out
 }

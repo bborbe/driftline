@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { WHEEL_NODES } from '../car/wheels'
 import type { Track } from '../track/schema'
 import { attachLights } from './car/lights'
-import { BLOOM, bloomFor, BRAKE_EMISSIVE, EMISSIVE, GLOW_COLOR, glowClasses, glowLuminance, glowPasses, tailLightIntensity } from './glow'
+import { BLOOM, bloomFor, BRAKE_EMISSIVE, EMISSIVE, GLOW_COLOR, glowClasses, glowLuminance, glowPasses, glowPreset, tailLightIntensity } from './glow'
 import { createEdgeLines } from './track/curbs'
 import { createZoneMeshes } from './track/zones'
 
@@ -48,6 +48,14 @@ describe('glow pass', () => {
     expect(bloomFor('?bloom=0', 'night')).toBeNull()
     expect(BLOOM.night.strength).toBeGreaterThanOrEqual(1.5 * BLOOM.day.strength)
     expect(BLOOM.night.threshold).toBeLessThan(BLOOM.day.threshold)
+  })
+
+  it('uses the neon preset in Neon Night, at least 1.25x the night strength', () => {
+    expect(glowPreset({ night: false, neon: false })).toBe('day')
+    expect(glowPreset({ night: true, neon: false })).toBe('night')
+    expect(glowPreset({ night: false, neon: true })).toBe('neon')
+    expect(BLOOM.neon.strength).toBeGreaterThanOrEqual(1.25 * BLOOM.night.strength)
+    expect(BLOOM.neon.threshold).toBeLessThanOrEqual(BLOOM.night.threshold)
   })
 
   it('keeps every glow colour bright enough to clear the day bloom threshold', () => {

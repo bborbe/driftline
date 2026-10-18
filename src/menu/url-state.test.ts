@@ -13,6 +13,7 @@ const custom: Settings = {
   time: 'night',
   weather: 'snow',
   livery: { pattern: 'checker', paint: 'teal', number: 42 },
+  reflections: true,
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
 
@@ -32,6 +33,10 @@ describe('url state', () => {
     expect(one('pattern', 'flag').livery.pattern).toBe('flag')
     expect(one('paint', 'pink').livery.paint).toBe('pink')
     expect(one('num', '13').livery.number).toBe(13)
+    expect(one('refl', '0').reflections).toBe(false)
+    expect(one('refl', '1').reflections).toBe(true)
+    expect(settingsFromUrl('?refl=0', custom).reflections).toBe(false)
+    expect(new URLSearchParams(q).get('refl')).toBe('1')
   })
   it('keeps random and default choices, and no effects', () => {
     const s = { ...DEFAULT_SETTINGS, time: 'random' as const, weather: 'default' as const, fx: [] }
@@ -44,7 +49,7 @@ describe('url state', () => {
     expect(viewFromUrl('', 'cockpit')).toBe('cockpit')
   })
   it('ignores bad values and keeps the stored ones', () => {
-    const q = '?time=dusk&weather=hail&laps=x&vol=loud&pattern=plaid&paint=gold&num=0&view=drone'
+    const q = '?time=dusk&weather=hail&laps=x&vol=loud&pattern=plaid&paint=gold&num=0&view=drone&refl=maybe'
     expect(settingsFromUrl(q, custom)).toEqual(custom)
     expect(viewFromUrl(q, 'far')).toBe('far')
   })
