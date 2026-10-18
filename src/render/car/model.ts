@@ -4,7 +4,8 @@ import * as THREE from 'three/webgpu'
 import { dot, forwardOf, wheelTravel, type CarState, type Surface } from '../../physics'
 import { STEERED, WHEEL_NODES, type Corner } from '../../car/wheels'
 import { CAR_ID, FALLBACK_CAR, resolveCar } from '../cars'
-import { createBodyFeel, updateBodyFeel } from './body'
+import { bodyLift, createBodyFeel, updateBodyFeel } from './body'
+import { drawnTravel, type RoadTop } from './ground'
 import { attachDetail, isDetail } from './detail'
 import { attachLights } from './lights'
 import type { Livery } from './livery'
@@ -16,8 +17,9 @@ export type CarView = {
   /**
    * Pose the car and its wheels from physics state; dt in seconds; `braking` brightens the tail lights.
    * With `surface` the wheels and arms follow the suspension; without (the ghost) they hold the rest pose.
+   * With `ground` each wheel stands on the drawn road (render/car/ground.ts), not on the physics surface below it.
    */
-  update: (s: CarState, dt: number, braking?: boolean, surface?: Surface) => void
+  update: (s: CarState, dt: number, braking?: boolean, surface?: Surface, ground?: RoadTop) => void
   /** Repaint the car (render/car/livery.ts); takes effect on the next frame. */
   setLivery: (l: Livery) => void
 }
@@ -39,7 +41,7 @@ const view = (root: THREE.Object3D, cockpit?: readonly [number, number, number])
   return {
     object: root,
     setLivery: (l) => applyLivery(root, l),
-    update: (s, dt, braking = false, surface) => {
+    update: (s, dt, braking = false, surface, ground) => {
       lights.setBraking(braking)
       root.position.set(s.position.x, s.position.y, s.position.z)
       root.quaternion.set(s.orientation.x, s.orientation.y, s.orientation.z, s.orientation.w)
@@ -50,7 +52,9 @@ const view = (root: THREE.Object3D, cockpit?: readonly [number, number, number])
       const speed = dot(s.velocity, forwardOf(s))
       roll += spinRate(speed) * dt
       detail.setSpeed(speed)
-      detail.setTravel(surface ? wheelTravel(s, surface) : undefined)
+      // The lean and squat above move the wheels with the body; give each spring that back, so the wheels stay on the road.
+      const springs = surface ? drawnTravel(wheelTravel(s, surface), s, ground) : undefined
+      detail.setTravel(springs?.map((w) => ({ mount: w.mount, length: w.length + bodyLift(body, w.mount.x, w.mount.z) })))
       for (const [corner, w] of wheels) {
         w.rotation.x = roll
         w.rotation.y = STEERED.includes(corner) ? wheelYaw(s.steerAngle) : 0

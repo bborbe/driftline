@@ -1,5 +1,6 @@
+import * as THREE from 'three/webgpu'
 import { describe, expect, it } from 'vitest'
-import { createBodyFeel, updateBodyFeel, type BodyFeel } from './body'
+import { bodyLift, createBodyFeel, updateBodyFeel, type BodyFeel } from './body'
 import { quatIdentity, v3, type Vec3 } from '../../physics'
 
 const q = quatIdentity()
@@ -45,5 +46,29 @@ describe('body feel', () => {
     expect(lowest).toBeLessThan(-0.05)
     for (let i = 0; i < 120; i++) b = updateBodyFeel(b, v3(0, 0, 10), q, 1 / 60)
     expect(Math.abs(b.squat.x)).toBeLessThan(0.005)
+  })
+})
+
+describe('bodyLift', () => {
+  // The lean as model.ts applies it: root quaternion × Euler(pitch, 0, roll), then squat along the leaned up.
+  const leaned = (b: BodyFeel, x: number, z: number): number => {
+    const lean = new THREE.Quaternion().setFromEuler(new THREE.Euler(b.pitch.x, 0, b.roll.x))
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(lean)
+    return new THREE.Vector3(x, 0, z).applyQuaternion(lean).y + up.y * b.squat.x
+  }
+
+  it('matches the lean model.ts draws at every wheel mount, so the wheels can be given it back', () => {
+    for (const [pitch, roll, squat] of [
+      [-0.08, 0, 0], // full throttle: nose up, rear down
+      [0.08, 0.12, 0], // braking into a turn
+      [0.03, -0.1, -0.12], // landing in a turn
+    ]) {
+      const b: BodyFeel = { ...createBodyFeel(), pitch: { x: pitch, v: 0 }, roll: { x: roll, v: 0 }, squat: { x: squat, v: 0 } }
+      for (const [x, z] of [[0.8, 1.3], [-0.8, 1.3], [0.8, -1.3], [-0.8, -1.3]]) expect(bodyLift(b, x, z)).toBeCloseTo(leaned(b, x, z), 2)
+    }
+  })
+
+  it('is zero on a car at rest', () => {
+    expect(bodyLift(createBodyFeel(), 0.8, -1.3)).toBe(0)
   })
 })
