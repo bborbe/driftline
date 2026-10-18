@@ -21,12 +21,20 @@ export function mountChallengeBanner(c: Challenge): HTMLElement {
   return box
 }
 
-/** The error a link that could not be read shows over the menu; click to dismiss. */
+/** The error a link that could not be read shows over the menu; click, Esc or the pad's B dismisses it. */
 export function showChallengeError(reason: string): HTMLElement {
   const box = el('div', 'challenge-error', `Challenge link could not be loaded: ${reason}`)
   box.id = 'challenge-error'
   box.setAttribute('role', 'alert')
-  box.addEventListener('click', () => box.remove())
+  const dismiss = () => {
+    box.remove()
+    window.removeEventListener('keydown', onKey, true)
+  }
+  const onKey = (e: KeyboardEvent) => {
+    if (!box.isConnected || e.code === 'Escape') dismiss()
+  }
+  box.addEventListener('click', dismiss)
+  window.addEventListener('keydown', onKey, true)
   document.body.append(box)
   return box
 }

@@ -70,7 +70,10 @@ Gamepad (Xbox / PlayStation over Bluetooth or USB, Chrome or Safari; a "Controll
 - `Y` - Restart the run
 - `Menu` - Pause menu
 - `View` - Next camera view
-- D-pad / left stick + `A` - Move and select in menus, track select, results and settings
+- `X` - Leaderboard (top 10)
+- D-pad / left stick + `A` - Move and select in menus, track select, results and settings; in Settings ↑/↓ move the yellow focus ring, ←/→ change the focused setting, `A` presses it
+- `LB` / `RB` - Settings: previous / next tab
+- After a top-10 finish: `A` saves the name shown (the last one used), `B` skips the board
 
 Keyboard and pad work side by side: whichever you touched last drives.
 

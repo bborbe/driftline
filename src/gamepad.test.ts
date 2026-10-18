@@ -33,12 +33,14 @@ const IDLE: CarInput = { throttle: 0, brake: 0, steer: 0, handbrake: false }
 describe('mapping table', () => {
   it('maps the Xbox buttons to the keys they stand for', () => {
     const race = Object.fromEntries(PAD_BINDINGS.filter((b) => b.race).map((b) => [b.button, b.race]))
-    expect(race).toEqual({ [PAD.B]: 'respawn', [PAD.Y]: 'restart', [PAD.MENU]: 'Escape', [PAD.VIEW]: CYCLE_CAMERA })
+    expect(race).toEqual({ [PAD.B]: 'respawn', [PAD.Y]: 'restart', [PAD.MENU]: 'Escape', [PAD.VIEW]: CYCLE_CAMERA, [PAD.X]: 'KeyL' })
     const menu = Object.fromEntries(PAD_BINDINGS.filter((b) => b.menu).map((b) => [b.button, b.menu]))
     expect(menu).toEqual({
       [PAD.A]: 'Enter',
       [PAD.B]: 'Escape',
       [PAD.MENU]: 'Escape',
+      [PAD.LB]: 'KeyQ',
+      [PAD.RB]: 'KeyE',
       [PAD.UP]: 'ArrowUp',
       [PAD.DOWN]: 'ArrowDown',
       [PAD.LEFT]: 'ArrowLeft',
@@ -47,7 +49,7 @@ describe('mapping table', () => {
   })
 
   it('names only real rebindable actions, so the pad follows the player keys', () => {
-    for (const b of PAD_BINDINGS) for (const a of [b.race, b.menu]) if (a && !/^(Arrow|Enter|Escape)/.test(a) && a !== CYCLE_CAMERA) expect(ACTIONS).toContain(a)
+    for (const b of PAD_BINDINGS) for (const a of [b.race, b.menu]) if (a && !/^(Arrow|Enter|Escape|Key)/.test(a) && a !== CYCLE_CAMERA) expect(ACTIONS).toContain(a)
   })
 
   it('binds each button at most once', () => {
