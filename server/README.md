@@ -1,6 +1,6 @@
 # driftline leaderboard server
 
-Go service behind the online leaderboard: it validates submitted laps, keeps each player's best per track in SQLite, and serves the per-track board and the stored ghosts. Milestones L1 (skeleton) and L2 (API); not deployed yet.
+Go service behind the online leaderboard: it validates submitted laps, keeps each player's best per track in SQLite, and serves the per-track board and the stored ghosts. Milestones L1 (skeleton), L2 (API) and L5 (deploy): it runs on the nuke-prod cluster at `https://driftline.benjamin-borbe.de/api/1.0/` (§ Deploy).
 
 ## Run locally
 
@@ -81,13 +81,34 @@ SQLite through `modernc.org/sqlite` (pure Go, no cgo), one file, WAL mode. `pkg/
 
 ```bash
 cd server
-make build                                      # image driftline-leaderboard:dev
+make build                                      # image docker.prod.nuke.benjamin-borbe.de:443/driftline-leaderboard:<branch>
 docker run --rm -p 9090:9090 -v "$PWD/data:/data" \
   -e TOKEN=local-dev-token -e ALLOWED_ORIGIN=http://localhost:5173 \
-  driftline-leaderboard:dev
+  docker.prod.nuke.benjamin-borbe.de:443/driftline-leaderboard:$(git rev-parse --abbrev-ref HEAD | tr '/' '-')
 ```
 
 The image is `scratch` with a static binary; the database lives on the `/data` volume.
+
+## Deploy
+
+Production runs on the nuke-prod k3s cluster, namespace `driftline`, manifests in `k8s/`:
+
+| File | What |
+|---|---|
+| `driftline-leaderboard-sts.yaml` | StatefulSet, 1 replica; the SQLite file lives on a 1Gi `local-path` volume at `/data` (`volumeClaimTemplates`), so it survives a pod restart. keel rolls it when a new `:master` image is pushed |
+| `driftline-leaderboard-svc.yaml` | Service on :9090 |
+| `driftline-leaderboard-ing.yaml` | Ingress for `driftline.benjamin-borbe.de`, routing **only `/api/`** — `/metrics`, `/setloglevel`, `/gc`, `/healthz` and `/readiness` stay cluster-internal |
+| `driftline-leaderboard-secret.yaml` | `TOKEN`, rendered from TeamVault at apply time (`TOKEN_KEY` in `k8s.env`), never in git |
+
+```bash
+cd server
+BRANCH=master make buca     # build linux/amd64, push to the nuke-prod registry, apply k8s/
+cd k8s && BRANCH=master make apply   # manifests only
+```
+
+`apply` refuses any branch but `master`. Public HTTPS: hetzner-1's nginx holds the Let's Encrypt certificate for `driftline.benjamin-borbe.de` and proxies `/api/` over the VPN to the cluster's traefik `web` entrypoint (bborbe/bw, `nodes/hz.hetzner-1.py`); the host resolves through the `*.benjamin-borbe.de` wildcard.
+
+The game picks the server up from the Pages build (`.github/workflows/pages.yml`): repo variable `VITE_LEADERBOARD_URL` (`https://driftline.benjamin-borbe.de`) and repo secret `VITE_LEADERBOARD_TOKEN` (the same TeamVault token). Both unset, the game stays offline-only.
 
 ## Checks
 
