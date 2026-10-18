@@ -9,7 +9,8 @@ Use the Makefile targets; each installs dependencies first when `node_modules` i
 | Command | Wraps | What it does |
 |---|---|---|
 | `make run` | `npm run dev` | Start the Vite dev server (open the printed URL; `?renderer=webgl2` forces the WebGL2 fallback) |
-| `make test` | `npm test` | Run all unit tests (vitest) — must be green before every commit |
+| `make test` | `npm test` | Run the fast test tier (vitest project `fast`, seconds) — must be green before every commit |
+| `make test-all` | `npm run test:all` | Run both tiers, fast + slow (minutes) — run it before merging any physics or track change (§ Test tiers) |
 | `make build` | `npm run build` | Typecheck (`tsc`) and production build |
 | `make thumbs` | `npm run thumbs` | Re-render the track-select thumbnails (`public/thumbs/<track>.webp` top-down + `<track>-drive.webp` chase frame per non-test track) after adding or reshaping a track; commit them (CI has no browser) |
 | `make shots` | `npm run shots` | Debug PNGs along each lap's centreline into `shots/` (docs/development.md § Debug screenshots; `?x&y&z&yaw&freeze=1` spawn params) |
@@ -71,9 +72,9 @@ The why for each rule is in the PR it cites and in the operator's *3D Browser Ga
 
 ## Workflow
 
-Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). No releases or tags.
+Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). Releases are `vX.Y.Z` tags (§ Test tiers).
 
-- **PRs merge on green CI:** `.github/workflows/ci.yml` runs `npm ci`, `npm test` and `npm run build` on every pull request (no deploy, `contents: read` only). Its result is the test signal for a merge — a local `make test` that times out on a loaded machine does not block it. It also tests every master merge commit; `pages.yml` runs no tests, so a deploy takes about a minute. `pages.yml` deploys production on push to `master`, and PR previews (next bullet). A `cancelled` Pages run is a queued run replaced by a newer one, which deploys the live master head — check `<meta name="commit">`, never re-run it (docs/development.md § Deploy).
+- **PRs merge on green CI:** `.github/workflows/ci.yml` runs `npm ci`, `npm test` (fast tier only) and `npm run build` on every pull request (no deploy, `contents: read` only). Its result is the test signal for a merge — a local `make test` that times out on a loaded machine does not block it. It also tests every master merge commit; `pages.yml` runs no tests, so a deploy takes about a minute. `pages.yml` deploys production on push to `master`, and PR previews (next bullet). A `cancelled` Pages run is a queued run replaced by a newer one, which deploys the live master head — check `<meta name="commit">`, never re-run it (docs/development.md § Deploy).
 
 - **Every open PR gets a playable preview** at `https://bborbe.github.io/driftline/pr-<n>/`, linked from one bot comment on the PR. Every deploy run refreshes the comment on every open PR, so it is updated on every push, and the preview's `<meta name="commit">` is the PR head SHA. How it works:
   - Mechanism: `pages.yml` builds one Pages artifact per run. Master goes into `/`, and each open same-repo PR goes into `/pr-<n>/` (`VITE_BASE` sets the Vite `base`). It triggers on master pushes and on `pull_request_target` (opened / synchronize / reopened / closed).
@@ -89,3 +90,17 @@ Feature branch + pull request into `master`, merged with a merge commit (`gh pr 
 - **Single-feature tracks stay short (≤ 20 s autopilot lap)** except where the mechanic needs top speed: test-ramp and test-flat carry a full-throttle run-up, pinned by `src/race/run-up.test.ts` (ramp entry 130–147 km/h; S-bend ≥ 130 km/h).
 - **Visual changes are verified with the debug spawn** (docs/development.md § Debug screenshots): before reporting, shoot the change from the chase cam and from off-track (side, below) on test1, test2 and the single-feature test track for the mechanic you touched (`test-ramp`, `test-bank`, `test-surfaces`, … — docs/tracks.md; `?x&y&z&yaw&freeze=1`, `&cam=top`, `make shots`) and judge shape and material, not only seams. A fix for a reported visual bug also gets a shot of the reporter's exact pose on the live site once its `<meta name="commit">` shows the merge. Mute every browser you drive (`--mute-audio`, or `vol=0` in the URL) — the operator hears it. Verify sound through `?audiolog=1` (`window.__driftlineAudio`), never through speakers.
 - **Driven browsers are cheap:** parallel worktrees share one machine, and an idle game tab left rendering costs a core. Every browser an agent drives uses `fps=30&quality=low` in the URL and a 960×540 viewport, unless the shot needs otherwise; close the playwright session (`playwright-cli -s=<name> close`) as soon as its shots are taken; an fps measurement passes `fps=0` explicitly, so a stored cap never skews it.
+
+## Test tiers
+
+Tests are split by measured CI duration into two vitest projects in `vite.config.ts`: `slow` is the explicit `SLOW_TESTS` list (every file taking ≥ 2 s in CI — the all-tracks cut and geometry checks, full-lap and golden replays, jump landings, barriers, effects, loop gates); `fast` is every other `src/**/*.test.ts`. A new test file is fast by default; if it takes ≥ 2 s in the `ci.yml` log (vitest prints per-file times), add it to `SLOW_TESTS`.
+
+| Tier | Runs | Where |
+|---|---|---|
+| fast | `npm test` / `make test` | every PR and master commit (`ci.yml`), before every commit locally |
+| fast + slow | `npm run test:all` / `make test-all` | every `v*` tag (`release.yml`), locally before merging physics/track changes |
+| slow | `npm run test:slow` | nightly on master (`nightly.yml`); red opens or comments a `nightly-failure` issue |
+
+Always run `make test-all` before merging a change under `src/physics/`, `src/race/` or `src/track/`, or to any track JSON: PR CI runs the fast tier only, so a slow-tier regression would otherwise merge and go live, surfacing at the next nightly run.
+
+Releases: add changes under `## Unreleased` in `CHANGELOG.md`; to release, rename it to `## vX.Y.Z`, set `package.json` `version` to `X.Y.Z`, merge, then push the tag `vX.Y.Z` on the merge commit. `release.yml` checks tag = version, runs fast + slow, builds, and creates the GitHub release from that CHANGELOG section. master still deploys to the live site on every merge; a release is a tested checkpoint, not a deploy.

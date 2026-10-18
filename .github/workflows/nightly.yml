@@ -1,0 +1,60 @@
+name: Nightly slow tests
+
+# The slow test tier is off the PR path (ci.yml runs fast only), so a physics or track regression can
+# merge and go live. This runs the slow tier on master every night and, when red, opens an issue
+# labelled nightly-failure (or comments on the open one). inject_failure exercises that report path.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      inject_failure:
+        description: Fail on purpose to test the failure report
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  slow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Injected failure
+        if: inputs.inject_failure
+        run: |
+          echo "::error::inject_failure=true — failing on purpose"
+          exit 1
+      - name: Test (slow tier)
+        run: npm run test:slow
+
+  report:
+    needs: slow
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the nightly-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create nightly-failure -R "$REPO" --color B60205 --description "Nightly slow tests failed" --force
+          body="Nightly slow tests failed on master \`$GITHUB_SHA\`: $RUN_URL"
+          n=$(gh issue list -R "$REPO" --label nightly-failure --state open --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then
+            gh issue comment "$n" -R "$REPO" --body "$body"
+          else
+            gh issue create -R "$REPO" --title "Nightly slow tests failed" --label nightly-failure --body "$body"
+          fi
