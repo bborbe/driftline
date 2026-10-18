@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
-## Unreleased
+## v0.3.1
 
 - fix: ghost name tags no longer overhang the right screen edge by a fraction of a pixel, and no longer cover the volume slider or the debug readouts — a tag that would have to climb onto them hides instead
 
