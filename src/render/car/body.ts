@@ -58,3 +58,11 @@ export const updateBodyFeel = (b: BodyFeel, velocity: Vec3, orientation: Quat, d
   squat = { x: clamp(squat.x, MAX_SQUAT), v: squat.v }
   return { roll: spring(b.roll, roll, dt), pitch: spring(b.pitch, pitch, dt), squat, lastVelocity: velocity }
 }
+
+/**
+ * How far (m, along body up) the lean and squat move the body at car-frame point (x, 0, z), as model.ts
+ * applies them (Euler XYZ: pitch about x, then roll about z, then squat along up). A wheel's drawn spring
+ * grows by this, so the wheel stays on the road while the body leans over it.
+ */
+export const bodyLift = (b: BodyFeel, x: number, z: number): number =>
+  x * Math.sin(b.roll.x) * Math.cos(b.pitch.x) - z * Math.sin(b.pitch.x) + b.squat.x
