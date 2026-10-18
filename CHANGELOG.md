@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
-## Unreleased
+## v0.5.0
 
 - feat: leaderboard submit and list API on the server under `/api/1.0/` — `POST /runs` validates a lap (name, track, tick floor, ordered checkpoint splits, ghost ticks and lap time, 256 KiB cap) and keeps the best run per player per track, `GET /tracks/{track}/runs` lists the top N, `GET /runs/{id}/ghost` serves the stored ghost; every request needs the shared `X-Driftline-Token` and the allowed Origin (CORS preflight answered); the per-track checkpoint counts and floors are generated from the game's tracks (`src/leaderboard/server-tables.test.ts`), and the game's ghost encoder is exported as `ghostPayload`
 
