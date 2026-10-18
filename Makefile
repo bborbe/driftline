@@ -1,4 +1,4 @@
-.PHONY: install run test build shots
+.PHONY: install run test build shots thumbs
 
 node_modules: package.json package-lock.json
 	npm install
@@ -17,3 +17,6 @@ build: node_modules
 
 shots: node_modules
 	npm run shots
+
+thumbs: node_modules
+	npm run thumbs
