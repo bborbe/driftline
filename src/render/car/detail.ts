@@ -132,41 +132,64 @@ export const strobeFade = (speed: number, limit: number): number => {
 /** Wheel centre height in the car frame for a physics spring length, clamped to the visual travel. */
 export const wheelCentreY = (springLength: number): number => -Math.min(Math.max(springLength, SPRING_MIN), SPRING_MAX)
 
+/** Upper and lower wishbones of one wheel: each a V from two body points to the wheel's inner pivot. */
+type Wishbones = {
+  mesh: THREE.Mesh
+  rest: Float32Array // vertex positions at the built pose
+  vees: { from: number; to: number; base: THREE.Vector3; end: THREE.Vector3 }[] // vertex range, body end, outer end minus body end
+  dy: number // the lift the vertices currently show
+}
+
+const suspension = (w: WheelShape, corner: Corner): Wishbones => {
+  const parts: THREE.BufferGeometry[] = []
+  const vees: Wishbones['vees'] = []
+  let from = 0
+  for (const rise of [ARM_RISE, -ARM_RISE]) {
+    const base = new THREE.Vector3(w.side * ARM_INNER_X, w.centre.y + rise, w.centre.z)
+    const end = new THREE.Vector3(w.inner, w.centre.y + rise * 0.8, w.centre.z)
+    let count = 0
+    for (const along of [ARM_SPREAD, -ARM_SPREAD]) {
+      const indexed = rod(base.clone().setZ(w.centre.z + along), end, ARM_RADIUS)
+      const g = indexed.toNonIndexed()
+      indexed.dispose()
+      count += g.getAttribute('position').count
+      parts.push(g)
+    }
+    vees.push({ from, to: from + count, base, end: end.sub(base) })
+    from += count
+  }
+  const mesh = mark(merged(parts, carbon), `suspension-${corner}`)
+  return { mesh, rest: Float32Array.from(mesh.geometry.getAttribute('position').array), vees, dy: 0 }
+}
+
 /**
- * One wishbone: a V from two body points to the wheel's inner pivot, on a pivot at the body end. The
- * V lies in a plane holding the car's z axis, so a rotation about z plus an in-plane scale lands its
- * outer end exactly on the moved pivot. `userData.end` is the outer end in the pivot's frame.
+ * Re-aim both wishbones at the wheel pivot moved `dy` up the car frame. Each V lies in a plane holding
+ * the car's z axis, so a rotation about z plus an in-plane scale round its body end lands its outer end
+ * exactly on the moved pivot. One mesh per wheel, rewritten only when the lift changes.
  */
-const wishbone = (w: WheelShape, rise: number, name: string): THREE.Mesh => {
-  const base = new THREE.Vector3(w.side * ARM_INNER_X, w.centre.y + rise, w.centre.z)
-  const end = new THREE.Vector3(w.inner, w.centre.y + rise * 0.8, w.centre.z).sub(base)
-  const parts = [ARM_SPREAD, -ARM_SPREAD].map((along) => rod(new THREE.Vector3(0, 0, along), end, ARM_RADIUS))
-  const arm = mark(merged(parts, carbon), name)
-  arm.position.copy(base)
-  arm.userData.end = end
-  return arm
-}
-
-/** Upper and lower wishbones of one wheel, in a group named `suspension-<corner>`. */
-const suspension = (w: WheelShape, corner: Corner): { group: THREE.Group; arms: THREE.Mesh[] } => {
-  const arms = [wishbone(w, ARM_RISE, `wishbone-upper-${corner}`), wishbone(w, -ARM_RISE, `wishbone-lower-${corner}`)]
-  const group = mark(new THREE.Group(), `suspension-${corner}`)
-  group.add(...arms)
-  return { group, arms }
-}
-
-/** Aim `arm` (built by wishbone()) at its pivot moved `dy` up the car frame. */
-const aimArm = (arm: THREE.Mesh, dy: number): void => {
-  const rest = arm.userData.end as THREE.Vector3
-  const x = rest.x
-  const y = rest.y + dy
-  arm.rotation.z = Math.atan2(y, x) - Math.atan2(rest.y, rest.x)
-  const s = Math.hypot(x, y) / Math.hypot(rest.x, rest.y)
-  arm.scale.set(s, s, 1)
+const aimArms = (arms: Wishbones, dy: number): void => {
+  if (Math.abs(dy - arms.dy) < 1e-4) return
+  arms.dy = dy
+  const pos = arms.mesh.geometry.getAttribute('position') as THREE.BufferAttribute
+  const out = pos.array as Float32Array
+  for (const v of arms.vees) {
+    const turn = Math.atan2(v.end.y + dy, v.end.x) - Math.atan2(v.end.y, v.end.x)
+    const s = Math.hypot(v.end.x, v.end.y + dy) / Math.hypot(v.end.x, v.end.y)
+    const c = Math.cos(turn) * s
+    const n = Math.sin(turn) * s
+    for (let i = v.from * 3; i < v.to * 3; i += 3) {
+      const x = arms.rest[i] - v.base.x
+      const y = arms.rest[i + 1] - v.base.y
+      out[i] = v.base.x + c * x - n * y
+      out[i + 1] = v.base.y + n * x + c * y
+    }
+  }
+  pos.needsUpdate = true
+  arms.mesh.geometry.computeBoundingSphere()
 }
 
 /** A wheel's travel handle: the node, its built centre, and how a car-frame lift maps into its parent. */
-type Travel = { node: THREE.Object3D; rest: THREE.Vector3; up: THREE.Vector3; centreY: number; x: number; z: number; arms: THREE.Mesh[] }
+type Travel = { node: THREE.Object3D; rest: THREE.Vector3; up: THREE.Vector3; centreY: number; x: number; z: number; arms: Wishbones }
 
 export type DetailRig = {
   /**
@@ -213,10 +236,7 @@ export const attachDetail = (root: THREE.Object3D, cockpit?: readonly [number, n
     const shape = wheelShape(wheel, root)
     const { tread, hub } = wheelDetail(shape)
     // Per-car material copies: the fade writes opacity, and two cars (player, ghost) fade apart.
-    for (const m of [tread, hub]) {
-      m.material = (m.material as THREE.Material).clone()
-      ;(m.material as THREE.Material).transparent = true
-    }
+    for (const m of [tread, hub]) m.material = (m.material as THREE.Material).clone()
     treads.push(tread)
     hubs.push(hub)
     // Built in the car frame; re-expressed in the wheel node's frame so it spins and steers with it.
@@ -228,11 +248,11 @@ export const attachDetail = (root: THREE.Object3D, cockpit?: readonly [number, n
       m.geometry.applyMatrix4(toWheel)
       wheel.add(mark(m, `${label}-${corner}`))
     }
-    const { group: arms, arms: meshes } = suspension(shape, corner)
-    group.add(arms)
+    const arms = suspension(shape, corner)
+    group.add(arms.mesh)
     // The model may be scaled and offset: lift the wheel node in its parent's frame.
     const parentToCar = root.matrixWorld.clone().invert().multiply(wheel.parent!.matrixWorld)
-    travels.push({ node: wheel, rest: wheel.position.clone(), up: carLiftInParent(parentToCar), centreY: shape.centre.y, x: shape.centre.x, z: shape.centre.z, arms: meshes })
+    travels.push({ node: wheel, rest: wheel.position.clone(), up: carLiftInParent(parentToCar), centreY: shape.centre.y, x: shape.centre.x, z: shape.centre.z, arms })
   }
   group.add(helmet(at))
   root.add(group)
@@ -242,7 +262,14 @@ export const attachDetail = (root: THREE.Object3D, cockpit?: readonly [number, n
     for (const m of meshes) {
       const mat = m.material as THREE.Material
       mat.userData.base ??= mat.opacity // the ghost lowers the base after the view is built
+      mat.userData.blend ??= mat.transparent
       mat.opacity = mat.userData.base * f
+      // Blend only while fading (or on the ghost): opaque tread and hubs stay out of the transparent pass.
+      const blend = mat.userData.blend || (f > 0 && f < 1)
+      if (mat.transparent !== blend) {
+        mat.transparent = blend
+        mat.needsUpdate = true
+      }
       m.visible = f > 0
     }
   }
@@ -252,7 +279,7 @@ export const attachDetail = (root: THREE.Object3D, cockpit?: readonly [number, n
         const spring = springs?.find((s) => Math.sign(s.mount.x) === Math.sign(t.x) && Math.sign(s.mount.z) === Math.sign(t.z))
         const dy = spring ? wheelCentreY(spring.length) - t.centreY : 0
         t.node.position.copy(t.rest).addScaledVector(t.up, dy)
-        for (const arm of t.arms) aimArm(arm, dy)
+        aimArms(t.arms, dy)
       }
     },
     setSpeed: (speed) => {
