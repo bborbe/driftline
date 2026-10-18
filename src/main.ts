@@ -6,6 +6,7 @@ import { CAMERA_EVENT, loadView, saveView, type ViewMode } from './camera/views'
 import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
+import { mountFade, noFade, RESULTS_DIM } from './render/fade'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
 import { beginAllowed, GameAudio, KerbProbe, mountAudioControls, mountUiSounds } from './audio'
 import { initRace } from './race'
@@ -52,6 +53,18 @@ if (new URLSearchParams(location.search).get('audiolog') === '1') {
 }
 mountUiSounds((sound, detail) => audio.playUi(sound, detail))
 window.addEventListener(CAMERA_EVENT, (e) => (shownView = (e as CustomEvent<ViewMode>).detail))
+// Screen fades (src/render/fade.ts): the page opens black and fades in on the menu or the first race frame; debug
+// spawns and frozen shots never fade. `window.driftline.mode` tells automated checks which screen is up.
+const fade = mountFade(noFade(location.search) ? 0 : 1)
+type Mode = 'menu' | 'race' | 'results'
+let mode = (): Mode => 'menu'
+const driftline: { mode: Mode; ready: boolean; centreline?: (step: number) => unknown } = {
+  get mode() {
+    return mode()
+  },
+  ready: false,
+}
+;(window as unknown as { driftline: object }).driftline = driftline
 // A bare URL opens the start screen; ?track= and debug-spawn links go straight in (shared links, `make shots`).
 const fromMenu = !skipMenu(location.search)
 const sel = new URLSearchParams(location.search).get('sel')
@@ -62,7 +75,11 @@ let viewNow = (): ViewMode => shownView
 const boot = location.search
 const urlState = (): UrlState => ({ settings: shown, view: viewNow(), screen, fly: flying(), orbiting: orbiting(), boot })
 startUrlSync(urlState)
-const trackName = fromMenu ? await chooseTrack(LAP_NAMES, { focus: sel, onFocus: (track) => (screen = { sel: track }) }) : lapName(location.search)
+const picking = fromMenu ? chooseTrack(LAP_NAMES, { focus: sel, onFocus: (track) => (screen = { sel: track }) }) : null
+if (picking) void fade.to(0)
+const trackName = picking ? await picking : lapName(location.search)
+// Menu → race: fade to black before the race scene is built, fade in on its first frame (setAnimationLoop below).
+if (picking) await fade.to(1)
 screen = { track: trackName }
 const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
@@ -146,13 +163,27 @@ const race = initRace(sim, track, {
   ],
   onPause: (paused) => void audio.setPaused(paused),
   menu: {
-    backToMenu: () => location.assign(`${location.pathname}${screenQuery(location.search, urlState(), { sel: trackName })}`),
-    nextTrack: () => location.assign(`${location.pathname}${screenQuery(location.search, urlState(), { track: nextLap(track.name) })}`),
+    backToMenu: () => leave(screenQuery(location.search, urlState(), { sel: trackName })),
+    nextTrack: () => leave(screenQuery(location.search, urlState(), { track: nextLap(track.name) })),
     settings: () => settingsPanel({ onVolume: (v) => audio.setVolume(v), trackDefault: trackEnvironment(track) }),
   },
   laps,
   recordsLocked: () => taint.locked,
+  // The scene dims behind the results card and clears again on Restart.
+  onResults: (shown) => {
+    if (!leaving) void fade.to(shown ? RESULTS_DIM : 0)
+  },
 })
+mode = () => (race.resultsShown ? 'results' : 'race')
+// Results / Esc menu → menu or next track: the card fades with the scene to black, then the page loads.
+let leaving = false
+async function leave(query: string): Promise<void> {
+  if (leaving) return
+  leaving = true
+  document.getElementById('results-card')?.classList.add('race-results-out')
+  await fade.to(1)
+  location.assign(`${location.pathname}${query}`)
+}
 // Every Settings change applies to the running race at once (src/menu/live.ts): livery, effects, volume, time and
 // weather now, laps from the next restart. The URL follows each change (startUrlSync above).
 let applied: Settings = settings
@@ -219,8 +250,10 @@ window.addEventListener('keydown', (e) => {
   cam.onKeyDown(e)
   tuning?.onKeyDown(e)
 })
-;(window as unknown as { driftline: object }).driftline = { centreline: (step: number) => centreline(track, step), ready: true }
+driftline.centreline = (step: number) => centreline(track, step)
+driftline.ready = true
 let last = performance.now()
+let firstFrame = true
 
 view.renderer.setAnimationLoop(() => {
   const now = performance.now()
@@ -252,4 +285,8 @@ view.renderer.setAnimationLoop(() => {
   )
   view.start?.update(race.board())
   view.frame(s, elapsed, material, carInput.brake > 0)
+  if (firstFrame) {
+    firstFrame = false
+    void fade.to(0)
+  }
 })

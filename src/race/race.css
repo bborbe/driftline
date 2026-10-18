@@ -161,3 +161,40 @@
   flex: 0 0 8em; text-align: right; font: var(--hud-w-bold) 13px var(--hud-font); color: #fff;
 }
 .controls span { color: #dfe7f2; }
+/* Results card (#results-card, operator pick 2026-10-18: centred card ≤ 440 px): medal badge + time, best + delta,
+   split table vs PB, name entry, Restart / Next track / Menu. Sits above the #fade dimmer (render/fade.ts). */
+.race-results {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 41; width: min(92vw, calc(440px * var(--hud-scale)));
+  max-height: 92vh; overflow-y: auto; display: grid; gap: var(--s2); padding: var(--s4) var(--s5); box-sizing: border-box;
+  background: var(--hud-plate); border: var(--hud-edge); border-radius: var(--hud-radius); color: #fff; text-align: center;
+  font: var(--hud-w-regular) calc(15px * var(--hud-scale))/1.4 var(--hud-font); font-variant-numeric: tabular-nums; text-shadow: var(--hud-shadow);
+  transition: opacity 300ms ease-in-out;
+}
+.race-results-in { animation: race-results-in 0.35s ease-out both; }
+@keyframes race-results-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)); } }
+.race-results-out { opacity: 0; }
+.race-results-head, .race-results-row { display: flex; align-items: center; justify-content: center; gap: var(--s3); }
+.race-results-head h2 { margin: 0; font: italic var(--hud-w-bold) calc(40px * var(--hud-scale)) var(--hud-font); }
+.race-results-head .race-record { font-style: italic; font-weight: var(--hud-w-bold); font-size: calc(13px * var(--hud-scale)); letter-spacing: 0.04em; }
+.race-results-medal {
+  display: inline-flex; align-items: center; justify-content: center; width: calc(58px * var(--hud-scale)); height: calc(58px * var(--hud-scale));
+  border-radius: 50%; background: currentColor; font-weight: var(--hud-w-bold); font-size: calc(10px * var(--hud-scale)); letter-spacing: 0.03em;
+  box-shadow: 0 0 var(--s3) currentColor; text-shadow: none;
+}
+/* The label reads dark on the medal-coloured disc. */
+.race-results-medal { -webkit-text-fill-color: #111; }
+.race-results-best { color: var(--hud-muted); }
+.race-results .race-split-delta { margin: 0; padding: 0 var(--s2); border-radius: var(--s2); font-style: italic; font-weight: var(--hud-w-bold); font-size: calc(15px * var(--hud-scale)); }
+.race-results-splits { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--hud-scale)); }
+.race-results-splits th { color: var(--hud-muted); font-weight: var(--hud-w-regular); }
+.race-results-splits th, .race-results-splits td { padding: 2px var(--s2); text-align: right; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.race-results-splits th:first-child, .race-results-splits td:first-child { text-align: left; }
+.race-results-splits .race-ahead { color: #7fb0ff; }
+.race-results-splits .race-behind { color: #ff7a7a; }
+.race-results .race-medals p { margin: 0; color: var(--hud-muted); }
+.race-results .race-medals .race-medal { display: none; }
+.race-results-entry p { margin: var(--s1) 0; }
+.race-results input { font: var(--hud-w-regular) 18px var(--hud-font); text-transform: uppercase; text-align: center; width: 9ch; }
+.race-results-actions { flex-direction: row; justify-content: center; margin: var(--s2) 0 0; min-width: 0; }
+.race-results-actions .menu-item { font-size: calc(15px * var(--hud-scale)); text-align: center; }
+.race-results-actions .menu-item:first-child { background: #fff; color: #111; text-shadow: none; }
