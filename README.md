@@ -2,13 +2,15 @@
 
 [![CI](https://github.com/bborbe/driftline/actions/workflows/ci.yml/badge.svg)](https://github.com/bborbe/driftline/actions/workflows/ci.yml)
 
-**Play online:** https://bborbe.github.io/driftline/
+**Play in your browser:** https://bborbe.github.io/driftline/
 
 Trackmania-like browser racing game: short tracks, a lap timer with checkpoints, instant respawn and a ghost of your best run.
 
 ![driftline: chase view on A04 knot, the gold medal ghost ahead](docs/screenshot.png)
 
 ![driftline: start menu with the campaign and style tracks](docs/menu.png)
+
+![driftline: mid-race on A01 crossover, a checkpoint split popping up](docs/race.png)
 
 ## Features
 
@@ -129,9 +131,10 @@ Debug
 - Effect pads change the car until a reset pad: no-steer, cruise, fragile, engine-off, slow-mo
 - Pick 1–10 laps under **Laps** in the settings, or add `&laps=3` to a track link
 
-## Leaderboard server
+## Future ideas (on hold)
 
-An online leaderboard is on hold: there is none on the live site, and the top-10 board and records stay in your browser. Its server (Go, SQLite, with the submit / list API) is kept in [`server/`](server/README.md), which describes how to run it locally and what a redeploy needs; it is not deployed.
+- Online leaderboard: experimental server in [`server/`](server/README.md), not deployed
+- Live multiplayer rooms
 
 ## Credits
 

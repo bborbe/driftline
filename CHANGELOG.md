@@ -10,7 +10,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
-- docs: final README polish — screenshots retaken from the live site after the wheel fix (chase view, start menu), feature list and controls match what shipped (medal ghosts, challenge links, gamepad, rebindable keys, settings, `T` records panel, `L` board is local), leaderboard server described as kept but not deployed, credits section, CI badge and a short Development section; the CHANGELOG preamble is back to the standard header (the release note it carried is in AGENTS.md § Test tiers); `assets/LICENSE` lists all five Poly Haven HDRIs and `assets/track/`; docs/development.md documents `scripts/gamepad-check.js` and `scripts/build-pieces.mjs`
+- docs: final README polish — screenshots retaken from the live site after the wheel fix (chase view, start menu, mid-race), feature list and controls match what shipped (medal ghosts, challenge links, gamepad, rebindable keys, settings, `T` records panel, `L` board is local), online leaderboard and live multiplayer listed under Future ideas (on hold), no online claims elsewhere, credits section, CI badge and a short Development section; the CHANGELOG preamble is back to the standard header (the release note it carried is in AGENTS.md § Test tiers); `assets/LICENSE` lists all five Poly Haven HDRIs and `assets/track/`; docs/development.md documents `scripts/gamepad-check.js` and `scripts/build-pieces.mjs`; `## v0.1.0` gains a short summary of the pre-release work (PRs #1–#155)
 
 ## v0.6.2
 
@@ -58,3 +58,11 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 - feat: split tests into a fast tier (every PR, `make test`) and a slow tier (releases, nightly on master, `make test-all`)
 - feat: release workflow on `v*` tags and a nightly slow run on master that opens a `nightly-failure` issue when red
+
+Before v0.1.0 (PRs #1–#155, phases 1–4, summarised; no tags were cut):
+
+- feat: core game — Vite + TypeScript + three.js (WebGPU with a WebGL2 fallback), raycast-wheel car physics on a fixed 100 Hz tick with determinism and handling-threshold tests, chase camera, synthesized audio, deployed to GitHub Pages on every master merge with a playable preview per PR
+- feat: racing loop — checkpoints with split deltas, respawn and restart, 3-2-1 countdown, lap timer, 1–10 laps, best times and a top-10 board per track in localStorage, personal-best ghost, per-track medals, Esc pause, results card
+- feat: tracks — Trackmania-style piece kit (straights, curves, banks, slopes, bumps, loop, gap jump, turbo and effect pads), multi-level decks and bridges, surfaces (asphalt, dirt, ice, grass offroad), edge rails; campaign A01–A05, styles S01–S07 and single-feature test tracks
+- feat: presentation — 3D start menu with track thumbnails and medal times, race HUD, time of day and weather, Neon Night, graphics quality presets with an Auto probe, frame cap, camera effects, accessibility modes
+- feat: input and tooling — rebindable keys, gamepad, free-fly camera, debug spawn URLs and `make shots`, dev tuning panel, golden-replay and geometry-lint tests, CI on every PR and secret scanning
