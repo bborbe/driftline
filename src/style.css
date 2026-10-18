@@ -33,3 +33,5 @@ canvas { display: block; }
 #begin span { font-size: clamp(24px, 5vmin, 64px); letter-spacing: 0.04em; }
 #begin small { font: 600 clamp(11px, 1.8vmin, 22px) var(--ui-font); letter-spacing: 0.08em; color: #c7d2e0; }
 @keyframes begin-pulse { 50% { border-color: rgba(120, 190, 255, 0.9); box-shadow: 0 0 2.4vmin rgba(60, 150, 255, 0.5); } }
+/* Screen fades (src/render/fade.ts): one black overlay over everything but the results card (z 41). Clicks pass through. */
+.screen-fade { position: fixed; inset: 0; z-index: 40; background: #000; pointer-events: none; opacity: 0; }

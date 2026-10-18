@@ -8,6 +8,8 @@ import { capOpenEdges } from './cap'
 import { onPad, type Track } from '../track/schema'
 import { TRACK_WIDTH } from './track/geometry'
 import { DEFAULT_SCENERY } from './theme'
+import { dressingFootprint, planDressing } from './decor/dressing'
+import { footprintsOverlap, type Footprint } from './decor/footprint'
 
 const MODEL_URLS = import.meta.glob('/assets/nature-kit/*.glb', { query: '?url', import: 'default', eager: true }) as Record<
   string,
@@ -28,6 +30,9 @@ const isRock = (model: string) => model.startsWith('rock') || model.startsWith('
 export const CLEARANCE = TRACK_WIDTH / 2 + 8
 const clearanceAt = (width: number): number => width / 2 + 8
 
+/** A prop's footprint half size per unit of scale, turned with it: the widest Nature Kit model is 1.06 units across (rock_largeC). */
+export const FOOTPRINT = 0.53
+
 // mulberry32: tiny deterministic PRNG, so every load places the same scenery.
 const rng = (seed: number) => () => {
   seed = (seed + 0x6d2b79f5) | 0
@@ -42,6 +47,8 @@ export const planScenery = (track: Track, spacing = 9, seed = 7, models: readonl
   const line = centreline(track, 2)
   const clear = (x: number, z: number, extra: number) => line.every((p) => (p.x - x) ** 2 + (p.z - z) ** 2 >= (clearanceAt(p.width) + extra) ** 2)
   const props: Prop[] = []
+  // Nothing grows into another prop: the trackside dressing, or a tree or rock already placed.
+  const taken: Footprint[] = planDressing(track).map(dressingFootprint)
   for (const [i, p] of centreline(track, spacing).entries()) {
     const side = i % 2 === 0 ? 1 : -1
     const off = clearanceAt(p.width) + 2 + rand() * 28
@@ -54,7 +61,10 @@ export const planScenery = (track: Track, spacing = 9, seed = 7, models: readonl
     // Other parts of the lap may pass nearby (hairpins, lap crossings): keep their clearance too.
     // Nothing on a free-drive pad or its walls: the asphalt stays open.
     if (track.pad && onPad(track.pad, x, z, -(scale + 2))) continue
-    if (clear(x, z, scale)) props.push({ model, x, y: 0, z, heading, scale })
+    const foot: Footprint = { x, z, heading, hx: scale * FOOTPRINT, hz: scale * FOOTPRINT }
+    if (!clear(x, z, scale) || taken.some((t) => footprintsOverlap(t, foot))) continue
+    props.push({ model, x, y: 0, z, heading, scale })
+    taken.push(foot)
   }
   return props
 }

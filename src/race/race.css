@@ -140,8 +140,9 @@
 .race-panel input { font: var(--hud-w-regular) 18px var(--hud-font); text-transform: uppercase; text-align: center; }
 .race-board ol { text-align: left; }
 .race-mine { color: #ffc300; }
-/* z-index above the READY? prompt (#begin, 10) so the Esc menu takes clicks before the race starts. */
-.race-pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 15; max-height: 90vh; overflow-y: auto; padding: 16px 24px; background: rgba(0, 0, 0, 0.8); color: #fff; font: var(--hud-w-regular) 16px/1.4 var(--hud-font); font-variant-numeric: tabular-nums; border-radius: 8px; text-align: center; }
+/* z-index above the READY? prompt (#begin, 10) so the Esc menu takes clicks before the race starts, and above the
+   results card (41) and its #fade dimmer (40) so Esc on the results screen shows the menu it drives. */
+.race-pause { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 42; max-height: 90vh; overflow-y: auto; padding: 16px 24px; background: rgba(0, 0, 0, 0.8); color: #fff; font: var(--hud-w-regular) 16px/1.4 var(--hud-font); font-variant-numeric: tabular-nums; border-radius: 8px; text-align: center; }
 .race-medal { font-weight: bold; font-size: 20px; }
 .race-medal-author { color: #3fe08a; }
 .race-medal-gold { color: #ffc300; }
@@ -187,3 +188,47 @@
 /* The split still has to go away: a plain fade, no scale pop. */
 .reduced-effects .race-split.race-pop { animation: race-split-fade 2.5s linear both; }
 @keyframes race-split-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+/* Results card (#results-card, operator pick 2026-10-18: centred card ≤ 440 px): medal badge + time, best + delta,
+   split table vs PB, name entry, Restart / Next track / Menu. Sits above the #fade dimmer (render/fade.ts). */
+.race-results {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 41; width: min(92vw, calc(440px * var(--hud-scale)));
+  max-height: 92vh; overflow-y: auto; display: grid; gap: var(--s2); padding: var(--s4) var(--s5); box-sizing: border-box;
+  background: var(--hud-plate); border: var(--hud-edge); border-radius: var(--hud-radius); color: #fff; text-align: center;
+  font: var(--hud-w-regular) calc(15px * var(--hud-scale))/1.4 var(--hud-font); font-variant-numeric: tabular-nums; text-shadow: var(--hud-shadow);
+  transition: opacity 300ms ease-in-out;
+}
+.race-results-in { animation: race-results-in 0.35s ease-out both; }
+@keyframes race-results-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)); } }
+/* Leaving the page (main.ts leave()): the card and the Esc menu fade with the scene to black. */
+.screen-leaving .race-results, .screen-leaving .race-pause { opacity: 0; transition: opacity 300ms ease-in-out; }
+.race-results-head, .race-results-row { display: flex; align-items: center; justify-content: center; gap: var(--s3); }
+.race-results-head h2 { margin: 0; font: italic var(--hud-w-bold) calc(40px * var(--hud-scale)) var(--hud-font); }
+.race-results-head .race-record { font-style: italic; font-weight: var(--hud-w-bold); font-size: calc(13px * var(--hud-scale)); letter-spacing: 0.04em; }
+.race-results-medal {
+  display: inline-flex; align-items: center; justify-content: center; width: calc(58px * var(--hud-scale)); height: calc(58px * var(--hud-scale));
+  border-radius: 50%; background: currentColor; font-weight: var(--hud-w-bold); font-size: calc(10px * var(--hud-scale)); letter-spacing: 0.03em;
+  box-shadow: 0 0 var(--s3) currentColor; text-shadow: none;
+}
+/* The label reads dark on the medal-coloured disc. */
+.race-results-medal { -webkit-text-fill-color: #111; }
+.race-results-best { color: var(--hud-muted); }
+.race-results .race-split-delta { margin: 0; padding: 0 var(--s2); border-radius: var(--s2); font-style: italic; font-weight: var(--hud-w-bold); font-size: calc(15px * var(--hud-scale)); }
+.race-results-splits { width: 100%; border-collapse: collapse; font-size: calc(12px * var(--hud-scale)); }
+.race-results-splits th { color: var(--hud-muted); font-weight: var(--hud-w-regular); }
+.race-results-splits th, .race-results-splits td { padding: 2px var(--s1); text-align: right; border-bottom: 1px solid rgba(255, 255, 255, 0.08); white-space: nowrap; }
+.race-results-splits .race-results-pb { color: var(--hud-muted); }
+/* The sector that lost the most time vs the previous best. */
+.race-results-splits .race-results-worst td { background: rgba(225, 40, 40, 0.22); }
+.race-results-splits .race-results-worst td:first-child { box-shadow: inset 3px 0 0 #ff5a4a; }
+.race-results-splits th:first-child, .race-results-splits td:first-child { text-align: left; }
+.race-results-splits .race-ahead { color: #7fb0ff; }
+.race-results-splits .race-behind { color: #ff7a7a; }
+.race-results .race-medals p { margin: 0; color: var(--hud-muted); }
+.race-results .race-medals .race-medal { display: none; }
+.race-results-entry p { margin: var(--s1) 0; }
+.race-results input { font: var(--hud-w-regular) 18px var(--hud-font); text-transform: uppercase; text-align: center; width: 9ch; }
+/* One row (the card is the menu-list's parent, so this beats menu.css's column at equal order), wrapping so a fourth
+   action ("Challenge a friend", a later task) fits without widening the card. */
+.race-results .race-results-actions { flex-direction: row; flex-wrap: wrap; justify-content: center; margin: var(--s2) 0 0; min-width: 0; }
+.race-results .race-results-actions .menu-item { flex: 1 1 auto; font-size: calc(15px * var(--hud-scale)); text-align: center; }
+.race-results .race-results-actions .menu-item:first-child { background: #fff; color: #111; text-shadow: none; }

@@ -3,8 +3,9 @@
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
 // Keys: R = respawn at last checkpoint, Backspace = restart (full 3-2-1-GO countdown), L = toggle leaderboard, F = fullscreen, H = controls help, Esc = pause menu (not when it only leaves fullscreen)
 // (Resume / Restart / Settings / Back to menu, arrows + Enter or mouse; Esc again resumes).
-// Checkpoints, lap lines and the finish flash the split delta vs the personal best; the finish panel shows
-// medals (single-lap runs only) and, in a multi-lap run (`laps`), each lap time with the best one marked.
+// Checkpoints and lap lines flash the split delta vs the personal best; RESULTS_HOLD_MS after the finish the results
+// card (results.ts, view.ts) shows medal (single-lap runs only), time, best, delta, one split row per checkpoint and lap
+// line, and in a multi-lap run (`laps`) each lap time with the best one marked.
 // Hiding the tab pauses too; R / Backspace from the pause overlay act and resume.
 import { dot, forwardOf, type CarInput, type FixedStepper } from '../physics'
 import { layoutId, type Track } from '../track/schema'
@@ -13,6 +14,7 @@ import { isControlsKey } from './controls'
 import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { earnedMedal, nextMedal, SplitTracker } from './medals'
 import { formatLapTime, RaceStore } from './store'
+import { buildResults } from './results'
 import { startBoard, type StartBoard } from './start-board'
 import { escapeLeavesFullscreen, toggleFullscreen } from '../fullscreen'
 import { RaceView } from './view'
@@ -33,6 +35,8 @@ export interface RaceOptions {
   laps?: number
   /** True while the run may not set records (a dev-tuned run, src/debug/tuning.ts). */
   recordsLocked?: () => boolean
+  /** The results card came in (true) or went (false); main.ts dims the scene behind it. */
+  onResults?: (shown: boolean) => void
 }
 
 export interface Race {
@@ -42,6 +46,8 @@ export interface Race {
   /** Settings → Laps: the lap count for the next restart (Backspace / Esc → Restart); the current run is unchanged. */
   setLaps(laps: number): void
   readonly paused: boolean
+  /** True from the finish until the next restart: the results card is up or about to come in. */
+  readonly resultsShown: boolean
   setPaused(paused: boolean): void
   /** Begin clicked: start the countdown. */
   start(): void
@@ -67,7 +73,11 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     store,
     menu ? { ...menu, resume: () => setPaused(false), restart: () => (pending = 'restart') } : null,
   )
+  view.onResults = opts.onResults ?? null
   const splits = new SplitTracker()
+  // The best and its splits as they stood at the run start: the results card compares against these, not the run itself.
+  let previousBest: number | null = null
+  let previousSplits: number[] | null = null
   // Last countdown step (3, 2, 1, 0 = GO); null until the first one. Restart re-announces from 3.
   let step: number | null = null
   for (const l of opts.listeners ?? []) loop.on(l)
@@ -77,7 +87,10 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
       view.showCountdown(n)
     },
     lapStart: (_t, lap) => {
-      if (lap === 1) splits.begin(store.best(), store.bestSplits())
+      if (lap !== 1) return
+      previousBest = store.best()
+      previousSplits = previousBest === null ? null : store.bestSplits()
+      splits.begin(previousBest, previousSplits)
     },
     checkpoint: (t, i) => {
       const timeMs = loop.lapTimeMs(t)
@@ -94,7 +107,20 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
       const medal = medals ? earnedMedal(medals, ms) : null
       if (medals) store.recordMedal(medal)
       const next = medals ? nextMedal(medal) : null
-      view.showFinish(ms, isNewBest, medals && { earned: medal, next, nextMs: next && medals[next], best: store.bestMedal() }, lapTimes, deltaMs)
+      view.showFinish(
+        buildResults({
+          ms,
+          isNewBest,
+          previousBest,
+          deltaMs,
+          lapTimes,
+          splits: splits.splits,
+          previousSplits,
+          checkpoints: loop.checkpointCount,
+          laps,
+          medal: medals ? { earned: medal, next, nextMs: next && medals[next], best: store.bestMedal() } : null,
+        }),
+      )
     },
   })
   sim.state = loop.spawn()
@@ -141,6 +167,9 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     },
     get laps() {
       return laps
+    },
+    get resultsShown() {
+      return view.resultsShown
     },
     setLaps(n) {
       nextLaps = n
