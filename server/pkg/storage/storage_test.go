@@ -73,7 +73,7 @@ var _ = Describe("Open", func() {
 		})
 
 		It("records the schema version", func() {
-			Expect(storage.SchemaVersion(ctx, db)).To(Equal(1))
+			Expect(storage.SchemaVersion(ctx, db)).To(Equal(2))
 		})
 
 		It("stores a run and stamps created_at", func() {
@@ -128,11 +128,11 @@ var _ = Describe("Open", func() {
 		})
 
 		It("applies no migration twice", func() {
-			Expect(storage.SchemaVersion(ctx, db)).To(Equal(1))
+			Expect(storage.SchemaVersion(ctx, db)).To(Equal(2))
 			var count int
 			Expect(db.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&count)).
 				To(Succeed())
-			Expect(count).To(Equal(1))
+			Expect(count).To(Equal(2))
 		})
 
 		It("keeps the stored runs", func() {

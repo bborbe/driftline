@@ -17,6 +17,7 @@ import (
 	"github.com/bborbe/driftline/server/pkg/factory"
 	"github.com/bborbe/driftline/server/pkg/origin"
 	"github.com/bborbe/driftline/server/pkg/storage"
+	"github.com/bborbe/driftline/server/pkg/track"
 )
 
 func main() {
@@ -44,6 +45,10 @@ func (a *application) Validate(ctx context.Context) error {
 func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) error {
 	libmetrics.NewBuildInfoMetrics().SetBuildInfo(a.BuildGitVersion, a.BuildGitCommit, a.BuildDate)
 
+	tracks, err := track.Load(ctx)
+	if err != nil {
+		return errors.Wrap(ctx, err, "load track table failed")
+	}
 	db, err := storage.Open(ctx, a.DBPath)
 	if err != nil {
 		return errors.Wrap(ctx, err, "open db failed")
@@ -52,6 +57,6 @@ func (a *application) Run(ctx context.Context, sentryClient libsentry.Client) er
 
 	return service.Run(
 		ctx,
-		factory.CreateHTTPServer(a.Listen, db),
+		factory.CreateHTTPServer(a.Listen, a.Token, a.AllowedOrigin, tracks, db),
 	)
 }

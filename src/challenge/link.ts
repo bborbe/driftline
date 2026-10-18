@@ -151,6 +151,13 @@ const fromBase64Url = (s: string): string => {
   return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))
 }
 
+/** A ghost as plain JSON: start state, packed `keys` (+ `scale`) or numeric runs `r`, lap time. The link and the leaderboard submit share it. */
+export const ghostPayload = (ghost: GhostRun) => ({
+  s: stateArray(ghost.start).map(num),
+  ...(packInputs(ghost.inputs) ?? { r: inputRuns(ghost.inputs).map(num) }),
+  ms: ghost.lapTimeMs,
+})
+
 const pack = (c: Challenge, ghost: GhostRun | null): string =>
   toBase64Url(
     JSON.stringify({
@@ -160,7 +167,7 @@ const pack = (c: Challenge, ghost: GhostRun | null): string =>
       n: c.laps,
       ms: c.targetMs,
       nm: cleanName(c.name),
-      ...(ghost ? { g: { s: stateArray(ghost.start).map(num), ...(packInputs(ghost.inputs) ?? { r: inputRuns(ghost.inputs).map(num) }), ms: ghost.lapTimeMs } } : {}),
+      ...(ghost ? { g: ghostPayload(ghost) } : {}),
     }),
   )
 

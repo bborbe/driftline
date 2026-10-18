@@ -3,3 +3,6 @@
 **/go.sum
 # counterfeiter mocks (go generate)
 server/mocks/
+# generated from the game's tracks (src/leaderboard/server-tables.test.ts)
+server/pkg/track/tracks.json
+server/pkg/run/testdata/golden-run.json

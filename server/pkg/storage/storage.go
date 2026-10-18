@@ -27,6 +27,8 @@ var migrations = []string{
 		created_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 	);
 	CREATE INDEX runs_track_total_ticks ON runs (track, total_ticks);`,
+	// One best run per player per track (SaveBest replaces it in place).
+	`CREATE UNIQUE INDEX runs_player_track ON runs (player, track);`,
 }
 
 // Open opens the SQLite database at path, creating the file if missing, and applies
