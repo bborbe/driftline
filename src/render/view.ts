@@ -303,7 +303,7 @@ export const createView = async (
   const rayDown = new THREE.Vector3()
   const frame = (s: CarState, dt: number, material: Material = 'road', braking = false) => {
     elapsed += dt
-    car.update(s, dt, braking)
+    car.update(s, dt, braking, surface)
     // The road under the car along its own down axis (banks, loops, wallrides): how far the body has lifted off it.
     const bodyDown = rayDown.set(0, -1, 0).applyQuaternion(car.object.quaternion)
     const under = surface.raycast(s.position, bodyDown, 50)

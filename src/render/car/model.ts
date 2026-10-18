@@ -1,7 +1,7 @@
 // The player car view: builds the registry entry chosen at build time and drives its
 // wheel nodes from physics state. Falls back to the box when a model fails to load.
 import * as THREE from 'three/webgpu'
-import { dot, forwardOf, type CarState } from '../../physics'
+import { dot, forwardOf, wheelTravel, type CarState, type Surface } from '../../physics'
 import { STEERED, WHEEL_NODES, type Corner } from '../../car/wheels'
 import { CAR_ID, FALLBACK_CAR, resolveCar } from '../cars'
 import { createBodyFeel, updateBodyFeel } from './body'
@@ -13,8 +13,11 @@ import { spinRate, wheelYaw } from './rig'
 
 export type CarView = {
   object: THREE.Object3D
-  /** Pose the car and its wheels from physics state; dt in seconds; `braking` brightens the tail lights. */
-  update: (s: CarState, dt: number, braking?: boolean) => void
+  /**
+   * Pose the car and its wheels from physics state; dt in seconds; `braking` brightens the tail lights.
+   * With `surface` the wheels and arms follow the suspension; without (the ghost) they hold the rest pose.
+   */
+  update: (s: CarState, dt: number, braking?: boolean, surface?: Surface) => void
   /** Repaint the car (render/car/livery.ts); takes effect on the next frame. */
   setLivery: (l: Livery) => void
 }
@@ -27,7 +30,7 @@ const view = (root: THREE.Object3D, cockpit?: readonly [number, number, number])
   }
   root.traverse((o) => (o.castShadow = true))
   const lights = attachLights(root) // after the shadow pass: lamps and rim rings cast none
-  attachDetail(root, cockpit)
+  const detail = attachDetail(root, cockpit)
   let roll = 0
   let body = createBodyFeel()
   const lean = new THREE.Quaternion()
@@ -36,7 +39,7 @@ const view = (root: THREE.Object3D, cockpit?: readonly [number, number, number])
   return {
     object: root,
     setLivery: (l) => applyLivery(root, l),
-    update: (s, dt, braking = false) => {
+    update: (s, dt, braking = false, surface) => {
       lights.setBraking(braking)
       root.position.set(s.position.x, s.position.y, s.position.z)
       root.quaternion.set(s.orientation.x, s.orientation.y, s.orientation.z, s.orientation.w)
@@ -44,7 +47,10 @@ const view = (root: THREE.Object3D, cockpit?: readonly [number, number, number])
       body = updateBodyFeel(body, s.velocity, s.orientation, dt)
       root.quaternion.multiply(lean.setFromEuler(euler.set(body.pitch.x, 0, body.roll.x)))
       root.position.addScaledVector(up.set(0, 1, 0).applyQuaternion(root.quaternion), body.squat.x)
-      roll += spinRate(dot(s.velocity, forwardOf(s))) * dt
+      const speed = dot(s.velocity, forwardOf(s))
+      roll += spinRate(speed) * dt
+      detail.setSpeed(speed)
+      detail.setTravel(surface ? wheelTravel(s, surface) : undefined)
       for (const [corner, w] of wheels) {
         w.rotation.x = roll
         w.rotation.y = STEERED.includes(corner) ? wheelYaw(s.steerAngle) : 0
