@@ -11,6 +11,8 @@ import { TRACK_WIDTH } from './track/geometry'
 import { DEFAULT_SCENERY } from './theme'
 import { createGenModel, GEN_BUILDINGS, GEN_RADIUS, GEN_TREES, isGen } from './decor/variants'
 import { bakeModel, merged, placement } from './decor/instance'
+import { dressingFootprint, planDressing } from './decor/dressing'
+import { footprintsOverlap, type Footprint } from './decor/footprint'
 
 const MODEL_URLS = import.meta.glob('/assets/nature-kit/*.glb', { query: '?url', import: 'default', eager: true }) as Record<
   string,
@@ -30,6 +32,9 @@ const isRock = (model: string) => model.startsWith('rock') || model.startsWith('
 /** Nothing closer than this to the centreline of a default-width road: half the road, the verge, and room to run wide (clearanceAt for any width). */
 export const CLEARANCE = TRACK_WIDTH / 2 + 8
 const clearanceAt = (width: number): number => width / 2 + 8
+
+/** A prop's footprint half size per unit of scale, turned with it: the widest Nature Kit model is 1.06 units across (rock_largeC). */
+export const FOOTPRINT = 0.53
 
 // mulberry32: tiny deterministic PRNG, so every load places the same scenery.
 const rng = (seed: number) => () => {
@@ -63,6 +68,8 @@ export const planScenery = (
     line.every((p) => (p.x - x) ** 2 + (p.z - z) ** 2 >= (clearanceAt(p.width) + extra) ** 2) &&
     keepClear.every(([kx, kz, kr]) => (kx - x) ** 2 + (kz - z) ** 2 >= (kr + extra) ** 2)
   const props: Prop[] = []
+  // Nothing grows into another prop: the stadium dressing, or a tree, rock or building already placed.
+  const taken: Footprint[] = planDressing(track).map(dressingFootprint)
   const place = (at: number, model: string, off: number, side: number, scale: number, heading: (h: number, side: number) => number, radius: number) => {
     const p = line[Math.floor(at) % line.length]
     // Lateral (left of heading) is (cos h, -sin h) in x/z, as in schema.ts's turn centre.
@@ -71,9 +78,14 @@ export const planScenery = (
     // Nothing on a free-drive pad or its walls: the asphalt stays open.
     if (track.pad && onPad(track.pad, x, z, -(radius + 2))) return undefined
     // Other parts of the lap may pass nearby (hairpins, lap crossings): keep their clearance too.
-    if (!clear(x, z, radius)) return undefined
-    const prop = { model, x, y: 0, z, heading: heading(p.heading, side), scale, at }
+    const turn = heading(p.heading, side)
+    // A generated model's footprint is its GEN_RADIUS square; a kit model's is FOOTPRINT per unit of scale.
+    const half = isGen(model) ? radius : scale * FOOTPRINT
+    const foot: Footprint = { x, z, heading: turn, hx: half, hz: half }
+    if (!clear(x, z, radius) || taken.some((t) => footprintsOverlap(t, foot))) return undefined
+    const prop = { model, x, y: 0, z, heading: turn, scale, at }
     props.push(prop)
+    taken.push(foot)
     return prop
   }
   // Models come off a shuffled deck, reshuffled when empty: every variant shows within each run of len(models) props.

@@ -13,9 +13,10 @@ import { createRails } from './track/rails'
 import { createSigns } from './decor/signs'
 import { createDressing } from './decor/dressing'
 import { createTrackside } from './decor/trackside'
-import { footprints, planTrackside } from './decor/trackside-plan'
+import { planTrackside, sceneryKeepClear } from './decor/trackside-plan'
 import { createStadium } from './decor/stadium'
 import { flat } from './tags'
+import { anisotropy } from './anisotropy'
 import { resolveTheme, skyUrl, type ResolvedTheme } from './theme'
 import { cloudPixels, environmentLook, type CloudLook, type EnvironmentLook } from './environment'
 import { DEFAULT_ENVIRONMENT, trackEnvironment, type Environment } from '../track/environment'
@@ -49,7 +50,7 @@ export const createGround = (grass?: THREE.Texture, tint: THREE.ColorRepresentat
     map.wrapS = map.wrapT = THREE.RepeatWrapping
     map.repeat.set(size / GRASS_TILE, size / GRASS_TILE)
     map.colorSpace = THREE.SRGBColorSpace
-    map.anisotropy = 8
+    map.anisotropy = anisotropy()
   }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(size, size),
@@ -137,7 +138,7 @@ export const createFloodlights = (heads: readonly THREE.Vector3[]): THREE.Group 
  */
 export const createWorld = async (track: Track, theme: ResolvedTheme = resolveTheme(track), grass?: THREE.Texture): Promise<THREE.Group> => {
   const trackside = planTrackside(track)
-  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery, footprints(trackside)), createStadium(track, theme.screen, theme.stand)])
+  const [scenery, stadium] = await Promise.all([createScenery(track, theme.scenery, sceneryKeepClear(track, trackside)), createStadium(track, theme.screen, theme.stand)])
   const curb = theme.curb === undefined ? undefined : new THREE.Color(theme.curb)
   const world = new THREE.Group()
   world.name = 'world'

@@ -1,13 +1,15 @@
 // DOM overlay: race HUD (timer bottom centre, speedometer bottom right, one race-status panel top right with the medal
-// target + delta, lap and checkpoint, split pop-up, checkpoint edge flash), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in
-// the Esc menu), finish panel with name entry, leaderboard, Esc menu. A small "H — controls" hint fades out HINT_MS after the countdown starts.
+// target + delta, lap and checkpoint, split pop-up, checkpoint edge flash), start lights + 3-2-1-GO! countdown, controls help (H,
+// and Controls in the Esc menu), the results card after the finish (#results-card: medal, time, best, delta, splits, name entry,
+// Restart / Next track / Menu), leaderboard, Esc menu. A small "H — controls" hint fades out HINT_MS after the countdown starts.
 // Sizes scale with --hud-scale (Settings → Graphics → HUD scale).
 import './race.css'
 import { menuList, type MenuList } from '../menu/list'
 import { controlsPanel } from './controls'
 import { litTicks, SPEEDO_TICKS, targetDelta, type EffectChip, type Target } from './hud'
 import { loadSettings, SETTINGS_EVENT, type Settings } from '../menu/settings'
-import { formatDelta, MEDAL_LABEL, type Medal } from './medals'
+import { formatDelta, MEDAL_LABEL } from './medals'
+import { RESULTS_HOLD_MS, type MedalResult, type Results } from './results'
 import { formatLapTime, type RaceStore } from './store'
 import { LAMPS, startLamps, type Lamp } from './start-board'
 import { CheckpointFlash } from './checkpoint-flash'
@@ -32,12 +34,7 @@ function replay(e: HTMLElement, cls: string): void {
 /** Sets the race-HUD size multiplier every HUD rule multiplies by. */
 const applyHudScale = (scale: number): void => document.documentElement.style.setProperty('--hud-scale', String(scale))
 
-export interface MedalResult {
-  earned: Medal | null
-  next: Medal | null
-  nextMs: number | null
-  best: Medal | null
-}
+export type { MedalResult } from './results'
 
 /** In-race menu actions (Esc menu and finish panel). */
 export interface MenuActions {
@@ -95,6 +92,11 @@ export class RaceView {
   private readonly splitDelta = el('div', 'race-split-delta')
   private readonly countdown = el('div', 'race-countdown')
   private readonly panel = el('div', 'race-panel')
+  /** The results card; in the DOM only while results are shown. */
+  private readonly card = el('div', 'race-results')
+  private resultsTimer: ReturnType<typeof setTimeout> | undefined
+  /** Hears the results card come and go (main.ts dims the scene behind it). */
+  onResults: ((shown: boolean) => void) | null = null
   private readonly pause = el('div', 'race-pause')
   private readonly split = el('div', 'race-split')
   // Screen-edge glow on each checkpoint / lap-line pass, tinted like the split delta (checkpoint-flash.ts).
@@ -138,6 +140,7 @@ export class RaceView {
     this.speedo.append(gauge, this.time)
     this.split.append(this.splitTime, this.splitDelta)
     document.body.append(this.status, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split, this.effects, this.cpFlash)
+    this.card.id = 'results-card'
     this.effects.hidden = true
     this.split.hidden = true
     this.panel.hidden = true
@@ -206,7 +209,7 @@ export class RaceView {
   /** Arrows / Enter for whichever menu is open; returns true when the key was used. */
   menuKey(code: string, paused: boolean): boolean {
     if (paused) return this.pauseMenu?.key(code) ?? false
-    if (this.panel.hidden || this.typing) return false
+    if ((this.panel.hidden && !this.card.isConnected) || this.typing) return false
     return this.finishMenu?.key(code) ?? false
   }
 
@@ -291,20 +294,44 @@ export class RaceView {
     this.pauseMenu?.focus(0)
   }
 
-  /**
-   * `lapTimeMs` is the run total; `lapTimes` (multi-lap runs) are listed with the best lap marked; `deltaMs` is the
-   * run vs the previous best (blue ahead, red behind), shown under the time instead of as a split pop-up.
-   */
-  showFinish(lapTimeMs: number, isNewBest: boolean, medals?: MedalResult, lapTimes: number[] = [], deltaMs: number | null = null): void {
+  /** True while the results card is up (or about to come in after the finish orbit). */
+  get resultsShown(): boolean {
+    return this.card.isConnected || this.resultsTimer !== undefined
+  }
+
+  /** The finish: the orbit plays clear of the HUD for RESULTS_HOLD_MS, then the results card comes in. */
+  showFinish(r: Results): void {
     this.showSplit(null)
-    this.panel.hidden = false
-    this.panel.replaceChildren(el('h2', isNewBest ? 'race-record' : '', `${isNewBest ? 'NEW BEST! ' : ''}${formatLapTime(lapTimeMs)}`))
-    replay(this.panel, 'race-panel-in')
-    if (deltaMs !== null) this.panel.append(el('div', `race-split-delta ${Math.round(deltaMs) < 0 ? 'race-ahead' : 'race-behind'}`, formatDelta(deltaMs)))
-    if (lapTimes.length > 1) this.panel.append(lapList(lapTimes))
-    if (medals) this.panel.append(medalLine(medals))
-    if (!this.store.qualifies(lapTimeMs)) {
-      this.panel.append(this.board(), this.finishActions())
+    clearTimeout(this.resultsTimer)
+    this.resultsTimer = setTimeout(() => {
+      this.resultsTimer = undefined
+      this.showResults(r)
+    }, RESULTS_HOLD_MS)
+  }
+
+  private showResults(r: Results): void {
+    const c = this.card
+    c.replaceChildren()
+    const medal = r.medal?.earned ?? null
+    const head = el('div', 'race-results-head')
+    if (r.medal) head.append(el('span', `race-results-medal race-medal-${medal ?? 'none'}`, medal ? MEDAL_LABEL[medal] : 'NO MEDAL'))
+    const time = el('div', 'race-results-time')
+    if (r.isNewBest) time.append(el('div', 'race-record', 'NEW BEST!'))
+    time.append(el('h2', '', formatLapTime(r.ms)))
+    head.append(time)
+    c.append(head)
+    const row = el('div', 'race-results-row')
+    row.append(el('span', 'race-results-best', r.previousBest === null ? 'FIRST FINISH' : `BEST ${formatLapTime(r.previousBest)}`))
+    if (r.deltaMs !== null) row.append(el('span', `race-split-delta ${Math.round(r.deltaMs) < 0 ? 'race-ahead' : 'race-behind'}`, formatDelta(r.deltaMs)))
+    c.append(row)
+    if (r.lapTimes.length > 1) c.append(lapList(r.lapTimes))
+    if (r.splits.length > 0) c.append(splitTable(r))
+    if (r.medal) c.append(medalLine(r.medal))
+    document.body.append(c)
+    replay(c, 'race-results-in')
+    this.onResults?.(true)
+    if (!this.store.qualifies(r.ms)) {
+      c.append(this.finishActions())
       return
     }
     const name = document.createElement('input')
@@ -312,36 +339,49 @@ export class RaceView {
     name.value = this.store.lastName()
     name.placeholder = 'NAME'
     this.typing = true
+    const entry = el('div', 'race-results-entry')
     name.addEventListener('keydown', (e) => {
       e.stopPropagation()
       if (e.key !== 'Enter') return
-      this.store.addToLeaderboard(name.value, lapTimeMs)
+      this.store.addToLeaderboard(name.value, r.ms)
       this.typing = false
-      this.panel.replaceChildren(el('h2', '', formatLapTime(lapTimeMs)), this.board(lapTimeMs), this.finishActions())
+      const rank = this.store.leaderboard().findIndex((x) => x.lapTimeMs === r.ms) + 1
+      entry.replaceChildren(el('p', 'race-mine', `#${rank} on board — ${name.value.toUpperCase() || 'ANON'}`))
+      c.append(this.finishActions())
     })
-    this.panel.append(el('p', '', 'Top 10! Enter your name:'), name)
+    entry.append(el('p', '', 'Top 10! Enter your name:'), name)
+    c.append(entry)
     name.focus()
   }
 
   hideFinish(): void {
+    clearTimeout(this.resultsTimer)
+    this.resultsTimer = undefined
+    const shown = this.card.isConnected
+    this.card.remove()
     this.panel.hidden = true
     this.typing = false
     this.finishMenu = null
+    if (shown) this.onResults?.(false)
   }
 
-  /** Improve (= restart) and Next track; plain hint when there are no menu actions. */
+  /** Restart (primary), Next track and Menu; plain hint when there are no menu actions. */
   private finishActions(): HTMLElement {
     const a = this.actions
     if (!a) return el('p', '', 'Backspace to race again')
-    this.finishMenu = menuList([
-      { label: 'Improve', action: () => a.restart() },
-      { label: 'Next track', action: () => a.nextTrack() },
-      { label: 'Back to menu', action: () => a.backToMenu() },
-    ])
+    this.finishMenu = menuList(
+      [
+        { label: 'Restart', action: () => a.restart() },
+        { label: 'Next track', action: () => a.nextTrack() },
+        { label: 'Menu', action: () => a.backToMenu() },
+      ],
+      'menu-list race-results-actions',
+    )
     return this.finishMenu.element
   }
 
   toggleLeaderboard(): void {
+    if (this.resultsShown) return
     if (!this.panel.hidden) return this.hideFinish()
     this.finishMenu = null
     this.panel.replaceChildren(this.board(), el('p', '', 'L to close'))
@@ -371,6 +411,22 @@ function lapList(lapTimes: number[]): HTMLElement {
   const ol = el('ol', 'race-laps')
   lapTimes.forEach((ms, i) => ol.append(el('li', ms === best ? 'race-mine' : '', `LAP ${i + 1}  ${formatLapTime(ms)}${ms === best ? '  BEST' : ''}`)))
   return ol
+}
+
+/** One row per checkpoint and lap line: label, run time, delta vs the previous best (blue ahead, red behind). */
+function splitTable(r: Results): HTMLElement {
+  const table = el('table', 'race-results-splits')
+  const head = el('tr', '')
+  head.append(el('th', '', 'CP'), el('th', '', 'SPLIT'), el('th', '', 'VS PB'))
+  table.append(head)
+  for (const s of r.splits) {
+    const tr = el('tr', '')
+    tr.dataset.split = s.label
+    const d = s.deltaMs
+    tr.append(el('td', '', s.label), el('td', '', formatLapTime(s.ms)), el('td', d === null ? '' : Math.round(d) < 0 ? 'race-ahead' : 'race-behind', d === null ? '—' : formatDelta(d)))
+    table.append(tr)
+  }
+  return table
 }
 
 function medalLine(m: MedalResult): HTMLElement {

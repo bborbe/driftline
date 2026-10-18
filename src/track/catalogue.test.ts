@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { CAMPAIGN, menuOrder, nextInGroup, recordName, resolveAlias, STYLES, TEST_TRACKS, TIERS, trackGroups } from './catalogue'
+import { CAMPAIGN, menuGroups, menuOrder, nextInGroup, recordName, resolveAlias, STYLES, TEST_TRACKS, TIERS, trackGroups } from './catalogue'
 
 const shipped = readdirSync(new URL('../../assets/track/', import.meta.url))
   .filter((f) => f.endsWith('.json') && f !== 'pieces.json')
@@ -74,5 +74,15 @@ describe('track catalogue', () => {
   it('every listed test track ships, and ≥ 5 single-feature test tracks exist', () => {
     for (const t of TEST_TRACKS) expect(shipped).toContain(t)
     expect(shipped.filter((n) => n.startsWith('test-')).length).toBeGreaterThanOrEqual(5)
+  })
+})
+
+describe('menuGroups', () => {
+  const shipped = ['crossover', 'switchback', 'test1', 'test-ramp']
+  it('hides the Test group without ?dev=1', () => {
+    expect(menuGroups(shipped, false).map((g) => g.id)).toEqual(['campaign', 'styles'])
+  })
+  it('shows the Test group with ?dev=1', () => {
+    expect(menuGroups(shipped, true).map((g) => g.id)).toEqual(['campaign', 'styles', 'test'])
   })
 })

@@ -4,6 +4,7 @@
 // and banners print from one canvas atlas and bake into one mesh; posts and fences bake into a second
 // vertex-coloured mesh; patches are flat decals over the ground. Visual only: physics never sees them.
 import * as THREE from 'three/webgpu'
+import { anisotropy } from '../anisotropy'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
 import { flat, noCollide, structural } from '../tags'
 import { merged, placement, prepared } from './instance'
@@ -96,7 +97,7 @@ const atlasTexture = (accent: string): THREE.CanvasTexture => {
   drawAtlas(canvas.getContext('2d')!, accent)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 8
+  tex.anisotropy = anisotropy()
   return tex
 }
 

@@ -5,6 +5,7 @@
 // Render-only; repainting redraws the one canvas texture, so a Settings change shows at once.
 import * as THREE from 'three/webgpu'
 import { WHEEL_NODES } from '../../car/wheels'
+import { anisotropy } from '../anisotropy'
 import { isDetail } from './detail'
 import { bandRange, drawLivery, type Band, type Draw2D, type Livery } from './livery'
 
@@ -174,7 +175,7 @@ export const applyLivery = (root: THREE.Object3D, livery: Livery, makeCanvas: ()
     canvas.height = LIVERY_SIZE
     const texture = new THREE.CanvasTexture(canvas as unknown as HTMLCanvasElement)
     texture.colorSpace = THREE.SRGBColorSpace
-    texture.anisotropy = 4
+    texture.anisotropy = anisotropy()
     const material = new THREE.MeshPhysicalMaterial({ map: texture, clearcoat: 1, roughness: 0.35, name: 'livery' })
     root.updateMatrixWorld(true)
     const body: THREE.Mesh[] = []

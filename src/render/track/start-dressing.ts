@@ -7,6 +7,7 @@ import * as THREE from 'three/webgpu'
 import type { Band, Lamp, StartBoard } from '../../race/start-board'
 import { LAMPS } from '../../race/start-board'
 import { gateLine, gatePillars, type Pose, type Track } from '../../track/schema'
+import { anisotropy } from '../anisotropy'
 import { flat } from '../tags'
 import { planPieces } from './kenney-plan'
 import { ZONE_LIFT } from './zones'
@@ -44,7 +45,7 @@ const canvasTexture = (w: number, h: number): [HTMLCanvasElement, CanvasRenderin
   if (!ctx) throw new Error('start dressing: no 2d canvas context')
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 8
+  tex.anisotropy = anisotropy()
   return [canvas, ctx, tex]
 }
 

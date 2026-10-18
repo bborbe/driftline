@@ -5,6 +5,9 @@
 import { centreline } from '../../track/centreline'
 import { onPad, segmentLength, turnSign, type Segment, type Track } from '../../track/schema'
 import { planDressing, type DressingKind } from './dressing'
+import { gateLegs, gatePillars } from '../../track/shapes'
+import { BOARD as CHEVRON, planSigns } from './signs'
+import { planStadium } from './stadium'
 
 /** A printed board standing at (x, y, z), its face looking toward `heading` (0 = +z). */
 export type Board = { kind: 'brake-100' | 'brake-50' | 'corner'; label: number; x: number; y: number; z: number; heading: number }
@@ -31,7 +34,9 @@ export const BOARD_SLIDE = 3
 /** Nothing stands within this of any road at its level, past that road's own edge: the curb and a margin. */
 export const EDGE_CLEAR = 1.5
 /** Lateral distances past the road edge, metres. Patches start past the flag rows (dressing.ts FLAG_EDGE 4). */
-export const OFFSET = { board: 2.7, banner: 6, marshal: 9, fence: 11, patchMin: 5.5, patchMax: 12 } as const
+export const OFFSET = { board: 2.8, banner: 6, marshal: 9, fence: 11, patchMin: 5.5, patchMax: 12 } as const
+/** How far each item reaches from its centre, metres: what placement keeps clear and footprints() reports. */
+export const REACH = { board: 1.2, bannerEnd: 0.5, marshal: 2.5, fence: 0.6 } as const
 /** Roads more than this far above or below an item do not block it. */
 const LEVEL = 4
 /** Nothing stands beside road higher than this (decks, ramp tops): it would hang over the void. */
@@ -88,15 +93,25 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
   /** Facing the road from a point placed `u` metres to the side. */
   const facingRoad = (heading: number, u: number) => Math.atan2(-Math.sign(u) * Math.cos(heading), Math.sign(u) * Math.sin(heading))
   /** The stadium dressing's props (flag rows, totems, start screen) as footprints: nothing lands on them. */
-  const dressing = planDressing(track).map((d) => [d.x, d.z, DRESSING_REACH[d.kind]] as const)
+  const dressing: (readonly [number, number, number])[] = [
+    ...planDressing(track).map((d) => [d.x, d.z, DRESSING_REACH[d.kind]] as const),
+    // Start and checkpoint arch pillars (and the legs under an elevated arch), and the turn / turbo boards (signs.ts).
+    ...track.gates.flatMap((g) => [...gatePillars(track, g), ...gateLegs(track, g)].map((q) => [q.x, q.z, Math.hypot(q.halfWidth, q.halfDepth)] as const)),
+    ...planSigns(track).map((q) => [q.x, q.z, CHEVRON.width / 2 + 0.3] as const),
+  ]
+  const plan: TracksidePlan = { boards: [], banners: [], marshals: [], fences: [], patches: [] }
+  /** Footprints of what is already planned, kept up to date by mark() (footprints() of one item at a time). */
+  const placed: [number, number, number][] = []
+  const mark = (part: Partial<TracksidePlan>) => placed.push(...footprints({ boards: [], banners: [], marshals: [], fences: [], patches: [], ...part }))
   /** Clear of every road at its level by EDGE_CLEAR + r, on the ground, off any free-drive pad and dressing prop. */
   const clear = (x: number, y: number, z: number, r: number) =>
     y < GROUND &&
     !(track.pad && onPad(track.pad, x, z, -(r + 2))) &&
     dressing.every(([dx, dz, dr]) => Math.hypot(dx - x, dz - z) >= dr + r) &&
+    // Nor on what this plan has already placed (a neighbouring corner's banner, fence or marshal post).
+    placed.every(([px, pz, pr]) => Math.hypot(px - x, pz - z) >= pr + r) &&
     line.every((c) => Math.abs(c.y - y) > LEVEL || Math.hypot(c.x - x, c.z - z) - c.width / 2 >= EDGE_CLEAR + r)
 
-  const plan: TracksidePlan = { boards: [], banners: [], marshals: [], fences: [], patches: [] }
   const cs = corners(track)
   for (const c of cs) {
     const out = -c.side // the outside of the turn is away from its centre
@@ -109,8 +124,10 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
         const d = d0 + nudge
         const p = at(d)
         const s = beside(d, out * (p.width / 2 + OFFSET.board))
-        if (!clear(s.x, s.y, s.z, 1)) continue
-        plan.boards.push({ kind, label, x: s.x, y: s.y, z: s.z, heading: p.heading + Math.PI })
+        if (!clear(s.x, s.y, s.z, REACH.board)) continue
+        const board: Board = { kind, label, x: s.x, y: s.y, z: s.z, heading: p.heading + Math.PI }
+        plan.boards.push(board)
+        mark({ boards: [board] })
         break
       }
     }
@@ -118,8 +135,10 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
     for (let d = c.entry - Math.min(12, Math.max(0, approach - 2)); d <= c.entry + 4; d += 2) {
       const p = at(d)
       const s = beside(d, out * (p.width / 2 + OFFSET.board))
-      if (!clear(s.x, s.y, s.z, 1)) continue
-      plan.boards.push({ kind: 'corner', label: c.label, x: s.x, y: s.y, z: s.z, heading: p.heading + Math.PI })
+      if (!clear(s.x, s.y, s.z, REACH.board)) continue
+      const board: Board = { kind: 'corner', label: c.label, x: s.x, y: s.y, z: s.z, heading: p.heading + Math.PI }
+      plan.boards.push(board)
+      mark({ boards: [board] })
       break
     }
     // A banner at the apex and a fence along the outside of the arc.
@@ -130,23 +149,28 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
       const bp = at(d)
       const bu = out * (bp.width / 2 + OFFSET.banner)
       const b = beside(d, bu)
-      if (!clear(b.x, b.y, b.z, 4.5)) continue
-      plan.banners.push({ variant: (c.label % 2) as 0 | 1, x: b.x, y: b.y, z: b.z, heading: facingRoad(bp.heading, bu), length: 8 })
+      if (!clear(b.x, b.y, b.z, 8 / 2 + REACH.bannerEnd)) continue
+      const banner: Banner = { variant: (c.label % 2) as 0 | 1, x: b.x, y: b.y, z: b.z, heading: facingRoad(bp.heading, bu), length: 8 }
+      plan.banners.push(banner)
+      mark({ banners: [banner] })
       mid = d
       break
     }
     let run: [number, number][] = []
     let runY = 0
     const flush = () => {
-      if (run.length >= 2) plan.fences.push({ y: runY, points: run })
+      if (run.length >= 2) {
+        plan.fences.push({ y: runY, points: run })
+        mark({ fences: [{ y: runY, points: run }] })
+      }
       run = []
     }
     for (let d = c.entry; d <= c.exit; d += 4) {
       const p = at(d)
       const f = beside(d, out * (p.width / 2 + OFFSET.fence))
       // Keep the banner's span open: the fence runs behind it, not through it.
-      const nearBanner = Math.abs(d - mid) < 6
-      if (!nearBanner && clear(f.x, f.y, f.z, 0.5)) {
+      const nearBanner = Math.abs(d - mid) < 6 || plan.banners.some((bn) => Math.hypot(bn.x - f.x, bn.z - f.z) < bn.length / 2 + 1)
+      if (!nearBanner && clear(f.x, f.y, f.z, REACH.fence)) {
         if (run.length === 0) runY = 0 // fences stand on the ground
         run.push([f.x, f.z])
       } else flush()
@@ -156,7 +180,11 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
     const mp = at(c.exit + 6)
     const mu = out * (mp.width / 2 + OFFSET.marshal)
     const m = beside(c.exit + 6, mu)
-    if (clear(m.x, m.y, m.z, 1.8)) plan.marshals.push({ x: m.x, y: 0, z: m.z, heading: facingRoad(mp.heading, mu) })
+    if (clear(m.x, m.y, m.z, REACH.marshal)) {
+      const marshal: MarshalPost = { x: m.x, y: 0, z: m.z, heading: facingRoad(mp.heading, mu) }
+      plan.marshals.push(marshal)
+      mark({ marshals: [marshal] })
+    }
   }
   // Colour patches along the verge, at irregular intervals, either side.
   const rand = rng(seed)
@@ -175,10 +203,22 @@ export const planTrackside = (track: Track, seed = 11): TracksidePlan => {
   return plan
 }
 
-/** Every planned item as a footprint circle (x, z, r): what scenery keeps clear of. */
+/** Every planned item as footprint circles (x, z, r), fence spans sampled every metre. */
 export const footprints = (plan: TracksidePlan): [number, number, number][] => [
-  ...plan.boards.map((b): [number, number, number] => [b.x, b.z, 1]),
-  ...plan.banners.map((b): [number, number, number] => [b.x, b.z, b.length / 2]),
-  ...plan.marshals.map((m): [number, number, number] => [m.x, m.z, 1.8]),
-  ...plan.fences.flatMap((f) => f.points.map(([x, z]): [number, number, number] => [x, z, 0.5])),
+  ...plan.boards.map((b): [number, number, number] => [b.x, b.z, REACH.board]),
+  ...plan.banners.map((b): [number, number, number] => [b.x, b.z, b.length / 2 + REACH.bannerEnd]),
+  ...plan.marshals.map((m): [number, number, number] => [m.x, m.z, REACH.marshal]),
+  ...plan.fences.flatMap((f) =>
+    f.points.slice(1).flatMap(([x1, z1], i) => {
+      const [x0, z0] = f.points[i]
+      const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0)))
+      return Array.from({ length: n + 1 }, (_, k): [number, number, number] => [x0 + ((x1 - x0) * k) / n, z0 + ((z1 - z0) * k) / n, REACH.fence])
+    }),
+  ),
+]
+
+/** What scenery (scenery.ts) keeps clear of: the trackside dressing and the stadium ring (stadium.ts), as circles. */
+export const sceneryKeepClear = (track: Track, plan: TracksidePlan): [number, number, number][] => [
+  ...footprints(plan),
+  ...planStadium(track).map((p): [number, number, number] => [p.x, p.z, p.model === 'screen' ? 14 : p.scale * 0.75]),
 ]

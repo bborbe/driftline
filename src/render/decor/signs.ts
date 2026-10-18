@@ -4,11 +4,13 @@
 import * as THREE from 'three/webgpu'
 import { centreline } from '../../track/centreline'
 import { poses, turnSign, zoneCorners, type Track } from '../../track/schema'
-import { padForward } from '../../track/shapes'
+import { gateLegs, gatePillars, padForward } from '../../track/shapes'
 import { SIGN_BLACK, SIGN_YELLOW } from '../look'
+import { anisotropy } from '../anisotropy'
 import { noCollide, structural } from '../tags'
 import { lateralPoint, sampleSegment, segmentLength, TRACK_WIDTH } from '../track/geometry'
 import { widthAt } from '../../track/pose'
+import { footprintsOverlap, type Footprint } from './footprint'
 import { merged, placement, prepared } from './instance'
 
 export type SignKind = 'left' | 'right' | 'turbo' | 'turbo-red'
@@ -21,6 +23,14 @@ export const SIGN_OFFSET = TRACK_WIDTH / 2 + SIGN_EDGE
 /** No board within this distance of any road at a similar height (hairpins, crossings), beyond that road's half width (SIGN_CLEARANCE on a default-width one). */
 export const SIGN_CLEAR_EDGE = 1
 export const SIGN_CLEARANCE = TRACK_WIDTH / 2 + SIGN_CLEAR_EDGE
+/** Neither end of a board comes within this distance of any road at a similar height, beyond its half width: the board never reaches over the asphalt. */
+export const SIGN_END_CLEAR = 0.15
+/**
+ * A board that would stand in another object (an arch pillar) or reach over a road steps along its own
+ * road (SIGN_NUDGE) and away from the nearest road (SIGN_STEP_OUT), in metres, before it is left out.
+ */
+export const SIGN_NUDGE: readonly number[] = [0, 1, -1, 2, -2, 3, -3, 4, -4]
+export const SIGN_STEP_OUT: readonly number[] = [0, 0.25, 0.5]
 /** Turbo boards also stand this many metres before each pad's entry. */
 export const PRE_PAD_DISTANCE = 12
 /** One chevron board per this many metres of turn, at most MAX_TURN_SIGNS per turn. */
@@ -37,8 +47,32 @@ export const GROUND_LEVEL = 1
 
 export const planSigns = (track: Track): Sign[] => {
   const line = centreline(track, 1)
+  // The board spans BOARD.width across its face (local x is (cos h, -sin h)): its centre keeps
+  // SIGN_CLEAR_EDGE off every road at its level, and both ends stay off the asphalt.
+  const ends = (s: Sign): [number, number][] => [-1, 1].map((k) => [s.x + Math.cos(s.heading) * k * (BOARD.width / 2), s.z - Math.sin(s.heading) * k * (BOARD.width / 2)])
   const clear = (s: Sign) =>
-    line.every((c) => Math.abs(c.y - s.y) > LEVEL || (c.x - s.x) ** 2 + (c.z - s.z) ** 2 >= (c.width / 2 + SIGN_CLEAR_EDGE) ** 2)
+    line.every(
+      (c) =>
+        Math.abs(c.y - s.y) > LEVEL ||
+        ((c.x - s.x) ** 2 + (c.z - s.z) ** 2 >= (c.width / 2 + SIGN_CLEAR_EDGE) ** 2 && ends(s).every(([x, z]) => (c.x - x) ** 2 + (c.z - z) ** 2 >= (c.width / 2 + SIGN_END_CLEAR) ** 2)),
+    )
+  // Arch pillars (and the legs under an elevated arch) stand right at the road edge, where boards do.
+  const pillars = track.gates.flatMap((g) => [...gatePillars(track, g), ...gateLegs(track, g)])
+  const free = (s: Sign) => pillars.every((p) => !footprintsOverlap(signFootprint(s), { x: p.x, z: p.z, heading: p.heading, hx: p.halfWidth, hz: p.halfDepth }))
+  // The first spot along the board's own road (its face normal, local z), then stepped away from the
+  // nearest road at its level, that is clear and free; else none.
+  const place = (s: Sign): Sign[] => {
+    for (const d of SIGN_NUDGE) {
+      const along = { ...s, x: s.x + Math.sin(s.heading) * d, z: s.z + Math.cos(s.heading) * d }
+      const near = line.filter((c) => Math.abs(c.y - s.y) <= LEVEL).reduce((a, c) => ((c.x - along.x) ** 2 + (c.z - along.z) ** 2 < (a.x - along.x) ** 2 + (a.z - along.z) ** 2 ? c : a), line[0])
+      const gap = Math.hypot(along.x - near.x, along.z - near.z) || 1
+      for (const o of SIGN_STEP_OUT) {
+        const at = { ...along, x: along.x + ((along.x - near.x) / gap) * o, z: along.z + ((along.z - near.z) / gap) * o }
+        if (clear(at) && free(at)) return [at]
+      }
+    }
+    return []
+  }
   const signs: Sign[] = []
   const ps = poses(track)
   track.segments.forEach((seg, i) => {
@@ -71,7 +105,13 @@ export const planSigns = (track: Track): Sign[] => {
       signs.push({ kind: zone.kind, x: c.x - fx * PRE_PAD_DISTANCE, y: c.y, z: c.z - fz * PRE_PAD_DISTANCE, heading: Math.atan2(fx, fz) + Math.PI })
     }
   }
-  return signs.filter(clear)
+  return signs.flatMap(place)
+}
+
+/** A board and the posts just behind it, in plan (posts POST.size thick, at local -z). */
+export const signFootprint = (s: Sign): Footprint => {
+  const back = BOARD.depth + POST.size
+  return { x: s.x - Math.sin(s.heading) * (back / 2 - BOARD.depth / 2), z: s.z - Math.cos(s.heading) * (back / 2 - BOARD.depth / 2), heading: s.heading, hx: BOARD.width / 2, hz: back / 2 }
 }
 
 /** Board size and the height of its lower edge over the road edge, in metres. Board and posts stay above MIN_THICKNESS (render/lint.ts). */
@@ -133,7 +173,7 @@ const atlasTexture = (accent: string): THREE.CanvasTexture => {
   g.fillRect(0, KINDS.length * FACE.h, FACE.w, FACE.h)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 8
+  tex.anisotropy = anisotropy()
   return tex
 }
 
