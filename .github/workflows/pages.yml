@@ -15,8 +15,10 @@ on:
 
 permissions: {}
 
-# A queued run replaces an older queued one, so every run builds from the live heads (plan job)
-# and fork-PR runs, which deploy nothing, stay out of the group.
+# One group, so two deploy-pages calls never overlap; cancel-in-progress false, so a running deploy is
+# never cut. A queued run replaces an older queued one (a push run shows `cancelled` then), which is
+# safe because every run builds root from master's live head (plan job), not from github.sha: the
+# replacement deploys the newer master. Fork-PR runs, which deploy nothing, stay out of the group.
 concurrency:
   group: ${{ (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) && format('pages-skip-{0}', github.run_id) || 'pages' }}
   cancel-in-progress: false
@@ -45,6 +47,7 @@ jobs:
             [.[] | {name: "pr-\(.n)", ref: .sha, base: "/driftline/pr-\(.n)/"}]' <<<"$prs")
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "$targets" | jq .
+          echo "Root builds master \`$master\` (live head at plan time; covers any cancelled push run before it)." >> "$GITHUB_STEP_SUMMARY"
 
   build:
     needs: plan
@@ -72,9 +75,6 @@ jobs:
       - name: Install
         # No lifecycle scripts for PR code: it runs with the Actions runtime token in master's cache scope.
         run: npm ci ${{ matrix.target.name != 'root' && '--ignore-scripts' || '' }}
-      - name: Test
-        if: matrix.target.name == 'root'
-        run: npm test
       - name: Build
         # --base on the command line wins over the PR's vite.config.ts, also for branches cut before VITE_BASE existed.
         run: npx tsc && npx vite build --base "$VITE_BASE"
