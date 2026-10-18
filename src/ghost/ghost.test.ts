@@ -48,6 +48,16 @@ describe('ghost', () => {
     expect(travelled(live)).toBeGreaterThan(50) // sanity: the lap actually moved the car
   })
 
+  it('hands every kept lap to onKeep, not only a new best', () => {
+    const rec = new GhostRecorder()
+    const kept: number[] = []
+    rec.onKeep = (run) => kept.push(run.lapTimeMs)
+    driveLap(rec, createCar(), 500, 5_000, steady)
+    driveLap(rec, createCar(), 600, 6_000, steady)
+    expect(kept).toEqual([5_000, 6_000])
+    expect(rec.best!.lapTimeMs).toBe(5_000)
+  })
+
   it('keeps the session\'s fastest lap, not the latest', () => {
     const rec = new GhostRecorder()
     driveLap(rec, createCar(), 6000, 60_000, steady)

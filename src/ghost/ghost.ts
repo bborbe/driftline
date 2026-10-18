@@ -25,6 +25,8 @@ export class GhostRecorder {
   best: GhostRun | null = null
   /** While true (a dev-tuned run, src/debug/tuning.ts) finished laps are dropped, never kept as the ghost. */
   locked: () => boolean = () => false
+  /** Hears every finished lap the recorder keeps, not only a new best (the online leaderboard submits it, src/leaderboard). */
+  onKeep: ((run: GhostRun) => void) | null = null
 
   // Race listener; `car` returns the sim state at the moment the event fires.
   listener(car: () => CarState): RaceEvents {
@@ -118,7 +120,9 @@ export class GhostRecorder {
 
   private keep(start: CarState, inputs: CarInput[], finish: Finish): void {
     if (this.locked()) return
-    if (!this.best || finish.lapTimeMs < this.best.lapTimeMs) this.best = { start, inputs, lapTimeMs: finish.lapTimeMs }
+    const run = { start, inputs, lapTimeMs: finish.lapTimeMs }
+    if (!this.best || run.lapTimeMs < this.best.lapTimeMs) this.best = run
+    this.onKeep?.(run)
   }
 }
 

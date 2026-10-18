@@ -215,6 +215,14 @@
 .race-records h4 { margin: var(--s2) 0 var(--s1); font-size: 0.85em; letter-spacing: 0.08em; color: var(--hud-muted); }
 .race-records-top li { color: #e8f2ff; }
 .race-rec-empty { color: var(--hud-muted); }
+/* Online leaderboard (src/leaderboard): TOP 5 / GLOBAL tabs, the only clickable part of the records panel, and the
+   results card's global top 10 (own row highlighted with .race-mine). */
+.race-rec-tabs { display: flex; gap: var(--s3); }
+.race-rec-tab { pointer-events: auto; cursor: pointer; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; color: var(--hud-muted); }
+.race-rec-tab-on { color: #fff; text-decoration: underline; }
+.race-results-global h4 { margin: var(--s1) 0; font-size: 0.85em; letter-spacing: 0.08em; color: var(--hud-muted); }
+.race-results-global ol { margin: 0; padding: 0; list-style: none; text-align: left; }
+.race-results-global li { display: flex; justify-content: space-between; gap: var(--s3); }
 /* Results card (#results-card, operator pick 2026-10-18: centred card ≤ 440 px): medal badge + time, best + delta,
    split table vs PB, name entry, Restart / Next track / Menu. Sits above the #fade dimmer (render/fade.ts). */
 .race-results {

@@ -212,11 +212,12 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     num.value = String(s.livery.number)
   })
   add('number', label('Race number'), num)
-  // The player's name (leaderboard and challenge links); typing must not reach the race keys.
+  // The player's name (local and online leaderboard, challenge links); typing must not reach the race keys.
+  // The online board stores it sanitised to the server's rule (src/leaderboard/client.ts sanitizeName).
   const name = Object.assign(document.createElement('input'), { type: 'text', maxLength: MAX_NAME, placeholder: 'NAME', value: loadPlayerName(localStorage), id: 'setting-name' })
   name.addEventListener('keydown', (e) => e.stopPropagation())
   name.addEventListener('input', () => savePlayerName(localStorage, name.value))
-  add('name', label('Name (challenge links)'), name)
+  add('name', label('Name (leaderboard, challenge links)'), name)
   return tabbed(controls)
 }
 
