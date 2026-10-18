@@ -124,8 +124,10 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
       s.ghosts = GHOST_KINDS.filter((x) => (x === k ? cb.checked : s.ghosts.includes(x)))
       commit()
     })
-    const name = Object.assign(document.createElement('label'), { htmlFor: cb.id, textContent: GHOST_NAME[k] })
-    ghosts.append(cb, name)
+    // Box and name in one label, so a narrow panel wraps them together.
+    const name = Object.assign(document.createElement('label'), { className: 'menu-ghost' })
+    name.append(cb, GHOST_NAME[k])
+    ghosts.append(name)
   }
   add('ghosts', label('Ghosts'), ghosts)
   const time = document.createElement('select')

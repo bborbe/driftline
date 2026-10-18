@@ -76,3 +76,6 @@
 .menu-preview-medals td:nth-child(n + 2) { text-align: right; }
 .menu-preview-medals .race-ahead { color: #7fb0ff; } .menu-preview-medals .race-behind { color: #ff7a7a; }
 .menu-race-button { align-self: flex-start; background: #fff; color: #111; }
+/* Settings → Race → Ghosts: one checkbox per ghost, each with its name. */
+.menu-ghosts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.menu-ghost { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
