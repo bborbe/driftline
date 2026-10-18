@@ -29,7 +29,7 @@ export const PAD_DRIVE = {
   steerAxis: 0,
   throttle: PAD.RT,
   brake: PAD.LT,
-  handbrake: [PAD.A, PAD.RB],
+  handbrake: [PAD.A],
 } as const
 
 /**
@@ -51,7 +51,7 @@ export interface PadBinding {
   action: string
 }
 
-/** Button → key, per context. Driving buttons (triggers, A / RB handbrake) are in PAD_DRIVE. */
+/** Button → key, per context. Driving buttons (triggers, A handbrake) are in PAD_DRIVE. */
 export const PAD_BINDINGS: PadBinding[] = [
   { button: PAD.A, name: 'A', menu: 'Enter', action: 'Menus: select / start' },
   { button: PAD.B, name: 'B', race: 'respawn', menu: 'Escape', action: 'Respawn at last checkpoint · menus: back' },

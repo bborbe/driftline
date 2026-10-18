@@ -22,7 +22,7 @@ describe('gamepad group', () => {
   const pad = CONTROLS.find((g) => g.title === 'Gamepad')!.bindings.map((b) => `${b.keys}: ${b.action}`).join(' | ')
 
   // Every pad binding (src/gamepad.ts PAD_DRIVE + PAD_BINDINGS).
-  it.each(['Left stick: Steer', 'RT: Accelerate', 'LT: Brake', 'A / RB: Handbrake', 'B: Respawn', 'Y: Restart', 'MENU', 'View: Next camera', 'D-pad / left stick: Menus'])(
+  it.each(['Left stick: Steer', 'RT: Accelerate', 'LT: Brake', 'A: Handbrake', 'B: Respawn', 'Y: Restart', 'MENU', 'View: Next camera', 'D-pad / left stick: Menus'])(
     'lists %s',
     (row) => {
       expect(pad.toLowerCase()).toContain(row.toLowerCase())
