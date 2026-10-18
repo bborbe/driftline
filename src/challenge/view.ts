@@ -33,7 +33,7 @@ export function showChallengeError(reason: string): HTMLElement {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
-/** A short note at the bottom of the screen ("Challenge link copied"). */
+/** A short note at the top of the screen ("Challenge link copied"), above the results card. */
 export function challengeToast(text: string): void {
   let t = document.getElementById('challenge-toast')
   if (!t) {
@@ -62,8 +62,7 @@ const TAG_HEIGHT = 0.045 // screen-size sprite (sizeAttenuation off): about 4 % 
 
 /**
  * A name label over the ghost car: a sprite in the scene, drawn on top and the same size at any distance. It follows
- * the ghost by copying its position each frame, so no DOM is touched per frame (a per-frame style write cost ~17 % fps
- * uncapped).
+ * the ghost by copying its position each frame, so no DOM is touched per frame.
  */
 export function createGhostTag(name: string, scene: THREE.Object3D): { update(ghost: THREE.Object3D): void } {
   const canvas = document.createElement('canvas')
