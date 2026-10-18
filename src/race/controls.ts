@@ -29,6 +29,7 @@ export const CONTROLS: ControlGroup[] = [
       { keys: 'Backspace', action: 'Restart the run' },
       { keys: 'Esc', action: 'Pause menu' },
       { keys: 'L', action: 'Leaderboard' },
+      { keys: 'T', action: 'Records panel (medals, PB, top 5)' },
       { keys: 'F', action: 'Fullscreen' },
       { keys: 'M', action: 'Mute' },
       { keys: 'H', action: 'Controls (this list)' },
