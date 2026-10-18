@@ -5,16 +5,16 @@ import { SCENERY_MODELS } from './scenery'
 import { DEFAULT_THEME, resolveTheme, SKY_BRIGHTNESS, SKY_FILES, skyUrl } from './theme'
 
 describe('resolveTheme', () => {
-  it('without a theme is the stadium look as it was before themes existed', () => {
+  it('without a theme is the grounded stadium look', () => {
     expect(resolveTheme({})).toEqual({
       sky: 'day',
-      skyLight: 0.45,
-      exposure: 1,
-      fog: '#b9d4e8',
-      fogNear: 250,
-      fogFar: 1200,
+      skyLight: 0.35,
+      exposure: 0.9,
+      fog: '#c8d4dc',
+      fogNear: 160,
+      fogFar: 900,
       sun: '#fff4e0',
-      sunIntensity: 2.2,
+      sunIntensity: 2.5,
       ground: '#7fc25a',
       scenery: SCENERY_MODELS,
     })
