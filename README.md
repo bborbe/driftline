@@ -4,17 +4,22 @@
 
 Trackmania-like browser racing game: short tracks, a lap timer with checkpoints, instant respawn and a ghost of your best run.
 
-![driftline: chase view at the start of A04 knot](docs/screenshot.png)
+![driftline: chase view on A04 knot, the gold medal ghost ahead](docs/screenshot.png)
+
+![driftline: start menu with the campaign and style tracks](docs/menu.png)
 
 ## Features
 
 - Grippy, drifty handling with handbrake slides and stable landings after jumps
 - Campaign, style and test tracks, the campaign and style tracks with author / gold / silver / bronze medals
 - Checkpoints with split deltas, and instant respawn at the last one
-- A ghost of your best lap that drives alongside you
-- Turbo pads, effect pads, ramps, gap jumps, banked turns, bridges and decks
+- A ghost of your best lap that drives alongside you, plus gold and author medal ghosts with name tags (Settings → Race → Ghosts)
+- Challenge links: Results → Challenge a friend copies a link with your time and ghost for a friend to race
+- Turbo pads, effect pads, ramps, gap jumps, banked turns, loops, wallrides, bridges and decks
 - Asphalt, dirt, ice and grass, each with its own grip
-- 1–10 lap races and a top-10 leaderboard per track
+- 1–10 lap races, a top-10 board per track and a records panel (PB and medal times), kept in this browser
+- Keyboard and gamepad, with rebindable keys (Settings → Controls); no touch controls
+- Settings for graphics quality (Auto / Low / Medium / High), time of day and weather, HUD scale, camera effects, frame cap and colour-safe / reduced-effects modes; a link carries your settings
 
 ## How to Play
 
@@ -35,7 +40,8 @@ Race
 - `Backspace` / `R` - Respawn at last checkpoint
 - `Delete` - Restart the run (Mac: `fn` + `delete`)
 - `Esc` - Pause menu
-- `L` - Leaderboard
+- `L` - Top-10 board (this browser)
+- `T` - Records panel (PB, medal times, top 5)
 - `F` - Fullscreen
 - `M` - Mute
 - `H` - Controls
@@ -123,7 +129,11 @@ Debug
 
 ## Leaderboard server
 
-The online leaderboard's server (Go, SQLite) lives in [`server/`](server/README.md), which describes how to run it locally. It has health endpoints and the database schema so far; the submit / list API comes next.
+An online leaderboard is on hold: there is none on the live site, and the top-10 board and records stay in your browser. Its server (Go, SQLite, with the submit / list API) is kept in [`server/`](server/README.md), which describes how to run it locally and what a redeploy needs; it is not deployed.
+
+## Credits
+
+Models from the [Kenney](https://kenney.nl/) Racing, Car and Nature kits; sky HDRIs and the grass texture from [Poly Haven](https://polyhaven.com/). All CC0; the full list is in [assets/LICENSE](assets/LICENSE) and [assets/LICENSES/](assets/LICENSES/). Engine and audio are original code; sounds are synthesized, no audio files.
 
 ## License
 
