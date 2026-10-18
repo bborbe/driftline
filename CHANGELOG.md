@@ -8,7 +8,7 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
-## Unreleased
+## v0.7.0
 
 - feat: every screen is playable with a gamepad alone — the post-race name entry saves with A and skips with B (and Esc), the Settings panel (start menu and Esc menu) takes the pad with a yellow focus ring (↑/↓ move, ←/→ change a select, slider or number, A presses, LB / RB switch tabs; key-rebind buttons stay keyboard-only), X opens the leaderboard, B dismisses a broken challenge link's error; `scripts/gamepad-check.js` walks start menu → settings → race → results → name save and skip → leaderboard → Esc menu settings → back to the menu, pad only
 
