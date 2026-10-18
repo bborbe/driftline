@@ -33,7 +33,8 @@ const trackTable = (): TrackRow[] =>
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
-const tableJson = (): string => JSON.stringify(trackTable(), null, 2) + '\n'
+// One track per line, so the file diffs per track.
+const tableJson = (): string => `[\n${trackTable().map((t) => `  ${JSON.stringify(t)}`).join(',\n')}\n]\n`
 
 // One autopilot lap, recorded the way the race records the player's: ghost from sim.fed, splits from the
 // checkpoint events, both relative to the lap's first tick.
