@@ -2,7 +2,7 @@
 import type { KeyValueStore } from './settings'
 
 /** Every control the settings panel builds, one id each. */
-export const CONTROL_IDS = ['volume', 'sfxVolume', 'uiVolume', 'quality', 'advanced', 'speedlines', 'smoke', 'camera', 'laps', 'time', 'weather', 'livery', 'paint', 'number', 'hudScale', 'records', 'frameCap', 'bindings', 'colourSafe', 'reducedEffects', 'build'] as const
+export const CONTROL_IDS = ['volume', 'sfxVolume', 'uiVolume', 'quality', 'advanced', 'speedlines', 'smoke', 'camera', 'laps', 'time', 'weather', 'livery', 'paint', 'number', 'name', 'hudScale', 'records', 'frameCap', 'bindings', 'colourSafe', 'reducedEffects', 'build'] as const
 export type ControlId = (typeof CONTROL_IDS)[number]
 
 export const TABS = ['car', 'race', 'graphics', 'controls', 'audio', 'access', 'about'] as const
@@ -12,7 +12,7 @@ export const TAB_LABELS: Record<Tab, string> = { car: 'Car', race: 'Race', graph
 
 /** The controls of each tab, in panel order; every control lives in exactly one tab (tabs.test.ts). */
 export const TAB_CONTROLS: Record<Tab, readonly ControlId[]> = {
-  car: ['livery', 'paint', 'number'],
+  car: ['livery', 'paint', 'number', 'name'],
   race: ['time', 'weather', 'laps'],
   // Reflections and FXAA sit in the Advanced fold-out with the other quality knobs (render/quality.ts).
   graphics: ['quality', 'speedlines', 'smoke', 'camera', 'hudScale', 'records', 'frameCap', 'advanced'],

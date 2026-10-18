@@ -136,10 +136,11 @@ export function stateQuery(search: string, state: UrlState): string {
   return out ? `?${out}` : ''
 }
 
-/** The query that opens `screen` with this state: no spawn, fly or camera link (Back to menu, Next track). */
+/** The query that opens `screen` with this state: no spawn, fly, camera or challenge link (Back to menu, Next track). */
 export const screenQuery = (search: string, state: UrlState, screen: Screen): string => {
   const q = new URLSearchParams(search)
   for (const k of POSE_KEYS) q.delete(k)
+  q.delete('challenge')
   return stateQuery(q.toString(), { ...state, screen, fly: null, boot: '' })
 }
 

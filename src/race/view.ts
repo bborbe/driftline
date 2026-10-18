@@ -45,6 +45,8 @@ export interface MenuActions {
   nextTrack(): void
   /** A fresh settings panel (the same one the start screen shows). */
   settings(): HTMLElement
+  /** Results → Challenge a friend: copy a challenge link for this run (src/challenge). Absent: no button. */
+  challenge?(runMs: number): void
 }
 
 export interface HudState {
@@ -391,7 +393,7 @@ export class RaceView {
     replay(c, 'race-results-in')
     this.onResults?.(true)
     if (!this.store.qualifies(r.ms)) {
-      c.append(this.finishActions())
+      c.append(this.finishActions(r.ms))
       return
     }
     const name = document.createElement('input')
@@ -407,7 +409,7 @@ export class RaceView {
       this.typing = false
       const rank = this.store.leaderboard().findIndex((x) => x.lapTimeMs === r.ms) + 1
       entry.replaceChildren(el('p', 'race-mine', `#${rank} on board — ${name.value.toUpperCase() || 'ANON'}`))
-      c.append(this.finishActions())
+      c.append(this.finishActions(r.ms))
     })
     entry.append(el('p', '', 'Top 10! Enter your name:'), name)
     c.append(entry)
@@ -425,14 +427,16 @@ export class RaceView {
     if (shown) this.onResults?.(false)
   }
 
-  /** Restart (primary), Next track and Menu; plain hint when there are no menu actions. */
-  private finishActions(): HTMLElement {
+  /** Restart (primary), Next track, Challenge a friend and Menu; plain hint when there are no menu actions. */
+  private finishActions(runMs: number): HTMLElement {
     const a = this.actions
     if (!a) return el('p', '', 'Backspace to race again')
+    const challenge = a.challenge
     this.finishMenu = menuList(
       [
         { label: 'Restart', action: () => a.restart() },
         { label: 'Next track', action: () => a.nextTrack() },
+        ...(challenge ? [{ label: 'Challenge a friend', action: () => challenge(runMs) }] : []),
         { label: 'Menu', action: () => a.backToMenu() },
       ],
       'menu-list race-results-actions',

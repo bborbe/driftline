@@ -10,6 +10,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
+## Unreleased
+
+- feat: shareable challenge links — Results → Challenge a friend copies a URL with the target time and the session's best-lap ghost (lossless, ≤ 8192 chars, else target only); opening it races that ghost under the sender's Settings name, and a bad link says why over the start menu
+
 ## v0.1.0
 
 - feat: split tests into a fast tier (every PR, `make test`) and a slow tier (releases, nightly on master, `make test-all`)
