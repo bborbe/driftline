@@ -120,6 +120,8 @@ export class RaceView {
   private readonly recordTabs = el('h4', 'race-rec-tabs')
   private readonly recordGlobal = el('ol', 'race-records-top')
   private recordTab: 'local' | 'global' = 'local'
+  // Built once: a redraw that replaced them mid-click (the board answer landing) would swallow the click.
+  private readonly tabButtons = { local: this.tabButton('local', `TOP ${RECORDS_TOP}`), global: this.tabButton('global', 'GLOBAL') }
   /** The online leaderboard (src/leaderboard), or null when the build has no server: no Global tab, no network. */
   online: OnlineBoard | null = null
   /** The results card's global top 10, refreshed when a submit or board answer lands. */
@@ -330,7 +332,20 @@ export class RaceView {
     this.recordTop.replaceChildren(...(top.length > 0 ? top : [el('li', 'race-rec-empty', 'No laps yet')]))
   }
 
-  /** `TOP 5` alone, or LOCAL / GLOBAL tabs while a global board exists; a tab click never takes focus (Space is a race key). */
+  /** One records tab; a click never takes focus (Space is a race key). */
+  private tabButton(t: 'local' | 'global', label: string): HTMLElement {
+    const b = el('button', 'race-rec-tab', label)
+    b.id = `records-tab-${t}`
+    b.tabIndex = -1
+    b.addEventListener('mousedown', (e) => e.preventDefault())
+    b.addEventListener('click', () => {
+      this.recordTab = t
+      this.recordsKey = ''
+    })
+    return b
+  }
+
+  /** `TOP 5` alone, or TOP 5 / GLOBAL tabs while a global board exists. */
   private renderRecordTabs(hasGlobal: boolean): void {
     const tab = hasGlobal ? this.recordTab : 'local'
     this.recordTop.hidden = tab !== 'local'
@@ -339,18 +354,10 @@ export class RaceView {
       this.recordTabs.replaceChildren(`TOP ${RECORDS_TOP}`)
       return
     }
-    const button = (t: 'local' | 'global', label: string) => {
-      const b = el('button', `race-rec-tab${t === tab ? ' race-rec-tab-on' : ''}`, label)
-      b.id = `records-tab-${t}`
-      b.tabIndex = -1
-      b.addEventListener('mousedown', (e) => e.preventDefault())
-      b.addEventListener('click', () => {
-        this.recordTab = t
-        this.recordsKey = ''
-      })
-      return b
-    }
-    this.recordTabs.replaceChildren(button('local', `TOP ${RECORDS_TOP}`), button('global', 'GLOBAL'))
+    const { local, global } = this.tabButtons
+    if (local.parentElement !== this.recordTabs) this.recordTabs.replaceChildren(local, global)
+    local.classList.toggle('race-rec-tab-on', tab === 'local')
+    global.classList.toggle('race-rec-tab-on', tab === 'global')
   }
 
   /** Global board rows (own name highlighted), or one line saying why there are none, then the status note. */

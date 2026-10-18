@@ -6,7 +6,7 @@ import { fetchBoard, leaderboardConfig, NAME_PATTERN, rowMs, runSubmission, sani
 
 const RUN_GO = readFileSync(new URL('../../server/pkg/run/run.go', import.meta.url), 'utf8')
 const GOLDEN = JSON.parse(readFileSync(new URL('../../server/pkg/run/testdata/golden-run.json', import.meta.url), 'utf8'))
-const CFG = { url: 'https://lb.test/api/1.0', token: 'secret' }
+const CFG = { url: 'https://lb.test/api/1.0' }
 
 const keyboard = (t: number): CarInput => ({ throttle: 1, brake: 0, steer: t % 50 < 10 ? 1 : 0, handbrake: false })
 const lap = (ticks: number): GhostRun => ({ start: createCar(), inputs: Array.from({ length: ticks }, (_, t) => keyboard(t)), lapTimeMs: ticks * 10 })
@@ -44,14 +44,13 @@ describe('leaderboard name', () => {
 })
 
 describe('leaderboard config', () => {
-  it('is null — online UI hidden, no network — while the URL or the token is unset', () => {
+  it('is null — online UI hidden, no network — while the URL is unset or blank', () => {
     expect(leaderboardConfig({})).toBeNull()
-    expect(leaderboardConfig({ VITE_LEADERBOARD_URL: '', VITE_LEADERBOARD_TOKEN: 'x' })).toBeNull()
-    expect(leaderboardConfig({ VITE_LEADERBOARD_URL: 'https://lb.test/api/1.0' })).toBeNull()
+    expect(leaderboardConfig({ VITE_LEADERBOARD_URL: '  ' })).toBeNull()
   })
 
-  it('reads both and drops a trailing slash', () => {
-    expect(leaderboardConfig({ VITE_LEADERBOARD_URL: 'https://lb.test/api/1.0/', VITE_LEADERBOARD_TOKEN: 'secret' })).toEqual(CFG)
+  it('reads the URL alone and drops a trailing slash', () => {
+    expect(leaderboardConfig({ VITE_LEADERBOARD_URL: 'https://lb.test/api/1.0/' })).toEqual(CFG)
   })
 })
 
@@ -66,14 +65,14 @@ describe('leaderboard submission', () => {
     expect(['s', 'keys', 'scale', 'r', 'ms']).toEqual(expect.arrayContaining(Object.keys(run.ghost)))
   })
 
-  it('posts the run with the token and maps the answer', async () => {
+  it('posts the run with no credential and maps the answer', async () => {
     const calls: [string, RequestInit | undefined][] = []
     const fetchFn: Fetch = async (url, init) => (calls.push([url, init]), reply(201, { id: 1, best: true }))
     const run = runSubmission('BEN', 'test1', lap(300), [100])
     expect(await submitRun(CFG, run, fetchFn)).toBe('stored')
     expect(calls[0][0]).toBe('https://lb.test/api/1.0/runs')
     expect(calls[0][1]?.method).toBe('POST')
-    expect((calls[0][1]?.headers as Record<string, string>)['X-Driftline-Token']).toBe('secret')
+    expect(calls[0][1]?.headers).toEqual({ 'Content-Type': 'application/json' })
     expect(JSON.parse(calls[0][1]?.body as string)).toEqual(JSON.parse(JSON.stringify(run)))
     expect(await submitRun(CFG, run, async () => reply(200))).toBe('kept')
     expect(await submitRun(CFG, run, async () => reply(400))).toBe('rejected')

@@ -1,7 +1,7 @@
 // Online leaderboard client for the server in server/ (`/api/1.0/`): the display-name rule, the build-time config, the
-// submitted run and the two calls the game makes — submit a finished lap, list a track's top runs. Every request
-// carries the shared `X-Driftline-Token`; the browser adds the Origin the server allows. Network calls take `fetch` as
-// a parameter so tests never touch the network. Pure and tested.
+// submitted run and the two calls the game makes — submit a finished lap, list a track's top runs. No credential ships
+// in the game: the server trusts its Origin allow-list (the browser adds the Origin) and validates every run. Network
+// calls take `fetch` as a parameter so tests never touch the network. Pure and tested.
 import { ghostPayload, MAX_NAME } from '../challenge/link'
 import type { GhostRun } from '../ghost/ghost'
 import { TICK_HZ } from '../physics'
@@ -18,14 +18,12 @@ export const sanitizeName = (raw: string): string =>
 export interface LeaderboardConfig {
   /** API base without a trailing slash, e.g. `https://driftline.example/api/1.0`. */
   url: string
-  token: string
 }
 
-/** Build-time config (VITE_LEADERBOARD_URL, VITE_LEADERBOARD_TOKEN); null when either is unset — the game stays offline. */
+/** Build-time config (VITE_LEADERBOARD_URL); null when it is unset — the game stays offline. */
 export function leaderboardConfig(env: Record<string, unknown>): LeaderboardConfig | null {
   const url = typeof env.VITE_LEADERBOARD_URL === 'string' ? env.VITE_LEADERBOARD_URL.trim().replace(/\/+$/, '') : ''
-  const token = typeof env.VITE_LEADERBOARD_TOKEN === 'string' ? env.VITE_LEADERBOARD_TOKEN.trim() : ''
-  return url && token ? { url, token } : null
+  return url ? { url } : null
 }
 
 /** One finished lap as the server's POST /runs decodes it (run.Submission). */
@@ -81,7 +79,7 @@ async function request(fetchFn: Fetch, url: string, init: RequestInit): Promise<
 export async function submitRun(cfg: LeaderboardConfig, run: RunSubmission, fetchFn: Fetch = fetch): Promise<SubmitResult> {
   const resp = await request(fetchFn, `${cfg.url}/runs`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Driftline-Token': cfg.token },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(run),
   })
   if (!resp) return 'offline'
@@ -91,9 +89,7 @@ export async function submitRun(cfg: LeaderboardConfig, run: RunSubmission, fetc
 }
 
 export async function fetchBoard(cfg: LeaderboardConfig, track: string, fetchFn: Fetch = fetch): Promise<BoardRead> {
-  const resp = await request(fetchFn, `${cfg.url}/tracks/${encodeURIComponent(track)}/runs?limit=${BOARD_TOP}`, {
-    headers: { 'X-Driftline-Token': cfg.token },
-  })
+  const resp = await request(fetchFn, `${cfg.url}/tracks/${encodeURIComponent(track)}/runs?limit=${BOARD_TOP}`, {})
   if (!resp) return { kind: 'offline' }
   if (resp.status === 404) return { kind: 'unknown' }
   if (!resp.ok) return { kind: 'offline' }

@@ -193,8 +193,8 @@ const ghosts = await createRaceGhosts(view.scene, track, sim, ghostRecorder, gho
   pbRun: () => challenge?.ghost ?? ghostRecorder.best,
   pbName: challenge?.ghost ? challengerName(challenge) : undefined,
 })
-// Online leaderboard (src/leaderboard): only when the build sets VITE_LEADERBOARD_URL and VITE_LEADERBOARD_TOKEN; without
-// them there is no Global tab and no network call. Each finished single-lap run the recorder keeps is submitted.
+// Online leaderboard (src/leaderboard): only when the build sets VITE_LEADERBOARD_URL; without it there is no Global tab
+// and no network call. Each finished single-lap run the recorder keeps is submitted.
 const leaderboard = leaderboardConfig(import.meta.env)
 const online = leaderboard
   ? createOnline(leaderboard, trackName, { storage: localStorage, laps: () => race.laps, online: () => navigator.onLine })

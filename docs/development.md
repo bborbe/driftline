@@ -21,11 +21,11 @@ A race is 1 lap by default. Pick 1–10 laps under **Laps** in the start-screen 
 
 ## Online leaderboard
 
-The game talks to the leaderboard server (`server/`) only when the build sets both variables; without them there is no Global tab and no network call, which is how the live site builds today:
+The game talks to the leaderboard server (`server/`) only when the build sets `VITE_LEADERBOARD_URL`; without it there is no Global tab and no network call. No credential ships in the game — the server trusts its Origin allow-list and validates every run:
 
 ```bash
-cd server && make run                     # localhost:9090, token local-dev-token, origin http://localhost:5173
-VITE_LEADERBOARD_URL=http://localhost:9090/api/1.0 VITE_LEADERBOARD_TOKEN=local-dev-token make run   # repo root
+cd server && make run                     # localhost:9090, allowed origin http://localhost:5173
+VITE_LEADERBOARD_URL=http://localhost:9090/api/1.0 make run   # repo root
 ```
 
 `src/leaderboard/client.ts` holds the name rule, the config and the two calls; `online.ts` wires them into a race. Each finished single-lap run the ghost recorder keeps (`GhostRecorder.onKeep`) is posted with its checkpoint ticks and `ghostPayload`, retried once, and never holds up the results card; an offline browser skips it with an "offline" note. The name is the Settings name, sanitised to the server's rule (A-Z 0-9 space _ . -, 1–12, no outer spaces); with none set, the first finish asks for it. The records panel's TOP 5 / GLOBAL tabs and the results card show the track's global top 10, the player's row highlighted. A track the server answers 404 for (no finish or no author medal, see `server/pkg/track/tracks.json`) and a multi-lap run show no global board.

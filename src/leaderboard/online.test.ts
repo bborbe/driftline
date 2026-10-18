@@ -4,7 +4,7 @@ import type { GhostRun } from '../ghost/ghost'
 import type { Fetch } from './client'
 import { createOnline, type OnlineOptions } from './online'
 
-const CFG = { url: 'https://lb.test/api/1.0', token: 'secret' }
+const CFG = { url: 'https://lb.test/api/1.0' }
 const ROWS = [{ id: 1, name: 'BEN', totalTicks: 300, checkpointTicks: [120], createdAt: '2026-10-18T00:00:00Z' }]
 const steady: CarInput = { throttle: 1, brake: 0, steer: 0, handbrake: false }
 const lap = (startTick: number, ticks: number): GhostRun => ({ start: { ...createCar(), tick: startTick }, inputs: Array(ticks).fill(steady), lapTimeMs: ticks * 10 })

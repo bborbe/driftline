@@ -12,7 +12,7 @@ Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers 
 
 ## Unreleased
 
-- feat: online leaderboard in the game (`src/leaderboard/`) — each finished single-lap run is submitted to the server's `POST /api/1.0/runs` under the Settings name (sanitised to the server's A-Z 0-9 space _ . - rule, asked for on the first finish when unset), retried once and never blocking the results card, skipped with an "offline" note when unreachable; the records panel gets TOP 5 / GLOBAL tabs and the results card a global top 10 with the player's row highlighted; tracks the server does not rank and multi-lap runs show no global board; enabled only by the build-time `VITE_LEADERBOARD_URL` + `VITE_LEADERBOARD_TOKEN`, so a build without them (today's live site) is unchanged and makes no network call
+- feat: online leaderboard in the game (`src/leaderboard/`) — each finished single-lap run is submitted to the server's `POST /api/1.0/runs` under the Settings name (sanitised to the server's A-Z 0-9 space _ . - rule, asked for on the first finish when unset), retried once and never blocking the results card, skipped with an "offline" note when unreachable; the records panel gets TOP 5 / GLOBAL tabs and the results card a global top 10 with the player's row highlighted; tracks the server does not rank and multi-lap runs show no global board; enabled only by the build-time `VITE_LEADERBOARD_URL` and sending no credential (the server trusts its Origin allow-list), so a build without it is unchanged and makes no network call
 
 ## v0.6.0
 
