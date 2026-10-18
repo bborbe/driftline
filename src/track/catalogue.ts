@@ -110,6 +110,9 @@ export function trackGroups(shipped: string[]): TrackGroup[] {
   return groups.filter((g) => g.entries.length > 0)
 }
 
+/** The groups the start menu shows: the Test group only with `?dev=1`. */
+export const menuGroups = (shipped: string[], dev: boolean): TrackGroup[] => trackGroups(shipped).filter((g) => dev || g.id !== 'test')
+
 /** All shipped tracks in menu order: campaign first, then style tracks, then test tracks. */
 export const menuOrder = (shipped: string[]): string[] => trackGroups(shipped).flatMap((g) => g.entries.map((e) => e.track))
 
