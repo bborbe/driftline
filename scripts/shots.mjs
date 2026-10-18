@@ -16,7 +16,8 @@ const out = process.env.OUT ?? 'shots'
 const server = await createServer({ server: { port: 0 }, logLevel: 'warn' })
 await server.listen()
 const base = server.resolvedUrls.local[0]
-const browser = await chromium.launch()
+// Muted: the game's synthesized audio would otherwise play out loud while shots run.
+const browser = await chromium.launch({ args: ['--mute-audio'] })
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
 try {
   for (const lap of laps) {

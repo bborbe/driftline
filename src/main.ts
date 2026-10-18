@@ -7,6 +7,7 @@ import { mountDebugOverlay } from './debug/overlay'
 import { KeyboardInput } from './input'
 import { createView } from './render/view'
 import { mountFade, noFade, RESULTS_DIM } from './render/fade'
+import { debugVisible } from './race/hud'
 import { LAP_NAMES, lapName, loadLap, nextLap } from './track/registry'
 import { beginAllowed, GameAudio, KerbProbe, mountAudioControls, mountUiSounds } from './audio'
 import { initRace } from './race'
@@ -57,6 +58,8 @@ window.addEventListener(CAMERA_EVENT, (e) => (shownView = (e as CustomEvent<View
 // Screen fades (src/render/fade.ts): the page opens black and fades in on the menu or the first race frame; debug
 // spawns and frozen shots never fade. `window.driftline.mode` tells automated checks which screen is up.
 const fade = mountFade(noFade(location.search) ? 0 : 1)
+// The debug overlay (fps, pose) mounts after the menu; hide its parts from the first frame on a plain URL.
+document.documentElement.classList.toggle('debug-off', !debugVisible(location.search))
 type Mode = 'menu' | 'race' | 'results'
 let mode = (): Mode => 'menu'
 const driftline: { mode: Mode; ready: boolean; centreline?: (step: number) => unknown } = {
@@ -85,13 +88,11 @@ const settings = loadSettings(localStorage)
 const track = loadLap(trackName)
 // Time of day and weather: ?time=&weather= override, else the track's default or (setting) a seeded random pick.
 let env = resolveEnvironment(location.search, track, settings, Date.now())
-const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, settings.reflections)
+const view = await createView(track, effectiveFxQuery(location.search, settings), env, env.seed ?? 1, settings.livery, settings.reflections, settings.aa)
 if (fromMenu) {
+  // No shader prewarm (renderer.compileAsync): measured 864 ms on crossover, over the task's 300 ms budget, so the first
+  // menu frames compile as they draw, behind the opening fade.
   const stopMenu = runMenuScene(view, track)
-  // Shader prewarm behind the opening fade: compile every pipeline the scene needs before it is revealed.
-  const t0 = performance.now()
-  await view.renderer.compileAsync(view.scene, view.camera)
-  if (import.meta.env.DEV) console.info(`prewarm: ${Math.round(performance.now() - t0)} ms`)
   const picking = chooseTrack(LAP_NAMES, { focus: sel ?? trackName, onFocus: (t) => (screen = { sel: t }), live: true })
   void fade.to(0)
   const picked = await picking
@@ -215,6 +216,7 @@ window.addEventListener(SETTINGS_EVENT, (e) => {
   }
   if (change.fx) view.setFx(change.fx)
   if (change.reflections !== undefined) view.setReflections(change.reflections)
+  if (change.aa !== undefined) view.setAA(change.aa)
   if (change.laps !== undefined) race.setLaps(change.laps)
   if (change.environment) {
     env = resolveEnvironment('', track, next, Date.now())

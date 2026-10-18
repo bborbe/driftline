@@ -1,6 +1,8 @@
-// Resolves a track's optional `theme` (src/track/theme.ts) against the default stadium look. Every
-// default here is the value the look had before themes existed, so a track without a theme renders
-// as it always did. Colour levers that look.ts already owns (curb, sign, screen) resolve to
+// Resolves a track's optional `theme` (src/track/theme.ts) against the default stadium look, so a
+// track without a theme renders the shared stadium look. The lighting defaults are the grounded day
+// look: a lower exposure and image light than the first stadium look, so whites keep detail and
+// shadows read, a stronger sun to keep sunlit surfaces as bright, and fog pulled in and tinted to the
+// day sky's horizon, so the far stands fade into the sky (atmospheric perspective). Colour levers that look.ts already owns (curb, sign, screen) resolve to
 // `undefined` when unset: the caller then keeps its own constant, not a hex round-trip of it. `stand`
 // falls back to `curb`, so every themed venue gets its own stand colour.
 import type { Sky, Theme, Track } from '../track/schema'
@@ -25,7 +27,7 @@ export const SKY_FILES: Record<Sky, string> = {
  */
 export const SKY_BRIGHTNESS: Record<Sky, number> = {
   day: 1,
-  sunset: 0.4,
+  sunset: 0.3,
   dusk: 0.35,
   night: 0.08,
   overcast: 0.35,
@@ -59,13 +61,13 @@ export type ResolvedTheme = {
 
 export const DEFAULT_THEME: ResolvedTheme = {
   sky: 'day',
-  skyLight: 0.45,
-  exposure: 1,
-  fog: '#b9d4e8',
-  fogNear: 250,
-  fogFar: 1200,
+  skyLight: 0.35,
+  exposure: 0.9,
+  fog: '#c8d4dc', // the day HDRI's horizon as rendered, between the sky above it and the hazed ground
+  fogNear: 160,
+  fogFar: 900,
   sun: '#fff4e0',
-  sunIntensity: 2.2,
+  sunIntensity: 2.5,
   ground: '#7fc25a',
   scenery: DEFAULT_SCENERY,
 }

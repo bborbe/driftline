@@ -92,6 +92,12 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     commit()
   })
   add('reflections', label('Reflections (Neon Night)'), refl)
+  const aa = Object.assign(document.createElement('input'), { type: 'checkbox', checked: s.aa, id: 'setting-aa' })
+  aa.addEventListener('change', () => {
+    s.aa = aa.checked
+    commit()
+  })
+  add('aa', label('Anti-aliasing (FXAA)'), aa)
   const hud = document.createElement('select')
   hud.id = 'setting-hud-scale'
   for (const v of HUD_SCALES) hud.append(new Option(`${Math.round(v * 100)}%`, String(v), false, v === s.hudScale))

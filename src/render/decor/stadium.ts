@@ -9,6 +9,8 @@ import { centreline } from '../../track/centreline'
 import type { Track } from '../../track/schema'
 import { bakeModel, merged, placement, prepared } from './instance'
 import { flat, noCollide, structural } from '../tags'
+import { anisotropy } from '../anisotropy'
+import { ACCENT_ORANGE, CHARCOAL, COOL_BLUE, MINT } from '../look'
 
 const MODEL_URLS = import.meta.glob('/assets/racing-kit/*.glb', { query: '?url', import: 'default', eager: true }) as Record<string, string>
 
@@ -167,7 +169,7 @@ const screenTexture = (colour?: string): THREE.CanvasTexture => {
   g.fillRect(262, 270, 500, 14)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 8
+  tex.anisotropy = anisotropy()
   return tex
 }
 
@@ -241,8 +243,12 @@ const recolour = (root: THREE.Object3D, name: string, colour: string) =>
     if ((mesh.material as THREE.Material[]).length === 1) mesh.material = (mesh.material as THREE.Material[])[0]
   })
 
-/** Shirt colours; the venue's stand colour is added to them, so the crowd wears the home colours. */
-const SHIRTS = ['#f4f1ea', '#1d3557', '#e63946', '#f4a261', '#2a9d8f', '#e9c46a', '#264653', '#8338ec']
+/**
+ * Shirt colours, from the palette (look.ts): off-white, cool blue, mint, charcoal and navy, curb red and
+ * the one orange accent — no pastels, so the stands read as one venue. The venue's stand colour is added
+ * to them, so the crowd wears the home colours.
+ */
+const SHIRTS = ['#d9dde0', COOL_BLUE, MINT, CHARCOAL, '#1d3557', '#e63946', ACCENT_ORANGE, '#264653']
 
 /**
  * Every spectator in one instanced mesh: one draw call, no shadows (the stands stand outside the
