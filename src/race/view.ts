@@ -1,5 +1,5 @@
 // DOM overlay: race HUD (timer bottom centre, speedometer bottom right, one race-status panel top right with the medal
-// target + delta, lap and checkpoint, split pop-up), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in
+// target + delta, lap and checkpoint, split pop-up, checkpoint edge flash), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in
 // the Esc menu), finish panel with name entry, leaderboard, Esc menu. A small "H — controls" hint fades out HINT_MS after the countdown starts.
 // Sizes scale with --hud-scale (Settings → Graphics → HUD scale).
 import './race.css'
@@ -100,6 +100,7 @@ export class RaceView {
   // Screen-edge glow on each checkpoint / lap-line pass, tinted like the split delta (checkpoint-flash.ts).
   private readonly cpFlash = el('div', 'race-cp-flash')
   private readonly flash = new CheckpointFlash()
+  private flashShown = 0
   private readonly effects = el('div', 'race-effects')
   private effectsKey = ''
   private rendered = false
@@ -222,7 +223,10 @@ export class RaceView {
       )
       this.effects.hidden = s.effects.length === 0
     }
-    this.cpFlash.style.opacity = String(this.flash.opacity(performance.now() / 1000))
+    // Only touch the style while a flash runs or has just ended.
+    const flash = this.flash.opacity(performance.now() / 1000)
+    if (flash > 0 || this.flashShown > 0) this.cpFlash.style.opacity = String(flash)
+    this.flashShown = flash
     // Lap and checkpoint pulse when they change (not on the first frame).
     if (setText(this.lap, `LAP ${s.lap}`) && this.rendered) replay(this.lap, 'race-bump')
     if (setText(this.cp, `CP ${s.checkpoints}`) && this.rendered) replay(this.cp, 'race-bump')
