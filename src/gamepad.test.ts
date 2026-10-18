@@ -162,9 +162,15 @@ describe('button presses', () => {
     expect(m.update(pad({ down: [PAD.A] }), 'menu', 16)).toEqual(['Enter'])
   })
 
-  it('buttons already down when the pad appears press nothing', () => {
+  // A browser shows a pad to the page only once a button is pressed after load, so the press that reveals it is the
+  // player's first input (A on Begin after a track pick, the first d-pad step on the start screen) and must not be lost.
+  it('the press that reveals the pad fires', () => {
+    expect(new PadKeys().update(pad({ down: [PAD.A] }), 'menu', 0)).toEqual(['Enter'])
+    expect(new PadKeys().update(pad({ down: [PAD.RIGHT] }), 'menu', 0)).toEqual(['ArrowRight'])
+    expect(new PadKeys().update(pad({ down: [PAD.B] }), 'race', 0)).toEqual(['respawn'])
     const k = new PadKeys()
-    expect(k.update(pad({ down: [PAD.A, PAD.DOWN] }), 'menu', 0)).toEqual([])
+    k.update(pad({ down: [PAD.A] }), 'menu', 0)
+    expect(k.update(pad({ down: [PAD.A] }), 'menu', 16)).toEqual([]) // still held: once only
   })
 
   it('a menu direction (d-pad or stick) repeats while held, and not in a race', () => {
@@ -183,7 +189,8 @@ describe('button presses', () => {
     k.update(pad(), 'race', 0)
     k.update(pad({ down: [PAD.B] }), 'race', 16)
     expect(k.update(null, 'race', 32)).toEqual([])
-    expect(k.update(pad({ down: [PAD.B] }), 'race', 48)).toEqual([]) // down on reconnect: no press
+    expect(k.update(pad({ down: [PAD.B] }), 'race', 48)).toEqual(['respawn']) // a reconnect is revealed by a press too
+    expect(k.update(pad({ down: [PAD.B] }), 'race', 64)).toEqual([])
   })
 })
 

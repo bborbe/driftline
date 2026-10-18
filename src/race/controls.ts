@@ -87,6 +87,8 @@ function gamepadBindings(): Binding[] {
     { keys: PAD_DRIVE.handbrake.map(name).join(' / '), action: 'Handbrake' },
     ...buttons,
     { keys: 'D-pad / left stick', action: 'Menus: move' },
+    // A browser shows a pad to a page only after one of its buttons is pressed; a pad that never shows needs a reload.
+    { keys: 'No "Controller connected"?', action: 'Press any button; still nothing: reload the page' },
   ]
 }
 

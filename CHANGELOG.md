@@ -10,6 +10,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 
 Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers and publishes the tag's section below as the GitHub release notes. Add changes under `## Unreleased`; a release renames it.
 
+## Unreleased
+
+- fix: the gamepad press that wakes the pad now counts — browsers reveal a pad only on its first button press after each page load, and that press (A on Begin after a track pick, the first d-pad step) was swallowed; the H panel says to press any button, then reload, when no "Controller connected" toast shows
+
 ## v0.2.0
 
 - chore: opt into the maintainer bots (`.maintainer.yaml`: auto-approve, auto-release, trivial auto-merge); `release.yml` takes the version from the tag instead of requiring it to equal `package.json`
