@@ -34,7 +34,7 @@ import { isTuned } from './physics/handling'
 import { layoutId } from './track/schema'
 import { loadPlayerName } from './race/store'
 import { challengeUrl, readChallenge, type Challenge } from './challenge/link'
-import { challengeToast, challengerName, copyLink, mountChallengeBanner, mountGhostTag, showChallengeError } from './challenge/view'
+import { challengeToast, challengerName, copyLink, createGhostTag, mountChallengeBanner, showChallengeError } from './challenge/view'
 
 // URL state (src/menu/url-state.ts): settings and the view named in the query beat the stored ones and are stored,
 // so every panel shows them; from here on the address bar follows the screen, every setting, the view and the fly
@@ -71,7 +71,14 @@ const fade = mountFade(noFade(location.search) ? 0 : 1)
 document.documentElement.classList.toggle('debug-off', !debugVisible(location.search))
 type Mode = 'menu' | 'race' | 'results'
 let mode = (): Mode => 'menu'
-const driftline: { mode: Mode; ready: boolean; centreline?: (step: number) => unknown; challengeLink?: string } = {
+// `challenge`: the challenge this page races (automated checks read the ghost tag's name here: it is a sprite, not DOM).
+const driftline: {
+  mode: Mode
+  ready: boolean
+  centreline?: (step: number) => unknown
+  challengeLink?: string
+  challenge?: { name: string; targetMs: number; ghost: boolean }
+} = {
   get mode() {
     return mode()
   },
@@ -89,7 +96,10 @@ if (challengeValue !== null) {
     laps: lapCount(location.search, loadSettings(localStorage).laps),
     layoutOf: (name) => (LAP_NAMES.includes(name) ? layoutId(loadLap(name)) : null),
   })
-  if (read.ok) challenge = read.challenge
+  if (read.ok) {
+    challenge = read.challenge
+    driftline.challenge = { name: challengerName(challenge), targetMs: challenge.targetMs, ghost: challenge.ghost !== null }
+  }
   else {
     showChallengeError(read.reason)
     bootQuery.delete('challenge')
@@ -178,7 +188,7 @@ const newGhost = () => {
   const run = ghostRun()
   return run ? new GhostReplayer(run, sim.surface) : null
 }
-const ghostTag = challenge?.ghost ? mountGhostTag(challengerName(challenge)) : null
+const ghostTag = challenge?.ghost ? createGhostTag(challengerName(challenge), view.scene) : null
 const race = initRace(sim, track, {
   listeners: [
     {
@@ -355,6 +365,7 @@ view.renderer.setAnimationLoop(() => {
     ghost.advanceTo(sim.state.tick - lapStartTick)
     ghostCar.update(ghost.render(sim.alpha), race.paused ? 0 : elapsed)
   }
+  ghostTag?.update(ghostCar.object)
   const s = sim.render()
   const material = materialUnder(s, sim.surface)
   if (!fly) audio.update(s, carInput, material, kerbs.onKerb(s.position))
@@ -362,7 +373,6 @@ view.renderer.setAnimationLoop(() => {
 
   view.car.visible = fly !== null || cam.viewMode !== 'cockpit'
   cam.frame(s, speed, elapsed, input.held())
-  ghostTag?.update(ghostCar.object, camera)
 
   const f = cam.fly
   debug.setText(

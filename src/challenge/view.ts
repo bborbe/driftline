@@ -1,5 +1,5 @@
 // Challenge UI: the target banner over the race, the error a bad link shows on the menu, the copy toast and the name
-// tag over the challenger's ghost. Link encoding lives in link.ts; main.ts wires these up.
+// tag over the challenger's ghost (a scene sprite). Link encoding lives in link.ts; main.ts wires these up.
 import * as THREE from 'three/webgpu'
 import './challenge.css'
 import { formatLapTime } from '../race/store'
@@ -58,23 +58,42 @@ export async function copyLink(url: string): Promise<boolean> {
 }
 
 const ABOVE = 1.6 // m over the ghost's origin: above the roof
-const at = new THREE.Vector3()
+const TAG_HEIGHT = 0.045 // screen-size sprite (sizeAttenuation off): about 4 % of the view height
 
-/** A name label that follows the ghost car on screen; hidden when the ghost is hidden or behind the camera. */
-export function mountGhostTag(name: string): { update(ghost: THREE.Object3D, camera: THREE.Camera): void } {
-  const tag = el('div', 'challenge-tag', name)
-  tag.id = 'challenge-tag'
-  document.body.append(tag)
+/**
+ * A name label over the ghost car: a sprite in the scene, drawn on top and the same size at any distance. It follows
+ * the ghost by copying its position each frame, so no DOM is touched per frame (a per-frame style write cost ~17 % fps
+ * uncapped).
+ */
+export function createGhostTag(name: string, scene: THREE.Object3D): { update(ghost: THREE.Object3D): void } {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  const font = 'bold 40px system-ui, sans-serif'
+  ctx.font = font
+  canvas.width = Math.ceil(ctx.measureText(name).width) + 32
+  canvas.height = 56
+  ctx.font = font
+  ctx.fillStyle = 'rgba(10, 14, 22, 0.6)'
+  ctx.beginPath()
+  ctx.roundRect(0, 0, canvas.width, canvas.height, 10)
+  ctx.fill()
+  ctx.fillStyle = '#fff'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2 + 2)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, sizeAttenuation: false, depthTest: false, depthWrite: false, transparent: true }))
+  sprite.center.set(0.5, 0)
+  sprite.scale.set((TAG_HEIGHT * canvas.width) / canvas.height, TAG_HEIGHT, 1)
+  sprite.renderOrder = 10
+  sprite.name = 'challenge-tag'
+  sprite.visible = false
+  scene.add(sprite)
   return {
-    update(ghost, camera) {
-      // This frame's poses: the ghost and the camera moved since the last render updated their matrices.
-      ghost.getWorldPosition(at)
-      at.y += ABOVE
-      camera.updateMatrixWorld()
-      at.project(camera)
-      const show = ghost.visible && at.z > -1 && at.z < 1 && Math.abs(at.x) < 1.1 && Math.abs(at.y) < 1.1
-      tag.hidden = !show
-      if (show) tag.style.transform = `translate(-50%, -100%) translate(${((at.x + 1) / 2) * innerWidth}px, ${((1 - at.y) / 2) * innerHeight}px)`
+    update(ghost) {
+      sprite.visible = ghost.visible
+      sprite.position.set(ghost.position.x, ghost.position.y + ABOVE, ghost.position.z)
     },
   }
 }

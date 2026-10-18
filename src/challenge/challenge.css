@@ -1,6 +1,6 @@
-/* Challenge links (src/challenge/view.ts): target banner top centre, the menu's link error, copy toast, ghost name tag.
+/* Challenge links (src/challenge/view.ts): target banner top centre, the menu's link error, copy toast (the ghost's name tag is a sprite).
    The error and the toast sit above the start menu (20) and the results card (41). */
-.challenge-banner, .challenge-tag, .challenge-toast {
+.challenge-banner, .challenge-toast {
   position: fixed; pointer-events: none; color: #fff; font-family: var(--hud-font); font-weight: var(--hud-w-bold);
   font-variant-numeric: tabular-nums; text-shadow: var(--hud-shadow); user-select: none;
 }
@@ -24,8 +24,3 @@
   font-size: calc(clamp(13px, 2vmin, 22px) * var(--hud-scale));
 }
 .challenge-toast.show { opacity: 1; }
-.challenge-tag {
-  top: 0; left: 0; padding: 2px var(--s2); border-radius: var(--s1); background: rgba(10, 14, 22, 0.5);
-  font-size: calc(clamp(11px, 1.6vmin, 18px) * var(--hud-scale)); letter-spacing: 0.06em; white-space: nowrap;
-}
-.challenge-tag[hidden] { display: none; }
