@@ -7,7 +7,7 @@ import type { RaceEvents } from '../race/lap'
 import type { CarView } from '../render/car/model'
 import type { Livery } from '../render/car/livery'
 import type { Track } from '../track/schema'
-import { GhostReplayer, type GhostRecorder } from './ghost'
+import { GhostReplayer, type GhostRecorder, type GhostRun } from './ghost'
 import { createGhostCar } from './mesh'
 import { PaceGhost, type PaceLap } from './pace'
 import { offeredGhosts, tagText, timeAtPoint, type GhostKind } from './tag'
@@ -41,15 +41,16 @@ export interface RaceGhosts {
   readonly pbCar: CarView
   listener(): RaceEvents
   setPbLivery(l: Livery): void
-  /** Pose every racing ghost and work out its tag; `hold` (flying) leaves them where they are. */
+  /** Pose every racing ghost and work out its tag; `hold` (flying) leaves them where they are, and before the first
+   *  frame (a `freeze=1` debug shot) keeps them hidden. */
   frame(elapsed: number, opts: { paused: boolean; hold: boolean; selected: readonly GhostKind[]; laps: number }): void
   /** Place the tags, last in the frame: after the camera moved and the HUD they keep clear of updated. */
   drawTags(camera: THREE.Camera): void
 }
 
 export async function createRaceGhosts(scene: THREE.Scene, track: Track, sim: FixedStepper, recorder: GhostRecorder, pbLivery: Livery, paceLap: Promise<PaceLap | null>): Promise<RaceGhosts> {
-  const pbCar = await createGhostCar(undefined, pbLivery)
-  const medalCars = { gold: await createGhostCar(undefined, MEDAL_LIVERY.gold), author: await createGhostCar(undefined, MEDAL_LIVERY.author) }
+  const [pbCar, gold, author] = await Promise.all([createGhostCar(undefined, pbLivery), createGhostCar(undefined, MEDAL_LIVERY.gold), createGhostCar(undefined, MEDAL_LIVERY.author)])
+  const medalCars = { gold, author }
   scene.add(pbCar.object, medalCars.gold.object, medalCars.author.object)
   const tags = createGhostTags()
   let inputs: TagInput[] = []
@@ -60,6 +61,9 @@ export async function createRaceGhosts(scene: THREE.Scene, track: Track, sim: Fi
   const medal = (kind: 'gold' | 'author'): PaceGhost | null => (pace && track.medals ? new PaceGhost(pace, track.medals[kind]) : null)
   let medals: Record<'gold' | 'author', PaceGhost | null> = { gold: null, author: null }
 
+  // The PB lap this lap replays, fixed at lap start: the recorder may keep a faster one mid-lap (the lap just
+  // finished commits a frame later), which races from the next lap on.
+  let pbRun: GhostRun | null = null
   let pb: GhostReplayer | null = null
   let pbSplits: number[] = []
   // Held on the grid until the first GO.
@@ -74,8 +78,9 @@ export async function createRaceGhosts(scene: THREE.Scene, track: Track, sim: Fi
     lapStartTick = startTick
     carTimes = []
     carFinished = false
-    pb = recorder.best ? new GhostReplayer(recorder.best, sim.surface) : null
-    pbSplits = recorder.best ? (lapSplits.get(recorder.best.lapTimeMs) ?? []) : []
+    pbRun = recorder.best
+    pb = pbRun ? new GhostReplayer(pbRun, sim.surface) : null
+    pbSplits = pbRun ? (lapSplits.get(pbRun.lapTimeMs) ?? []) : []
     medals = { gold: medal('gold'), author: medal('author') }
   }
 
@@ -106,10 +111,11 @@ export async function createRaceGhosts(scene: THREE.Scene, track: Track, sim: Fi
       const offered = offeredGhosts(selected, { medals: track.medals !== undefined, laps, paceLap: pace !== null })
       const dt = paused ? 0 : elapsed
       const racing: { kind: GhostKind; car: CarView; splits: readonly number[]; lapMs: number }[] = []
-      if (pb && offered.includes('pb')) {
-        pb.advanceTo(sim.state.tick - lapStartTick)
+      // The replay advances even while hidden, so switching the PB ghost back on never re-simulates a whole lap in one frame.
+      if (pb) pb.advanceTo(sim.state.tick - lapStartTick)
+      if (pb && pbRun && offered.includes('pb')) {
         pbCar.update(pb.render(sim.alpha), dt)
-        racing.push({ kind: 'pb', car: pbCar, splits: pbSplits, lapMs: recorder.best?.lapTimeMs ?? 0 })
+        racing.push({ kind: 'pb', car: pbCar, splits: pbSplits, lapMs: pbRun.lapTimeMs })
       }
       pbCar.object.visible = racing.some((r) => r.kind === 'pb')
       for (const kind of ['gold', 'author'] as const) {

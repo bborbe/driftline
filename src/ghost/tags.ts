@@ -15,6 +15,9 @@ const MAX_STEP = 0.3
 /** Standing race HUD panels a tag must not cover (src/race/view.ts). */
 const HUD_PANELS = '.race-status, .race-time, .race-speedo'
 
+/** Frames between re-reading the panels' rects and the tags' sizes (they change at a checkpoint, a resize or a HUD-scale change). */
+const PANEL_EVERY = 15
+
 export interface TagInput {
   kind: GhostKind
   position: Vec3
@@ -36,7 +39,8 @@ export interface GhostTags {
 }
 
 export function createGhostTags(): GhostTags {
-  const els = new Map<GhostKind, { root: HTMLElement; name: HTMLElement; detail: HTMLElement }>()
+  /** Each tag's elements, its last detail class and its size, measured only when its text changes. */
+  const els = new Map<GhostKind, { root: HTMLElement; name: HTMLElement; detail: HTMLElement; cls: string; w: number; h: number }>()
   const el = (kind: GhostKind) => {
     let e = els.get(kind)
     if (!e) {
@@ -48,12 +52,22 @@ export function createGhostTags(): GhostTags {
       const hud = document.querySelector('.race-status')
       if (hud) hud.before(root)
       else document.body.append(root)
-      e = { root, name, detail }
+      e = { root, name, detail, cls: '', w: 0, h: 0 }
       els.set(kind, e)
     }
     return e
   }
   const p = new THREE.Vector3()
+  let blocked: Box[] = []
+  let frames = 0
+  const readPanels = () => {
+    blocked = [...document.querySelectorAll(HUD_PANELS)]
+      .map((e) => e.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => ({ x: r.x, y: r.y, w: r.width, h: r.height }))
+    for (const e of els.values()) [e.w, e.h] = [0, 0]
+  }
+  window.addEventListener('resize', () => (frames = 0))
   const hide = () => els.forEach((e) => (e.root.style.visibility = 'hidden'))
 
   return {
@@ -62,10 +76,7 @@ export function createGhostTags(): GhostTags {
       camera.updateMatrixWorld()
       const w = window.innerWidth
       const h = window.innerHeight
-      const blocked: Box[] = [...document.querySelectorAll(HUD_PANELS)]
-        .map((e) => e.getBoundingClientRect())
-        .filter((r) => r.width > 0 && r.height > 0)
-        .map((r) => ({ x: r.x, y: r.y, w: r.width, h: r.height }))
+      if (frames++ % PANEL_EVERY === 0) readPanels()
       // Project, then size every tag before placing any (one layout pass).
       const shown: { e: ReturnType<typeof el>; anchor: { x: number; y: number } }[] = []
       for (const t of tags) {
@@ -75,13 +86,18 @@ export function createGhostTags(): GhostTags {
           e.root.style.visibility = 'hidden'
           continue
         }
-        if (e.name.textContent !== t.text.name) e.name.textContent = t.text.name
-        if (e.detail.textContent !== t.text.detail) e.detail.textContent = t.text.detail
-        e.detail.className = `ghost-tag-detail${t.text.ahead === null ? '' : t.text.ahead ? ' race-behind' : ' race-ahead'}`
+        let changed = e.w === 0
+        if (e.name.textContent !== t.text.name) [e.name.textContent, changed] = [t.text.name, true]
+        if (e.detail.textContent !== t.text.detail) [e.detail.textContent, changed] = [t.text.detail, true]
+        const cls = `ghost-tag-detail${t.text.ahead === null ? '' : t.text.ahead ? ' race-behind' : ' race-ahead'}`
+        if (e.cls !== cls) [e.detail.className, e.cls] = [cls, cls]
+        if (changed) [e.w, e.h] = [0, 0]
         shown.push({ e, anchor: { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h } })
       }
       for (const e of els.values()) if (!shown.some((s) => s.e === e)) e.root.style.visibility = 'hidden'
-      const sized = shown.map((s) => ({ ...s, tw: s.e.root.offsetWidth, th: s.e.root.offsetHeight }))
+      // Measure only tags whose text changed (one layout read for all of them), then reuse the size.
+      for (const s of shown) if (s.e.w === 0) [s.e.w, s.e.h] = [s.e.root.offsetWidth, s.e.root.offsetHeight]
+      const sized = shown.map((s) => ({ ...s, tw: s.e.w, th: s.e.h }))
       // Nearest the bottom first (closest ghost, usually); later tags step up above any tag they would cover.
       sized.sort((a, b) => b.anchor.y - a.anchor.y)
       const placed: Box[] = []

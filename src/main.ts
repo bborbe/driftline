@@ -289,7 +289,7 @@ view.renderer.setAnimationLoop(() => {
   taint.observe(isTuned())
   if (!freeze && !fly) race.frame(elapsed, carInput)
   if (!fly) ghostRecorder.consume(sim.fed)
-  if (!ghostShow) ghosts.frame(elapsed, { paused: race.paused, hold: fly !== null, selected: shown.ghosts, laps: race.laps })
+  if (!ghostShow) ghosts.frame(elapsed, { paused: race.paused, hold: fly !== null || freeze, selected: shown.ghosts, laps: race.laps })
   const s = sim.render()
   const material = materialUnder(s, sim.surface)
   if (!fly) audio.update(s, carInput, material, kerbs.onKerb(s.position))

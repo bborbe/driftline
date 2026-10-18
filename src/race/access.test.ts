@@ -21,6 +21,12 @@ describe('colour-safe HUD', () => {
     expect(rule('.colour-safe .race-target-delta.race-ahead::before')).toContain("content: '▲ '")
     expect(rule('.colour-safe .race-target-delta.race-behind::before')).toContain("content: '▼ '")
   })
+  it('gives the ghost-tag gaps the same palette and arrows', () => {
+    expect(rule('.colour-safe .ghost-tag-detail.race-ahead {')).toContain('background: var(--delta-ahead)')
+    expect(rule('.colour-safe .ghost-tag-detail.race-behind {')).toContain('background: var(--delta-behind)')
+    expect(rule('.colour-safe .ghost-tag-detail.race-ahead::before')).toContain("content: '▲ '")
+    expect(rule('.colour-safe .ghost-tag-detail.race-behind::before')).toContain("content: '▼ '")
+  })
   it('letters every medal dot', () => {
     for (const [medal, letter] of [['author', 'A'], ['gold', 'G'], ['silver', 'S'], ['bronze', 'B']])
       expect(rule(`.colour-safe .race-medal-${medal} .race-medal-dot::after`)).toContain(`content: '${letter}'`)

@@ -275,3 +275,7 @@
 .ghost-tag-detail { padding: 0 var(--s1); border-radius: 3px; }
 .ghost-tag-detail.race-ahead { background: rgba(30, 110, 255, 0.7); }
 .ghost-tag-detail.race-behind { background: rgba(225, 40, 40, 0.7); }
+.colour-safe .ghost-tag-detail.race-ahead { background: var(--delta-ahead); color: #fff; }
+.colour-safe .ghost-tag-detail.race-behind { background: var(--delta-behind); color: #111; }
+.colour-safe .ghost-tag-detail.race-ahead::before { content: '▲ '; }
+.colour-safe .ghost-tag-detail.race-behind::before { content: '▼ '; }
