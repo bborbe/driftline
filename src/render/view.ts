@@ -9,6 +9,7 @@ import { dot, forwardOf, trackSurface, type CarState, type Material } from '../p
 import type { Track } from '../track/schema'
 import { createCarView } from './car/model'
 import { createContactShadow } from './car/contact-shadow'
+import { RoadTop } from './car/ground'
 import { setMaxAnisotropy } from './anisotropy'
 import { gradeFor } from './grade'
 import { aoRequested, postPasses } from './post'
@@ -214,6 +215,7 @@ export const createView = async (
   scene.add(camera) // camera children render only when the camera is in the scene
   // Skid marks are road detail, so they are always on (`?fx=skid` still parses, for old links); they sit on the track's own surface.
   const surface = trackSurface(track)
+  const ground = new RoadTop(track) // the drawn road stands 0.1 m over the physics surface: the wheels stand on it
   const skid = createSkidMarks(surface)
   scene.add(skid.object)
   const smoke = createSmoke()
@@ -303,7 +305,7 @@ export const createView = async (
   const rayDown = new THREE.Vector3()
   const frame = (s: CarState, dt: number, material: Material = 'road', braking = false) => {
     elapsed += dt
-    car.update(s, dt, braking, surface)
+    car.update(s, dt, braking, surface, ground)
     // The road under the car along its own down axis (banks, loops, wallrides): how far the body has lifted off it.
     const bodyDown = rayDown.set(0, -1, 0).applyQuaternion(car.object.quaternion)
     const under = surface.raycast(s.position, bodyDown, 50)
