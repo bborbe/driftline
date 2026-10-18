@@ -30,17 +30,35 @@ const fakeWindow = () => {
 }
 
 describe('default bindings', () => {
-  it('are the keys the game shipped with, none reserved, no clash', () => {
+  it("follow Trackmania's layout, none reserved, no clash", () => {
     expect(DEFAULT_BINDINGS.throttle).toEqual(['KeyW', 'ArrowUp'])
     expect(DEFAULT_BINDINGS.handbrake).toEqual(['Space', null])
-    expect(DEFAULT_BINDINGS.respawn).toEqual(['KeyR', null])
-    expect(DEFAULT_BINDINGS.restart).toEqual(['Backspace', null])
+    expect(DEFAULT_BINDINGS.respawn).toEqual(['Backspace', 'KeyR'])
+    expect(DEFAULT_BINDINGS.restart).toEqual(['Delete', null])
     for (const a of ACTIONS) for (const c of DEFAULT_BINDINGS[a]) if (c) expect(RESERVED.has(c)).toBe(false)
     expect(conflicts(DEFAULT_BINDINGS).size).toBe(0)
   })
-  it('keep the controls help list as it was', () => {
+  it('show in the controls help list', () => {
     const keys = CONTROLS.flatMap((g) => g.bindings.map((b) => b.keys))
-    expect(keys).toEqual(expect.arrayContaining(['W / ↑', 'S / ↓', 'A D / ← →', 'Space', 'R', 'Backspace']))
+    expect(keys).toEqual(expect.arrayContaining(['W / ↑', 'S / ↓', 'A D / ← →', 'Space', 'Backspace / R', 'Delete']))
+  })
+  it('do not overwrite saved bindings: a player who saved the old layout keeps R / Backspace', () => {
+    const s = fake()
+    const old: Bindings = { ...DEFAULT_BINDINGS, respawn: ['KeyR', null], restart: ['Backspace', null] }
+    saveBindings(s, old)
+    const b = loadBindings(s)
+    expect(b.respawn).toEqual(['KeyR', null])
+    expect(b.restart).toEqual(['Backspace', null])
+    expect(conflicts(b).size).toBe(0)
+    expect(controlsFor(b).find((g) => g.title === 'Race')!.bindings.map((r) => r.keys)).toEqual(expect.arrayContaining(['R', 'Backspace']))
+  })
+  it('bind Delete like any other key', () => {
+    const r = assign(DEFAULT_BINDINGS, { action: 'respawn', index: 1 }, 'Delete')
+    expect(r.ok).toBe(false) // restart holds it: offered as a swap, not dropped
+    if (r.ok || r.reason !== 'taken') throw new Error('expected a swap')
+    expect(r.swap.respawn[1]).toBe('Delete')
+    expect(r.swap.restart[0]).toBe('KeyR')
+    expect(keyLabel('Delete')).toBe('Delete')
   })
 })
 
@@ -102,7 +120,7 @@ describe('rebinding', () => {
     if (!r2.ok) throw new Error('free keys')
     const one = resetBindings(r2.bindings, 'throttle')
     expect(one.throttle).toEqual(DEFAULT_BINDINGS.throttle)
-    expect(one.respawn).toEqual(['KeyG', null])
+    expect(one.respawn).toEqual(['KeyG', 'KeyR'])
     expect(resetBindings(r2.bindings)).toEqual(DEFAULT_BINDINGS)
   })
 })
@@ -139,6 +157,6 @@ describe('key labels', () => {
     const r = assign(DEFAULT_BINDINGS, { action: 'respawn', index: 0 }, 'KeyG')
     if (!r.ok) throw new Error('KeyG is free')
     const race = controlsFor(r.bindings).find((g) => g.title === 'Race')!
-    expect(race.bindings.find((x) => x.action.startsWith('Respawn'))!.keys).toBe('G')
+    expect(race.bindings.find((x) => x.action.startsWith('Respawn'))!.keys).toBe('G / R')
   })
 })

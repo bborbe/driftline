@@ -235,7 +235,7 @@ export class GameAudio {
     this.play('newRecord', RECORD_DELAY)
   }
 
-  // Backspace restart: a new run, so the engine comes back.
+  // Restart (Delete): a new run, so the engine comes back.
   onRestart(): void {
     this.finished = false
     this.resetMotion()

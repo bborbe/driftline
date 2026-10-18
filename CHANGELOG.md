@@ -12,6 +12,7 @@ Each release is a `vX.Y.Z` tag; `release.yml` runs the fast and slow test tiers 
 
 ## v0.6.0
 
+- feat: Trackmania key layout by default — `Backspace` (or `R`) respawns at the last checkpoint, `Delete` restarts the run; saved custom bindings are kept, and a key in Settings → Controls is cleared by right-click so `Delete` binds like any key
 - feat: deploy the leaderboard server to the nuke-prod cluster — `server/k8s/` (StatefulSet with a 1Gi `/data` volume for the SQLite file, Service, Ingress routing only `/api/` for `driftline.benjamin-borbe.de`, token Secret from TeamVault), `cd server && BRANCH=master make buca` builds, pushes and applies; the Pages build reads `vars.VITE_LEADERBOARD_URL` and `secrets.VITE_LEADERBOARD_TOKEN`
 
 ## v0.5.0
