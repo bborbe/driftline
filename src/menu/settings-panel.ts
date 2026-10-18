@@ -7,6 +7,7 @@ import { LIVE_FX } from '../render/fx/flags'
 import { MAX_LAPS } from '../race/lap'
 import { HUD_SCALES, loadSettings, saveSettings, SETTINGS_EVENT, type Settings } from './settings'
 import { buildLabel } from '../build-info'
+import { RECORDS_CHOICES, type RecordsChoice } from '../race/records'
 import { clampLivery, MAX_NUMBER, PAINT_IDS, PATTERNS } from '../render/car/livery'
 import { TIME_CHOICES, WEATHER_CHOICES, type Environment, type TimeChoice, type WeatherChoice } from '../track/environment'
 import { loadTab, moveTab, saveTab, TAB_CONTROLS, TAB_LABELS, TABS, type ControlId, type Tab } from './tabs'
@@ -20,6 +21,7 @@ export interface SettingsHooks {
 
 const VIEW_LABELS: Record<ViewMode, string> = { close: 'Close chase', far: 'Far chase', cockpit: 'In-car' }
 const CAMERA_FX_LABELS: Record<CameraFx, string> = { off: 'Off', low: 'Low', full: 'Full' }
+const RECORDS_LABELS: Record<RecordsChoice, string> = { auto: 'Auto (collapsed when narrow)', open: 'Open', closed: 'Collapsed' }
 /** Choices whose label is more than the capitalised id. */
 const CHOICE_LABELS: Record<string, string> = { neon: 'Neon Night' }
 /** Option label; "Track default" names what it resolves to on the track when that is known: `Track default (snow)`. */
@@ -106,6 +108,15 @@ export function settingsPanel(hooks: SettingsHooks = {}): HTMLElement {
     commit()
   })
   add('hudScale', label('HUD scale'), hud)
+  // Records panel (top left, T): Auto starts it collapsed on a narrow window.
+  const records = document.createElement('select')
+  records.id = 'setting-records'
+  for (const v of RECORDS_CHOICES) records.append(new Option(RECORDS_LABELS[v], v, false, v === s.records))
+  records.addEventListener('change', () => {
+    s.records = records.value as RecordsChoice
+    commit()
+  })
+  add('records', label('Records panel (T)'), records)
   add('build', label('Build'), Object.assign(document.createElement('span'), { id: 'setting-build', className: 'menu-build', textContent: buildLabel() }))
   const laps = document.createElement('select')
   laps.id = 'setting-laps'

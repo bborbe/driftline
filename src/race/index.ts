@@ -1,7 +1,7 @@
 // Race wiring for main.ts: one initRace() call, then race.frame() each frame in place of sim.advance().
 // Gate arches are drawn by src/render; this module owns lap state, keys and the HUD overlay.
 // Input is held until race.start() (the Begin click) and the 3-2-1 countdown are over.
-// Keys: R = respawn at last checkpoint, Backspace = restart (full 3-2-1-GO countdown), L = toggle leaderboard, F = fullscreen, H = controls help, Esc = pause menu (not when it only leaves fullscreen)
+// Keys: R = respawn at last checkpoint, Backspace = restart (full 3-2-1-GO countdown), L = toggle leaderboard, T = records panel, F = fullscreen, H = controls help, Esc = pause menu (not when it only leaves fullscreen)
 // (Resume / Restart / Settings / Back to menu, arrows + Enter or mouse; Esc again resumes).
 // Checkpoints, lap lines and the finish flash the split delta vs the personal best; the finish panel shows
 // medals (single-lap runs only) and, in a multi-lap run (`laps`), each lap time with the best one marked.
@@ -10,6 +10,7 @@ import { dot, forwardOf, type CarInput, type FixedStepper } from '../physics'
 import { layoutId, type Track } from '../track/schema'
 import { chaseTarget, effectChips, kmh } from './hud'
 import { isControlsKey } from './controls'
+import { isRecordsKey, recordRows } from './records'
 import { advanceRace, LapLoop, type RaceEvents } from './lap'
 import { earnedMedal, nextMedal, SplitTracker } from './medals'
 import { formatLapTime, RaceStore } from './store'
@@ -124,6 +125,7 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
     if (e.code === 'KeyL') view.toggleLeaderboard()
     const tag = (e.target as HTMLElement | null)?.tagName
     if (isControlsKey(e.code) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'SELECT') view.toggleControls()
+    if (isRecordsKey(e.code) && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && tag !== 'INPUT' && tag !== 'SELECT') view.toggleRecords()
   })
 
   document.addEventListener('visibilitychange', () => {
@@ -176,6 +178,7 @@ export function initRace(sim: FixedStepper, track: Track, opts: RaceOptions = {}
         runBest: laps > 1 ? loop.runBestMs : null,
         best: store.best(),
         effects: effectChips(loop.effects.active()),
+        records: recordRows(medals, store.best()),
       })
     },
   }

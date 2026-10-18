@@ -1,5 +1,5 @@
 // DOM overlay: race HUD (timer bottom centre, speedometer bottom right, one race-status panel top right with the medal
-// target + delta, lap and checkpoint, split pop-up, checkpoint edge flash), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in
+// target + delta, lap and checkpoint, records panel top left (T: PB and medal times with deltas, top 5), split pop-up, checkpoint edge flash), start lights + 3-2-1-GO! countdown, controls help (H, and Controls in
 // the Esc menu), finish panel with name entry, leaderboard, Esc menu. A small "H — controls" hint fades out HINT_MS after the countdown starts.
 // Sizes scale with --hud-scale (Settings → Graphics → HUD scale).
 import './race.css'
@@ -11,6 +11,7 @@ import { formatDelta, MEDAL_LABEL, type Medal } from './medals'
 import { formatLapTime, type RaceStore } from './store'
 import { LAMPS, startLamps, type Lamp } from './start-board'
 import { CheckpointFlash } from './checkpoint-flash'
+import { recordsOpen, RECORDS_TOP, type RecordRow, type RecordsChoice } from './records'
 
 /** How long a split delta stays on screen. */
 const SPLIT_MS = 2500
@@ -64,6 +65,8 @@ export interface HudState {
   target: Target | null
   /** Active effect pads, one chip each (none = hidden). */
   effects: EffectChip[]
+  /** Records panel rows: the PB, then each medal with the best's delta to it (records.ts recordRows). */
+  records: RecordRow[]
 }
 
 /** A split pop-up: the run time at the checkpoint and its delta vs the personal best (null without one). */
@@ -102,6 +105,13 @@ export class RaceView {
   private readonly flash = new CheckpointFlash()
   private flashShown = 0
   private readonly effects = el('div', 'race-effects')
+  // Records panel, top left: header (always shown) over the medal rows and the top 5 (hidden while collapsed).
+  private readonly records = el('div', 'race-records')
+  private readonly recordRows = el('ol', 'race-records-rows')
+  private readonly recordTop = el('ol', 'race-records-top')
+  private recordsChoice: RecordsChoice
+  /** Rows + board last drawn; the panel is rebuilt only when it changes. */
+  private recordsKey = ''
   private effectsKey = ''
   private rendered = false
   private splitTimer: ReturnType<typeof setTimeout> | undefined
@@ -120,6 +130,13 @@ export class RaceView {
     // One race-status panel: medal target (+ the best's delta to it), lap, checkpoint, then best / run times.
     this.chase.append(el('i', 'race-medal-dot'), this.target, this.delta)
     this.status.append(this.chase, this.lap, this.cp, this.best)
+    const head = el('div', 'race-records-head')
+    head.append(el('span', '', 'RECORDS'), el('kbd', '', 'T'))
+    const body = el('div', 'race-records-body')
+    body.append(this.recordRows, el('h4', '', `TOP ${RECORDS_TOP}`), this.recordTop)
+    this.records.append(head, body)
+    this.recordsChoice = loadSettings(localStorage).records
+    this.setRecordsOpen(recordsOpen(this.recordsChoice, window.innerWidth))
     this.keys.style.setProperty('--hint-delay', `${HINT_MS}ms`)
     applyHudScale(loadSettings(localStorage).hudScale)
     window.addEventListener(SETTINGS_EVENT, this.onSettings)
@@ -137,7 +154,7 @@ export class RaceView {
     gauge.append(arc, this.speed, el('div', 'race-unit', 'KM/H'))
     this.speedo.append(gauge, this.time)
     this.split.append(this.splitTime, this.splitDelta)
-    document.body.append(this.status, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split, this.effects, this.cpFlash)
+    document.body.append(this.status, this.records, this.speedo, this.keys, this.countdown, this.panel, this.pause, this.split, this.effects, this.cpFlash)
     this.effects.hidden = true
     this.split.hidden = true
     this.panel.hidden = true
@@ -161,8 +178,28 @@ export class RaceView {
     document.body.append(this.help)
   }
 
-  /** Live HUD scale from Settings → Graphics. */
-  private readonly onSettings = (e: Event): void => applyHudScale((e as CustomEvent<Settings>).detail.hudScale)
+  /** Live HUD scale and records-panel choice from Settings → Graphics (a changed choice re-applies open / collapsed). */
+  private readonly onSettings = (e: Event): void => {
+    const s = (e as CustomEvent<Settings>).detail
+    applyHudScale(s.hudScale)
+    if (s.records === this.recordsChoice) return
+    this.recordsChoice = s.records
+    this.setRecordsOpen(recordsOpen(s.records, window.innerWidth))
+  }
+
+  /** True while the records panel shows its rows (false: collapsed to its header). */
+  get recordsShown(): boolean {
+    return !this.records.classList.contains('race-records-closed')
+  }
+
+  private setRecordsOpen(open: boolean): void {
+    this.records.classList.toggle('race-records-closed', !open)
+  }
+
+  /** T: open or collapse the records panel for this page (Settings → Records panel sets how it starts). */
+  toggleRecords(): void {
+    this.setRecordsOpen(!this.recordsShown)
+  }
 
   /** Drops the window listener (the game builds one RaceView per page; tests can build several). */
   dispose(): void {
@@ -242,6 +279,7 @@ export class RaceView {
     const runBest = s.runBest === null ? '' : `RUN ${formatLapTime(s.runBest)}`
     // The target line already shows the best once every medal is earned.
     setText(this.best, [s.target?.medal === null ? '' : best, runBest].filter(Boolean).join('  '))
+    this.renderRecords(s.records)
     setText(this.speed, String(s.speedKmh))
     setText(this.time, s.time)
     const lit = litTicks(s.speedKmh)
@@ -249,6 +287,28 @@ export class RaceView {
       this.ticks.forEach((t, i) => t.classList.toggle('on', i < lit))
       this.lit = lit
     }
+  }
+
+  /** Rebuilds the records panel when its rows or the stored board changed (one localStorage read per frame). */
+  private renderRecords(rows: RecordRow[]): void {
+    const board = this.store.leaderboard().slice(0, RECORDS_TOP)
+    const key = JSON.stringify([rows, board])
+    if (key === this.recordsKey) return
+    this.recordsKey = key
+    this.recordRows.replaceChildren(
+      ...rows.map((r) => {
+        const li = el('li', `race-rec race-medal-${r.kind}`)
+        const delta = el('span', `race-rec-delta ${r.delta === null ? '' : r.delta.beaten ? 'race-beaten' : 'race-behind'}`, r.delta?.text ?? '')
+        li.append(el('i', 'race-medal-dot'), el('span', 'race-rec-label', r.label), el('span', 'race-rec-time', r.ms === null ? '-:--.---' : formatLapTime(r.ms)), delta)
+        return li
+      }),
+    )
+    const top = board.map((e) => {
+      const li = el('li', '')
+      li.append(el('span', 'race-rec-label', e.name), el('span', 'race-rec-time', formatLapTime(e.lapTimeMs)))
+      return li
+    })
+    this.recordTop.replaceChildren(...(top.length > 0 ? top : [el('li', 'race-rec-empty', 'No laps yet')]))
   }
 
   /** Countdown step: 3, 2, 1 light the start lights red one by one and pop the number; 0 turns them green with GO!. */

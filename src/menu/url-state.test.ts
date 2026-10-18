@@ -16,6 +16,7 @@ const custom: Settings = {
   hudScale: 1.15,
   reflections: true,
   aa: true,
+  records: 'closed',
 }
 const race = (settings: Settings, extra: Partial<UrlState> = {}): UrlState => ({ settings, view: 'far', screen: { track: 'glacier' }, fly: null, ...extra })
 
@@ -45,6 +46,9 @@ describe('url state', () => {
     expect(one('aa', '0').aa).toBe(false)
     expect(settingsFromUrl('?aa=0', custom).aa).toBe(false)
     expect(new URLSearchParams(q).get('aa')).toBe('1')
+    expect(one('rec', 'open').records).toBe('open')
+    expect(one('rec', 'wide').records).toBe('auto')
+    expect(new URLSearchParams(q).get('rec')).toBe('closed')
   })
   it('keeps random and default choices, and no effects', () => {
     const s = { ...DEFAULT_SETTINGS, time: 'random' as const, weather: 'default' as const, fx: [] }
