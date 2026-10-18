@@ -4,8 +4,8 @@ import { CONTROLS, isControlsKey, isDebugKey } from './controls'
 const allKeys = CONTROLS.flatMap((g) => g.bindings.map((b) => b.keys)).join(' | ')
 
 describe('CONTROLS', () => {
-  it('groups Driving, Race, Camera, Debug in that order, none empty', () => {
-    expect(CONTROLS.map((g) => g.title)).toEqual(['Driving', 'Race', 'Camera', 'Debug'])
+  it('groups Driving, Race, Camera, Gamepad, Debug in that order, none empty', () => {
+    expect(CONTROLS.map((g) => g.title)).toEqual(['Driving', 'Race', 'Camera', 'Gamepad', 'Debug'])
     for (const g of CONTROLS) expect(g.bindings.length).toBeGreaterThan(0)
   })
 
@@ -14,6 +14,18 @@ describe('CONTROLS', () => {
     'lists %s',
     (key) => {
       expect(allKeys).toContain(key)
+    },
+  )
+})
+
+describe('gamepad group', () => {
+  const pad = CONTROLS.find((g) => g.title === 'Gamepad')!.bindings.map((b) => `${b.keys}: ${b.action}`).join(' | ')
+
+  // Every pad binding (src/gamepad.ts PAD_DRIVE + PAD_BINDINGS).
+  it.each(['Left stick: Steer', 'RT: Accelerate', 'LT: Brake', 'A / RB: Handbrake', 'B: Respawn', 'Y: Restart', 'MENU', 'View: Next camera', 'D-pad / left stick: Menus'])(
+    'lists %s',
+    (row) => {
+      expect(pad.toLowerCase()).toContain(row.toLowerCase())
     },
   )
 })

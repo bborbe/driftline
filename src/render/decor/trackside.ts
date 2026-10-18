@@ -14,7 +14,8 @@ export type { Banner, Board, Fence, MarshalPost, Patch, TracksidePlan } from './
 
 /** Board sizes in metres, lower edge `bottom` above the ground. Every part stays above MIN_THICKNESS (lint.ts). */
 export const BRAKE_BOARD = { width: 2, height: 2, depth: 0.16, bottom: 0.5 } as const
-export const CORNER_BOARD = { width: 1.8, height: 1.8, depth: 0.16, bottom: 1.6 } as const
+/** Corner numbers stand high (lower edge 2.6 m): beside a banked turn the raised outside edge and its rail hid a 1.6 m one. */
+export const CORNER_BOARD = { width: 1.8, height: 1.8, depth: 0.16, bottom: 2.6 } as const
 export const BANNER = { height: 1.1, depth: 0.16, bottom: 0.3 } as const
 export const MARSHAL = { width: 2, height: 2.4, depth: 2, pole: 4.2 } as const
 export const FENCE = { height: 2.6, post: 0.16, spacing: 3, rails: [0.5, 1.5, 2.5] } as const
