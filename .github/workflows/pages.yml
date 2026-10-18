@@ -27,6 +27,7 @@ jobs:
   plan:
     if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -52,6 +53,7 @@ jobs:
   build:
     needs: plan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     # A broken PR must never block or fail the production deploy.
@@ -95,6 +97,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       pages: write
       id-token: write
@@ -136,6 +139,7 @@ jobs:
     needs: [plan, deploy]
     if: ${{ !cancelled() && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       pull-requests: write
     steps:

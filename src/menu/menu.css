@@ -83,7 +83,10 @@
 .tier-band { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; }
 .tier-white { background: #f4f4f4; } .tier-green { background: #5fd068; } .tier-blue { background: #4aa3ff; }
 .tier-red { background: #ff5a4a; } .tier-black { background: #9a9aa6; } .tier-none { background: transparent; }
-.menu-tile-meta { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; font: italic 800 14px var(--ui-font); }
+.menu-tile-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 8px; font: italic 800 14px var(--ui-font); }
+/* A long name ellipsizes before the dot; the right padding keeps the italic overhang inside the clip. */
+.menu-tile-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 2px; }
+.menu-tile-meta .medal-dot { flex: none; }
 .medal-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); vertical-align: -1px; }
 .medal-author { background: #3fe08a; } .medal-gold { background: #ffc300; } .medal-silver { background: #c8d0d8; } .medal-bronze { background: #d08040; }
 .medal-none { background: transparent; box-shadow: inset 0 0 0 2px #667; }
