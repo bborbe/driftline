@@ -74,6 +74,7 @@ The why for each rule is in the PR it cites and in the operator's *3D Browser Ga
 
 Feature branch + pull request into `master`, merged with a merge commit (`gh pr merge --merge`). Releases are `vX.Y.Z` tags (§ Test tiers).
 
+- **Every PR adds a CHANGELOG bullet** under `## Unreleased` (`feat:` / `fix:` / `chore:` …), which drives the automatic release (§ Test tiers).
 - **PRs merge on green CI:** `.github/workflows/ci.yml` runs `npm ci`, `npm test` (fast tier only) and `npm run build` on every pull request (no deploy, `contents: read` only). Its result is the test signal for a merge — a local `make test` that times out on a loaded machine does not block it. It also tests every master merge commit; `pages.yml` runs no tests, so a deploy takes about a minute. `pages.yml` deploys production on push to `master`, and PR previews (next bullet). A `cancelled` Pages run is a queued run replaced by a newer one, which deploys the live master head — check `<meta name="commit">`, never re-run it (docs/development.md § Deploy).
 
 - **Every open PR gets a playable preview** at `https://bborbe.github.io/driftline/pr-<n>/`, linked from one bot comment on the PR. Every deploy run refreshes the comment on every open PR, so it is updated on every push, and the preview's `<meta name="commit">` is the PR head SHA. How it works:
@@ -103,4 +104,6 @@ Tests are split by measured CI duration into two vitest projects in `vite.config
 
 Always run `make test-all` before merging a change under `src/physics/`, `src/race/` or `src/track/`, or to any track JSON: PR CI runs the fast tier only, so a slow-tier regression would otherwise merge and go live, surfacing at the next nightly run.
 
-Releases: add changes under `## Unreleased` in `CHANGELOG.md`; to release, rename it to `## vX.Y.Z`, set `package.json` `version` to `X.Y.Z`, merge, then push the tag `vX.Y.Z` on the merge commit. `release.yml` checks tag = version, runs fast + slow, builds, and creates the GitHub release from that CHANGELOG section. master still deploys to the live site on every merge; a release is a tested checkpoint, not a deploy.
+Releases are automatic (`.maintainer.yaml` `release.autoRelease`). Every PR adds a bullet under `## Unreleased` in `CHANGELOG.md` — the releaser cuts a release only when that section is non-empty. After a merge, the github-releaser renames `## Unreleased` to `## vX.Y.Z` (semver bump from the bullets' prefixes), commits, and pushes the tag `vX.Y.Z` to master; never cut a release by hand. `release.yml` takes the version from the tag (it stamps `package.json` in the job, never pushed back, so the committed `version` stays stale), runs fast + slow, builds, and creates the GitHub release from that CHANGELOG section. master still deploys to the live site on every merge; a release is a tested checkpoint, not a deploy.
+
+Bot review: `.maintainer.yaml` `prReviewer.autoApprove` makes the pr-reviewer's approve an APPROVE review; `autoMerge.trivial` lets it merge trivial PRs. The `do-not-merge` label (`check-do-not-merge.yml`, a required check) still blocks any PR it is on.
