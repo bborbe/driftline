@@ -1,6 +1,6 @@
 # driftline leaderboard server
 
-Go service behind the online leaderboard: it validates submitted laps, keeps each player's best per track in SQLite, and serves the per-track board and the stored ghosts. Milestones L1 (skeleton), L2 (API) and L5 (deploy): it runs on the nuke-prod cluster at `https://driftline.benjamin-borbe.de/api/1.0/` (§ Deploy).
+Go service behind the online leaderboard: it validates submitted laps, keeps each player's best per track in SQLite, and serves the per-track board and the stored ghosts. Milestones L1 (skeleton), L2 (API) and L5 (deploy). **Not deployed:** the online leaderboard is on hold and the nuke-prod deployment and its public vhost were torn down on 2026-10-18; § Deploy describes how it ran and how to bring it back.
 
 ## Run locally
 
@@ -91,7 +91,9 @@ The image is `scratch` with a static binary; the database lives on the `/data` v
 
 ## Deploy
 
-Production runs on the nuke-prod k3s cluster, namespace `driftline`, manifests in `k8s/`:
+⚠️ Not deployed since 2026-10-18 (leaderboard on hold): the `driftline` namespace, the hetzner-1 vhost and the `driftline.benjamin-borbe.de` certificate are gone. A redeploy needs all three back — the `make buca` below, a vhost in bborbe/bw (see its history for the removed one) and a new certificate — plus the Pages env lines this repo dropped.
+
+It ran on the nuke-prod k3s cluster, namespace `driftline`, manifests in `k8s/`:
 
 | File | What |
 |---|---|
@@ -108,7 +110,7 @@ cd k8s && BRANCH=master make apply   # manifests only
 
 `apply` refuses any branch but `master`. Public HTTPS: hetzner-1's nginx holds the Let's Encrypt certificate for `driftline.benjamin-borbe.de` and proxies `/api/` over the VPN to the cluster's traefik `web` entrypoint (bborbe/bw, `nodes/hz.hetzner-1.py`); the host resolves through the `*.benjamin-borbe.de` wildcard.
 
-The game picks the server up from the Pages build (`.github/workflows/pages.yml`): repo variable `VITE_LEADERBOARD_URL` (`https://driftline.benjamin-borbe.de`) and repo secret `VITE_LEADERBOARD_TOKEN` (the same TeamVault token). Both unset, the game stays offline-only.
+The Pages build (`.github/workflows/pages.yml`) no longer passes `VITE_LEADERBOARD_URL` / `VITE_LEADERBOARD_TOKEN`; the game is offline-only.
 
 ## Checks
 
