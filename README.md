@@ -121,6 +121,10 @@ Debug
 - Effect pads change the car until a reset pad: no-steer, cruise, fragile, engine-off, slow-mo
 - Pick 1–10 laps under **Laps** in the settings, or add `&laps=3` to a track link
 
+## Leaderboard server
+
+The online leaderboard's Go server lives in [`server/`](server/README.md): `cd server && make run` starts it locally on port 8080 with a SQLite file under `server/data/`. It has health endpoints and the database schema so far; the submit / list API comes next.
+
 ## License
 
 BSD 2-Clause, see [LICENSE](LICENSE).

@@ -32,3 +32,20 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+
+  # The leaderboard server (server/, its own Go module) — its Go tests only, the game jobs are untouched.
+  server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Test
+        run: make test
