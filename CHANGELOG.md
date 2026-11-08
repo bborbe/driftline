@@ -8,6 +8,10 @@ Please choose versions by [Semantic Versioning](http://semver.org/).
 * MINOR version when you add functionality in a backwards-compatible manner, and
 * PATCH version when you make backwards-compatible bug fixes.
 
+## Unreleased
+
+- chore: restate the do-not-merge contract in the gate workflow
+
 ## v0.7.1
 
 - fix: a long start-menu tile name (`showcase`) no longer runs into its medal dot — the label ellipsizes with a 6 px gap before the dot
